@@ -1,0 +1,11 @@
+# Dependency directories
+vendor/
+bin/
+
+# Environment files
+.env
+credentials.json
+token.json
+
+# Binaries
+massage-bot
