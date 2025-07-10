@@ -4,44 +4,42 @@ import (
 	"log"
 	"os"
 	"strconv"
-	"time"
 
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	Telegram struct {
-		Token   string
-		AdminID int64
-	}
-	Google struct {
-		CredentialsFile string
-	}
-	Timezone *time.Location
+	TgBotToken string
+	TgAdminID  int64
 }
 
-func Load() *Config {
-	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found")
+// LoadConfig loads configuration from environment variables.
+func LoadConfig() *Config {
+	// Load .env file for local development (if it exists)
+	err := godotenv.Load()
+	if err != nil {
+		log.Println("No .env file found or error loading it, proceeding with environment variables:", err)
 	}
 
-	tz, _ := time.LoadLocation(os.Getenv("TIMEZONE"))
-
-	adminID, _ := strconv.ParseInt(os.Getenv("ADMIN_ID"), 10, 64)
-
-	return &Config{
-		Telegram: struct {
-			Token   string
-			AdminID int64
-		}{
-			Token:   os.Getenv("TELEGRAM_TOKEN"),
-			AdminID: adminID,
-		},
-		Google: struct {
-			CredentialsFile string
-		}{
-			CredentialsFile: os.Getenv("GOOGLE_CREDENTIALS_FILE"),
-		},
-		Timezone: tz,
+	cfg := &Config{
+		TgBotToken: os.Getenv("TG_BOT_TOKEN"),
 	}
+
+	if cfg.TgBotToken == "" {
+		log.Fatal("TG_BOT_TOKEN environment variable is required.")
+	}
+
+	adminIDStr := os.Getenv("TG_ADMIN_ID")
+	if adminIDStr != "" {
+		adminID, err := strconv.ParseInt(adminIDStr, 10, 64)
+		if err != nil {
+			log.Printf("Warning: Could not parse TG_ADMIN_ID from env: %v. Admin features may not work.", err)
+		} else {
+			cfg.TgAdminID = adminID
+		}
+	} else {
+		log.Println("TG_ADMIN_ID environment variable not set. Admin features will be unavailable.")
+	}
+
+	return cfg
 }
