@@ -1,7 +1,7 @@
 package domain
 
 import (
-	"fmt"
+	"log"
 	"time"
 )
 
@@ -37,15 +37,31 @@ type Appointment struct {
 	CustomerName string `json:"customer_name"`  // Client's name from Telegram (e.g., FirstName LastName)
 	CustomerTgID string `json:"customer_tg_id"` // Telegram User ID
 
-	Notes string `json:"notes"` // Any additional notes for the appointment
+	Notes           string `json:"notes"`             // Any additional notes for the appointment
+	CalendarEventID string `json:"calendar_event_id"` // ID из Google Calendar или другого репозитория
 }
 
-// Errors
-var (
-	ErrAppointmentInPast   = fmt.Errorf("appointment time is in the past")
-	ErrInvalidDuration     = fmt.Errorf("invalid appointment duration")
-	ErrOutsideWorkingHours = fmt.Errorf("appointment time is outside working hours")
-	ErrSlotUnavailable     = fmt.Errorf("the chosen time slot is unavailable")
-	ErrServiceNotFound     = fmt.Errorf("service not found")
-	ErrAppointmentNotFound = fmt.Errorf("appointment not found")
+// --- Константы и глобальные переменные для временных слотов и рабочего дня ---
+const (
+	WorkDayStartHour = 9  // 9 AM
+	WorkDayEndHour   = 18 // 6 PM
 )
+
+var (
+	SlotDuration *time.Duration
+	ApptTimeZone *time.Location
+)
+
+func init() {
+	var err error
+	// Используем часовой пояс для Турции (Fethiye, Muğla)
+	ApptTimeZone, err = time.LoadLocation("Europe/Istanbul")
+	if err != nil {
+		log.Fatalf("Failed to load timezone 'Europe/Istanbul': %v", err)
+	}
+
+	tempDuration := 60 * time.Minute // Длительность слота по умолчанию 60 минут
+	SlotDuration = &tempDuration
+}
+
+// --- Конец секции констант ---
