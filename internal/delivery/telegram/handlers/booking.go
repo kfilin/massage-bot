@@ -2,22 +2,34 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"strconv"
-	"time"
+	"strings"
+	"time" // Ensure time is imported
 
 	"github.com/kfilin/massage-bot/internal/domain"
-	"github.com/kfilin/massage-bot/internal/ports"
-	apnt_svc "github.com/kfilin/massage-bot/internal/services/appointment"
-	"gopkg.in/telebot.v3"
+	"github.com/kfilin/massage-bot/internal/ports" // Alias to avoid conflict with package name "appointment"
+	"gopkg.in/telebot.v3"                          // Ensure telebot.v3 is correctly imported
 )
 
+// Session keys for storing booking state
+const (
+	SessionKeyService              = "service"
+	SessionKeyDate                 = "date"
+	SessionKeyTime                 = "time"
+	SessionKeyName                 = "name"
+	SessionKeyAwaitingConfirmation = "awaiting_confirmation" // NEW: Key to indicate awaiting confirmation
+)
+
+// BookingHandler handles booking-related commands and callbacks.
 type BookingHandler struct {
 	appointmentService ports.AppointmentService
 	sessionStorage     ports.SessionStorage
 }
 
+// NewBookingHandler creates a new BookingHandler.
 func NewBookingHandler(appointmentService ports.AppointmentService, sessionStorage ports.SessionStorage) *BookingHandler {
 	return &BookingHandler{
 		appointmentService: appointmentService,
@@ -27,239 +39,483 @@ func NewBookingHandler(appointmentService ports.AppointmentService, sessionStora
 
 // HandleStart handles the /start command, greeting the user and offering services.
 func (h *BookingHandler) HandleStart(c telebot.Context) error {
+	log.Printf("DEBUG: Entered HandleStart for user %d", c.Sender().ID)
 	// Clear any previous session for the user
 	h.sessionStorage.ClearSession(c.Sender().ID)
 
 	services, err := h.appointmentService.GetAvailableServices(context.Background())
 	if err != nil {
 		log.Printf("Error getting available services: %v", err)
-		return c.Send("К сожалению, произошла ошибка при получении списка услуг. Пожалуйста, попробуйте позже.")
+		return c.Send("Произошла ошибка при получении списка услуг. Пожалуйста, попробуйте позже.")
 	}
 
 	if len(services) == 0 {
-		return c.Send("К сожалению, в данный момент нет доступных услуг. Пожалуйста, попробуйте позже.")
+		return c.Send("В настоящее время услуги недоступны. Пожалуйста, попробуйте позже.")
 	}
 
-	// Build keyboard for services using telebot.ReplyButton
-	var replyButtons [][]telebot.ReplyButton
-	for _, service := range services {
-		btn := telebot.ReplyButton{Text: fmt.Sprintf("%s (%d мин) - %.2f руб.", service.Name, service.DurationMinutes, service.Price)}
-		replyButtons = append(replyButtons, []telebot.ReplyButton{btn}) // Each inner slice represents a row of buttons
+	selector := &telebot.ReplyMarkup{}
+	var buttons []telebot.Btn
+	for _, svc := range services {
+		// Callback data format: "select_service|SERVICE_ID"
+		buttons = append(buttons, selector.Data(svc.Name, "select_service", svc.ID))
 	}
-
-	// Create a ReplyMarkup with the prepared buttons
-	replyMarkup := &telebot.ReplyMarkup{
-		ReplyKeyboard:   replyButtons,
-		ResizeKeyboard:  true,
-		OneTimeKeyboard: true,
-	}
-
-	return c.Send("Привет! Я бот для записи на массаж. Выберите услугу:", replyMarkup)
+	selector.Inline(
+		selector.Row(buttons...),
+	)
+	return c.Send("Привет! Я бот для записи на массаж. Выберите услугу:", selector)
 }
 
-// HandleServiceSelection processes the chosen service
+// HandleServiceSelection handles the callback query for service selection.
 func (h *BookingHandler) HandleServiceSelection(c telebot.Context) error {
-	serviceName := c.Text()
+	log.Printf("DEBUG: Entered HandleServiceSelection for user %d. Callback Data: '%s'", c.Sender().ID, c.Callback().Data)
 
-	allServices, err := h.appointmentService.GetAvailableServices(context.Background())
+	// Callback data is "select_service|SERVICE_ID". We need to split it.
+	data := strings.TrimSpace(c.Callback().Data) // Trim spaces just in case
+	parts := strings.Split(data, "|")
+
+	log.Printf("DEBUG: HandleServiceSelection - Parsed parts: %v (length: %d)", parts, len(parts))
+
+	if len(parts) != 2 || parts[0] != "select_service" {
+		log.Printf("ERROR: HandleServiceSelection - Malformed service selection callback data. Expected 'select_service|ID', got: '%s'", data)
+		return c.Edit("Некорректный выбор услуги. Пожалуйста, попробуйте /start снова.")
+	}
+	serviceID := parts[1]
+	log.Printf("DEBUG: HandleServiceSelection - Extracted serviceID: '%s'", serviceID)
+
+	userID := c.Sender().ID
+
+	services, err := h.appointmentService.GetAvailableServices(context.Background())
 	if err != nil {
-		log.Printf("Error getting services for selection: %v", err)
-		return c.Send("Произошла ошибка при обработке выбора услуги. Пожалуйста, попробуйте позже.")
+		log.Printf("Error getting services in HandleServiceSelection: %v", err)
+		return c.Edit("Произошла ошибка при получении списка услуг. Пожалуйста, попробуйте /start снова.")
 	}
 
-	var selectedService domain.Service
+	var chosenService domain.Service
 	found := false
-	for _, s := range allServices {
-		// Assuming the button text exactly matches service.Name for selection
-		if fmt.Sprintf("%s (%d мин) - %.2f руб.", s.Name, s.DurationMinutes, s.Price) == serviceName {
-			selectedService = s
+	for _, svc := range services {
+		if svc.ID == serviceID { // Match by ID
+			chosenService = svc
 			found = true
 			break
 		}
 	}
 
 	if !found {
-		return c.Send("Неизвестная услуга. Пожалуйста, выберите услугу из списка, используя кнопки.")
+		log.Printf("ERROR: Service with ID '%s' not found in available services for user %d", serviceID, userID)
+		return c.Edit("Выбранная услуга не найдена. Пожалуйста, выберите из предложенных.")
 	}
 
-	h.sessionStorage.Set(c.Sender().ID, "service", selectedService)
-	return c.Send("Отлично! Теперь введите желаемую дату записи в формате ДД.ММ.ГГГГ (например, 08.07.2025):")
+	h.sessionStorage.Set(userID, SessionKeyService, chosenService)
+	log.Printf("DEBUG: Service selected and stored in session for user %d: %s (ID: %s)", userID, chosenService.Name, chosenService.ID)
+
+	// Ask for date
+	return h.askForDate(c, chosenService.Name)
 }
 
-// HandleDateSelection processes the chosen date
-func (h *BookingHandler) HandleDateSelection(c telebot.Context) error {
-	dateString := c.Text()
-	parsedDate, err := time.Parse("02.01.2006", dateString)
-	if err != nil {
-		log.Printf("Error parsing date string %s: %v", dateString, err)
-		return c.Send("Неверный формат даты. Пожалуйста, введите дату в формате ДД.ММ.ГГГГ (например, 08.07.2025).")
-	}
+// askForDate sends a calendar to the user for date selection.
+func (h *BookingHandler) askForDate(c telebot.Context, serviceName string) error {
+	log.Printf("DEBUG: Entered askForDate for user %d. Service: %s", c.Sender().ID, serviceName)
 
-	if parsedDate.Before(time.Now().Truncate(24 * time.Hour)) {
-		return c.Send("Вы не можете выбрать дату в прошлом. Пожалуйста, выберите будущую дату.")
-	}
+	now := time.Now()
+	year, month, _ := now.Date()
+	// Use domain.ApptTimeZone for consistency across the application
+	currentMonth := time.Date(year, month, 1, 0, 0, 0, 0, domain.ApptTimeZone)
 
-	h.sessionStorage.Set(c.Sender().ID, "date", parsedDate)
+	calendarKeyboard := generateCalendar(currentMonth)
 
-	return h.sendAvailableTimeSlots(c)
+	return c.EditOrSend(
+		fmt.Sprintf("Отлично, услуга '%s' выбрана. Теперь выберите дату:", serviceName),
+		calendarKeyboard,
+	)
 }
 
-// HandleTimeSelection processes the chosen time
-func (h *BookingHandler) HandleTimeSelection(c telebot.Context) error {
-	timeString := c.Text()
+// generateCalendar creates an inline keyboard for month navigation and date selection.
+func generateCalendar(month time.Time) *telebot.ReplyMarkup {
+	log.Printf("DEBUG: Generating calendar for month: %s", month.Format("2006-01"))
+	selector := &telebot.ReplyMarkup{}
+	var rows []telebot.Row
 
-	_, err := time.Parse("15:04", timeString)
-	if err != nil {
-		return c.Send("Неверный формат времени. Пожалуйста, выберите время из списка или введите в формате ЧЧ:ММ (например, 10:30).")
-	}
+	// Navigation row
+	prevMonth := month.AddDate(0, -1, 0)
+	nextMonth := month.AddDate(0, 1, 0)
+	rows = append(rows, selector.Row(
+		selector.Data("⬅️", "navigate_month", prevMonth.Format("2006-01")),
+		// Используем "January" для форматирования месяца, чтобы Go перевел его
+		selector.Data(month.Format("January 2006"), "ignore"), // Current month, no action
+		selector.Data("➡️", "navigate_month", nextMonth.Format("2006-01")),
+	))
 
-	h.sessionStorage.Set(c.Sender().ID, "time", timeString)
+	// Weekday headers
+	weekdays := selector.Row(
+		selector.Data("Пн", "ignore"),
+		selector.Data("Вт", "ignore"),
+		selector.Data("Ср", "ignore"),
+		selector.Data("Чт", "ignore"),
+		selector.Data("Пт", "ignore"),
+		selector.Data("Сб", "ignore"),
+		selector.Data("Вс", "ignore"),
+	)
+	rows = append(rows, weekdays)
 
-	return h.sendConfirmation(c)
-}
+	// Dates
+	firstDayOfMonth := month
+	// Adjust to Monday
+	offset := (int(firstDayOfMonth.Weekday()) + 6) % 7 // Monday = 0, Sunday = 6
+	startDay := firstDayOfMonth.AddDate(0, 0, -offset)
 
-// HandleConfirmBooking confirms and creates the appointment
-func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
-	userID := c.Sender().ID
-	session := h.sessionStorage.Get(userID)
+	for week := 0; week < 6; week++ { // Max 6 weeks for a month
+		var weekBtns []telebot.Btn
+		for day := 0; day < 7; day++ {
+			currentDay := startDay.AddDate(0, 0, week*7+day)
+			// Check if the current day is not in the past
+			// Using domain.ApptTimeZone for consistency
+			loc := domain.ApptTimeZone
+			if loc == nil {
+				log.Println("WARNING: domain.ApptTimeZone is nil during calendar generation, defaulting to Local time.")
+				loc = time.Local
+			}
+			nowInLoc := time.Now().In(loc).Truncate(24 * time.Hour) // Truncate to start of day in local time
 
-	selectedService, ok := session["service"].(domain.Service)
-	if !ok {
-		return c.Send("Ошибка: Услуга не выбрана или некорректна. Начните сначала командой /start")
-	}
-
-	dateVal, ok := session["date"].(time.Time)
-	if !ok {
-		return c.Send("Ошибка: Дата не выбрана. Начните сначала командой /start")
-	}
-
-	timeString, ok := session["time"].(string)
-	if !ok {
-		return c.Send("Ошибка: Время не выбрано. Начните сначала командой /start")
-	}
-
-	parsedTime, err := time.Parse("15:04", timeString)
-	if err != nil {
-		log.Printf("Error parsing time string %s: %v", timeString, err)
-		return c.Send("Ошибка формата времени. Пожалуйста, попробуйте снова.")
-	}
-
-	appointmentTime := time.Date(dateVal.Year(), dateVal.Month(), dateVal.Day(), parsedTime.Hour(), parsedTime.Minute(), 0, 0, dateVal.Location())
-
-	appointment := &domain.Appointment{
-		ServiceID:    selectedService.ID,
-		Service:      selectedService,
-		Time:         appointmentTime,
-		Duration:     selectedService.DurationMinutes,
-		CustomerName: c.Sender().FirstName + " " + c.Sender().LastName,
-		CustomerTgID: strconv.FormatInt(c.Sender().ID, 10),
-		Notes:        fmt.Sprintf("Запись через Telegram-бот. Услуга: %s. Клиент: %s %s (ID: %s)", selectedService.Name, c.Sender().FirstName, c.Sender().LastName, strconv.FormatInt(c.Sender().ID, 10)),
-	}
-
-	createdApp, err := h.appointmentService.CreateAppointment(context.Background(), appointment)
-	if err != nil {
-		log.Printf("Error creating appointment: %v", err)
-		switch err {
-		case domain.ErrAppointmentInPast:
-			return c.Send("Выбранное время уже в прошлом. Пожалуйста, выберите будущее время.")
-		case domain.ErrOutsideWorkingHours:
-			return c.Send("Выбранное время находится вне рабочих часов. Пожалуйста, выберите время с " + fmt.Sprintf("%d:00", apnt_svc.WorkStartHour) + " до " + fmt.Sprintf("%d:00", apnt_svc.WorkEndHour) + ".")
-		case domain.ErrSlotUnavailable:
-			return c.Send("Выбранное время уже занято. Пожалуйста, выберите другое время.")
-		default:
-			return c.Send(fmt.Sprintf("Не удалось создать запись: %v. Пожалуйста, попробуйте позже.", err))
+			if currentDay.Month() != month.Month() {
+				// Empty button for days outside the current month
+				weekBtns = append(weekBtns, selector.Data(" ", "ignore"))
+			} else if currentDay.Truncate(24 * time.Hour).Before(nowInLoc) { // Disable past dates
+				weekBtns = append(weekBtns, selector.Data(fmt.Sprintf("%d", currentDay.Day()), "ignore"))
+			} else {
+				// Callback data format: "select_date|YYYY-MM-DD"
+				weekBtns = append(weekBtns, selector.Data(fmt.Sprintf("%d", currentDay.Day()), "select_date", currentDay.Format("2006-01-02")))
+			}
 		}
+		rows = append(rows, selector.Row(weekBtns...))
 	}
 
-	h.sessionStorage.ClearSession(userID)
-	return c.Send(fmt.Sprintf("Ваша запись подтверждена!\nУслуга: %s\nДата и время: %s\nID записи: %s",
-		createdApp.Service.Name, createdApp.Time.Format("02.01.2006 15:04"), createdApp.ID))
+	selector.Inline(rows...)
+	return selector
 }
 
-// sendAvailableTimeSlots fetches and sends available time slots for the chosen date and service
-func (h *BookingHandler) sendAvailableTimeSlots(c telebot.Context) error {
+// HandleDateSelection handles the callback query for date selection or month navigation.
+func (h *BookingHandler) HandleDateSelection(c telebot.Context) error {
+	log.Printf("DEBUG: Entered HandleDateSelection for user %d. Callback Data: '%s'", c.Sender().ID, c.Callback().Data)
+
+	data := strings.TrimSpace(c.Callback().Data) // Trim spaces
 	userID := c.Sender().ID
-	session := h.sessionStorage.Get(userID)
 
-	selectedService, ok := session["service"].(domain.Service)
-	if !ok {
-		return c.Send("Ошибка: Услуга не выбрана или некорректна. Начните сначала командой /start")
+	if strings.HasPrefix(data, "navigate_month|") {
+		parts := strings.Split(data, "|")
+		if len(parts) != 2 || parts[0] != "navigate_month" {
+			log.Printf("ERROR: Malformed month navigation callback data: %s", data)
+			return c.Edit("Некорректная навигация. Попробуйте снова.")
+		}
+		monthStr := parts[1]
+		selectedMonth, err := time.Parse("2006-01", monthStr)
+		if err != nil {
+			log.Printf("ERROR: Invalid month format in navigation: %s, error: %v", monthStr, err)
+			return c.Edit("Некорректная дата. Попробуйте снова.")
+		}
+		calendarKeyboard := generateCalendar(selectedMonth)
+		return c.Edit(c.Message().Text, calendarKeyboard) // Edit the existing message
+	} else if strings.HasPrefix(data, "select_date|") {
+		parts := strings.Split(data, "|")
+		if len(parts) != 2 || parts[0] != "select_date" {
+			log.Printf("ERROR: Malformed date selection callback data: %s", data)
+			return c.Edit("Некорректный выбор даты. Попробуйте /start снова.")
+		}
+		dateStr := parts[1]
+		selectedDate, err := time.Parse("2006-01-02", dateStr)
+		if err != nil {
+			log.Printf("ERROR: Invalid date format in selection: %s, error: %v", dateStr, err)
+			return c.Edit("Некорректная дата. Попробуйте /start снова.")
+		}
+
+		h.sessionStorage.Set(userID, SessionKeyDate, selectedDate)
+		log.Printf("DEBUG: Date selected and stored in session for user %d: %s", userID, selectedDate.Format("2006-01-02"))
+
+		// Now ask for time
+		return h.askForTime(c)
+	}
+	return c.Send("Неизвестное действие с датой. Пожалуйста, попробуйте /start снова.")
+}
+
+// askForTime sends available time slots to the user.
+func (h *BookingHandler) askForTime(c telebot.Context) error {
+	log.Printf("DEBUG: Entered askForTime for user %d", c.Sender().ID)
+	userID := c.Sender().ID
+	sessionData := h.sessionStorage.Get(userID)
+
+	service, okS := sessionData[SessionKeyService].(domain.Service)
+	date, okD := sessionData[SessionKeyDate].(time.Time)
+
+	if !okS || !okD {
+		log.Printf("ERROR: Missing session data for time selection for user %d. Service OK: %t, Date OK: %t", userID, okS, okD)
+		h.sessionStorage.ClearSession(userID)
+		return c.Send("Ошибка сессии. Не удалось получить данные услуги или даты. Пожалуйста, начните /start снова.", telebot.RemoveKeyboard)
 	}
 
-	dateVal, ok := session["date"].(time.Time)
-	if !ok {
-		return c.Send("Ошибка: Дата не выбрана. Начните сначала командой /start")
+	// Make sure the selected date is at the beginning of the day in the correct timezone
+	loc := domain.ApptTimeZone
+	if loc == nil {
+		log.Println("WARNING: domain.ApptTimeZone is nil, defaulting to Local time.")
+		loc = time.Local
 	}
+	selectedDateInLoc := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, loc)
 
-	availableSlots, err := h.appointmentService.GetAvailableTimeSlots(context.Background(), dateVal, selectedService.DurationMinutes)
+	log.Printf("DEBUG: Calling GetAvailableTimeSlots for user %d with date %s and duration %d", userID, selectedDateInLoc.Format("2006-01-02"), service.DurationMinutes)
+	timeSlots, err := h.appointmentService.GetAvailableTimeSlots(context.Background(), selectedDateInLoc, service.DurationMinutes)
 	if err != nil {
-		log.Printf("Error getting available time slots: %v", err)
-		return c.Send("К сожалению, произошла ошибка при получении доступных временных слотов. Пожалуйста, попробуйте позже.")
+		log.Printf("ERROR: Error getting available time slots for user %d: %v", userID, err)
+		return c.EditOrSend("Произошла ошибка при получении доступных временных слотов. Пожалуйста, попробуйте другую дату.", telebot.RemoveKeyboard)
+	}
+	log.Printf("DEBUG: Received %d time slots for user %d.", len(timeSlots), userID)
+
+	if len(timeSlots) == 0 {
+		// Используем c.EditOrSend для обновления сообщения, если слотов нет
+		return c.EditOrSend("На эту дату нет доступных временных слотов. Пожалуйста, выберите другую дату.", &telebot.ReplyMarkup{
+			ReplyKeyboard: [][]telebot.ReplyButton{
+				{{Text: "⬅️ Выбрать другую дату"}},
+			},
+			ResizeKeyboard:  true,
+			OneTimeKeyboard: true,
+		})
 	}
 
-	if len(availableSlots) == 0 {
-		return c.Send("На выбранную дату нет свободных слотов. Пожалуйста, выберите другую дату или попробуйте /start.")
+	selector := &telebot.ReplyMarkup{}
+	var rows []telebot.Row
+	for _, slot := range timeSlots {
+		// Callback data format: "select_time|HH:MM"
+		rows = append(rows, selector.Row(
+			selector.Data(slot.Start.Format("15:04"), "select_time", slot.Start.Format("15:04")),
+		))
 	}
+	selector.Inline(rows...)
 
-	// Build keyboard for time slots
-	var replyButtons [][]telebot.ReplyButton
-	for _, slot := range availableSlots {
-		btn := telebot.ReplyButton{Text: slot.Start.Format("15:04")}
-		replyButtons = append(replyButtons, []telebot.ReplyButton{btn})
-	}
-
-	replyMarkup := &telebot.ReplyMarkup{
-		ReplyKeyboard:   replyButtons,
-		ResizeKeyboard:  true,
-		OneTimeKeyboard: true,
-	}
-
-	return c.Send("Выберите удобное время:", replyMarkup)
-}
-
-// sendConfirmation sends a confirmation message with chosen details
-func (h *BookingHandler) sendConfirmation(c telebot.Context) error {
-	userID := c.Sender().ID
-	session := h.sessionStorage.Get(userID)
-
-	selectedService, ok := session["service"].(domain.Service)
-	if !ok {
-		return c.Send("Ошибка: Услуга не выбрана. Начните сначала командой /start")
-	}
-
-	dateVal, ok := session["date"].(time.Time)
-	if !ok {
-		return c.Send("Ошибка: Дата не выбрана. Начните сначала командой /start")
-	}
-
-	timeString, ok := session["time"].(string)
-	if !ok {
-		return c.Send("Ошибка: Время не выбрано. Начните сначала командой /start")
-	}
-
-	// Prepare confirmation message
-	confirmMsg := fmt.Sprintf("Вы выбрали:\nУслуга: %s\nДата: %s\nВремя: %s\n\nПодтвердите запись?",
-		selectedService.Name, dateVal.Format("02.01.2006"), timeString)
-
-	// Confirmation buttons
-	confirmBtn := telebot.ReplyButton{Text: "Подтвердить"}
-	cancelBtn := telebot.ReplyButton{Text: "Отменить запись"}
-
-	confirmMarkup := &telebot.ReplyMarkup{
+	// Создаем ReplyKeyboard для кнопки "Выбрать другую дату"
+	replyKeyboard := &telebot.ReplyMarkup{
 		ReplyKeyboard: [][]telebot.ReplyButton{
-			{confirmBtn},
-			{cancelBtn},
+			{{Text: "⬅️ Выбрать другую дату"}},
 		},
 		ResizeKeyboard:  true,
 		OneTimeKeyboard: true,
 	}
 
-	return c.Send(confirmMsg, confirmMarkup)
+	// Редактируем предыдущее сообщение (календарь) с новой инлайн-клавиатурой (слоты времени)
+	err = c.Edit(
+		fmt.Sprintf("Отлично, доступны следующие временные слоты для '%s' %s:", service.Name, date.Format("02.01.2006")),
+		selector, // Inline keyboard for time slots
+	)
+	if err != nil {
+		log.Printf("ERROR: Failed to edit message with time slots: %v", err)
+		// Если не удалось отредактировать (например, сообщение слишком старое), отправляем новое.
+		// В этом случае ReplyKeyboard также будет в этом сообщении.
+		return c.Send(
+			fmt.Sprintf("Отлично, доступны следующие временные слоты для '%s' %s:", service.Name, date.Format("02.01.2006")),
+			selector,
+			&telebot.SendOptions{ReplyMarkup: replyKeyboard}, // Reply keyboard as SendOption for new message
+		)
+	}
+
+	// Если редактирование прошло успешно, отправляем ReplyKeyboard отдельным сообщением.
+	// Это важно, чтобы ReplyKeyboard появилась под полем ввода, а не как часть InlineKeyboard.
+	return c.Send("Или выберите другую дату:", replyKeyboard)
 }
 
-// HandleCancel handles the cancellation of the current booking flow or an existing appointment.
-func (h *BookingHandler) HandleCancel(c telebot.Context) error {
+// HandleTimeSelection handles the callback query for time slot selection.
+func (h *BookingHandler) HandleTimeSelection(c telebot.Context) error {
+	log.Printf("DEBUG: Entered HandleTimeSelection for user %d. Callback Data: '%s'", c.Sender().ID, c.Callback().Data)
+
+	data := strings.TrimSpace(c.Callback().Data) // Trim spaces
 	userID := c.Sender().ID
+
+	parts := strings.Split(data, "|")
+	if len(parts) != 2 || parts[0] != "select_time" {
+		log.Printf("ERROR: Malformed time selection callback data: %s", data)
+		return c.Edit("Некорректный выбор времени. Пожалуйста, попробуйте /start снова.")
+	}
+	timeStr := parts[1] // e.g., "15:04"
+
+	// Validate time format. We expect "HH:MM"
+	_, err := time.Parse("15:04", timeStr)
+	if err != nil {
+		log.Printf("ERROR: Invalid time format in selection: %s, error: %v", timeStr, err)
+		return c.Edit("Некорректное время. Пожалуйста, попробуйте /start снова.")
+	}
+
+	h.sessionStorage.Set(userID, SessionKeyTime, timeStr)
+	log.Printf("DEBUG: Time selected and stored in session for user %d: %s", userID, timeStr)
+
+	// Удаляем инлайн-клавиатуру со слотами времени из предыдущего сообщения
+	if c.Message() != nil {
+		_, err := c.Bot().EditReplyMarkup(c.Message(), nil) // Pass nil to remove inline keyboard
+		if err != nil {
+			log.Printf("WARNING: Failed to remove inline keyboard from message %d: %v", c.Message().ID, err)
+		}
+	}
+
+	// Теперь переходим к запросу имени.
+	// Используем c.Send для отправки нового сообщения и удаления ReplyKeyboard
+	return c.Send("Пожалуйста, введите ваше имя и фамилию для записи (например, Иван Иванов).", telebot.RemoveKeyboard)
+}
+
+// HandleNameInput handles the user's name input (regular text message).
+func (h *BookingHandler) HandleNameInput(c telebot.Context) error {
+	log.Printf("DEBUG: Entered HandleNameInput for user %d. Text: '%s'", c.Sender().ID, c.Text())
+
+	userID := c.Sender().ID
+	userName := strings.TrimSpace(c.Text())
+
+	if userName == "" {
+		return c.Send("Имя не может быть пустым. Пожалуйста, введите ваше имя и фамилию.")
+	}
+
+	h.sessionStorage.Set(userID, SessionKeyName, userName)
+	log.Printf("DEBUG: Name stored in session for user %d: %s", userID, userName)
+
+	// All data collected, ask for confirmation
+	return h.askForConfirmation(c)
+}
+
+// askForConfirmation asks the user to confirm the booking details.
+func (h *BookingHandler) askForConfirmation(c telebot.Context) error {
+	log.Printf("DEBUG: Entered askForConfirmation for user %d", c.Sender().ID)
+
+	userID := c.Sender().ID
+	sessionData := h.sessionStorage.Get(userID)
+
+	service, okS := sessionData[SessionKeyService].(domain.Service)
+	date, okD := sessionData[SessionKeyDate].(time.Time)
+	timeStr, okT := sessionData[SessionKeyTime].(string)
+	name, okN := sessionData[SessionKeyName].(string)
+
+	if !okS || !okD || !okT || !okN {
+		log.Printf("ERROR: Missing session data for confirmation for user %d: service=%t, date=%t, time=%t, name=%t", userID, okS, okD, okT, okN)
+		h.sessionStorage.ClearSession(userID)
+		return c.Send("Ошибка сессии. Пожалуйста, начните /start снова.", telebot.RemoveKeyboard)
+	}
+
+	// Combine date and time string into a time.Time object for display
+	appointmentTime, err := time.Parse("2006-01-02 15:04", fmt.Sprintf("%s %s", date.Format("2006-01-02"), timeStr))
+	if err != nil {
+		log.Printf("ERROR: Failed to parse appointment time for user %d: %v", userID, err)
+		h.sessionStorage.ClearSession(userID)
+		return c.Send("Ошибка форматирования времени. Пожалуйста, начните /start снова.", telebot.RemoveKeyboard)
+	}
+
+	confirmMessage := fmt.Sprintf(
+		"Пожалуйста, подтвердите вашу запись:\n\n"+
+			"Услуга: *%s*\n"+
+			"Дата: *%s*\n"+
+			"Время: *%s*\n"+
+			"Имя: *%s*\n\n"+
+			"Всё верно? *Пожалуйста, используйте кнопки ниже для подтверждения или отмены.*", // Added instruction
+		service.Name,
+		appointmentTime.Format("02.01.2006"),
+		appointmentTime.Format("15:04"),
+		name,
+	)
+
+	// Reply Keyboard for confirmation
+	confirmKeyboard := &telebot.ReplyMarkup{
+		ReplyKeyboard: [][]telebot.ReplyButton{
+			{{Text: "Подтвердить"}},
+			{{Text: "Отменить запись"}},
+		},
+		ResizeKeyboard:  true,
+		OneTimeKeyboard: true, // Hide after one use
+	}
+
+	// Set session flag indicating awaiting confirmation
+	h.sessionStorage.Set(userID, SessionKeyAwaitingConfirmation, true)
+	log.Printf("DEBUG: Set SessionKeyAwaitingConfirmation for user %d to true.", userID)
+
+	// ИСПРАВЛЕНО: Передаем ReplyKeyboard как второй аргумент, а ParseMode как отдельную SendOption
+	return c.Send(confirmMessage, confirmKeyboard, telebot.ParseMode(telebot.ModeMarkdown))
+}
+
+// HandleConfirmBooking handles the confirmation of a booking.
+func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
+	log.Printf("DEBUG: Entered HandleConfirmBooking for user %d", c.Sender().ID)
+
+	userID := c.Sender().ID
+	sessionData := h.sessionStorage.Get(userID)
+
+	// Clear awaiting confirmation flag
+	h.sessionStorage.Set(userID, SessionKeyAwaitingConfirmation, false)
+	log.Printf("DEBUG: Cleared SessionKeyAwaitingConfirmation for user %d.", userID)
+
+	service, okS := sessionData[SessionKeyService].(domain.Service)
+	date, okD := sessionData[SessionKeyDate].(time.Time)
+	timeStr, okT := sessionData[SessionKeyTime].(string)
+	name, okN := sessionData[SessionKeyName].(string)
+
+	if !okS || !okD || !okT || !okN {
+		log.Printf("Session data missing for user %d during confirmation: service=%t, date=%t, time=%t, name=%t", userID, okS, okD, okT, okN)
+		h.sessionStorage.ClearSession(userID)
+		return c.Send("Ошибка сессии. Пожалуйста, начните /start снова.", telebot.RemoveKeyboard)
+	}
+
+	// Combine date and time string into a time.Time object
+	appointmentTime, err := time.Parse("2006-01-02 15:04", fmt.Sprintf("%s %s", date.Format("2006-01-02"), timeStr))
+	if err != nil {
+		log.Printf("Failed to parse appointment time for user %d during confirmation: %v", userID, err)
+		h.sessionStorage.ClearSession(userID)
+		return c.Send("Ошибка форматирования времени. Пожалуйста, начните /start снова.", telebot.RemoveKeyboard)
+	}
+
+	// Adjust appointmentTime to the correct timezone (e.g., Europe/Istanbul)
+	loc := domain.ApptTimeZone
+	if loc == nil {
+		log.Println("WARNING: domain.ApptTimeZone is nil during appointment creation, defaulting to Local time.")
+		loc = time.Local
+	}
+	appointmentTime = time.Date(appointmentTime.Year(), appointmentTime.Month(), appointmentTime.Day(),
+		appointmentTime.Hour(), appointmentTime.Minute(), 0, 0, loc)
+
+	// Create the Appointment object
+	appointment := &domain.Appointment{
+		Service:      service,
+		StartTime:    appointmentTime,
+		EndTime:      appointmentTime.Add(time.Duration(service.DurationMinutes) * time.Minute),
+		Duration:     service.DurationMinutes,
+		CustomerName: name,
+		CustomerTgID: strconv.FormatInt(userID, 10), // Store Telegram User ID as string
+	}
+
+	// Call the appointment service to create the appointment
+	_, err = h.appointmentService.CreateAppointment(context.Background(), appointment)
+	if err != nil {
+		log.Printf("Error creating appointment for user %d: %v", userID, err)
+		// Handle specific errors from the service layer
+		switch {
+		case errors.Is(err, domain.ErrSlotUnavailable):
+			return c.Send("К сожалению, выбранное время уже занято. Пожалуйста, выберите другой слот.", telebot.RemoveKeyboard)
+		case errors.Is(err, domain.ErrAppointmentInPast):
+			return c.Send("Выбранное время уже в прошлом. Пожалуйста, выберите будущее время.", telebot.RemoveKeyboard)
+		case errors.Is(err, domain.ErrOutsideWorkingHours):
+			return c.Send("Выбранное время выходит за рамки рабочего дня. Пожалуйста, выберите другое время.", telebot.RemoveKeyboard)
+		case errors.Is(err, domain.ErrInvalidDuration):
+			return c.Send("Некорректная длительность услуги. Пожалуйста, свяжитесь с администратором.", telebot.RemoveKeyboard)
+		case errors.Is(err, domain.ErrInvalidAppointment):
+			return c.Send("Некорректные данные для записи. Пожалуйста, попробуйте сначала.", telebot.RemoveKeyboard)
+		default:
+			return c.Send("Произошла ошибка при создании записи. Пожалуйста, попробуйте позже.", telebot.RemoveKeyboard)
+		}
+	}
+
+	// Clear session on successful booking
 	h.sessionStorage.ClearSession(userID)
-	return c.Send("Запись отменена. Вы можете начать новую запись командой /start.", telebot.RemoveKeyboard)
+
+	return c.Send(fmt.Sprintf("Ваша запись на услугу '%s' на %s в %s успешно подтверждена! Ждем вас.",
+		service.Name, appointmentTime.Format("02.01.2006"), appointmentTime.Format("15:04")), telebot.RemoveKeyboard)
+}
+
+// HandleCancel handles the "Отменить запись" (Cancel booking) button
+func (h *BookingHandler) HandleCancel(c telebot.Context) error {
+	log.Printf("DEBUG: Entered HandleCancel for user %d", c.Sender().ID)
+	userID := c.Sender().ID
+	// Clear awaiting confirmation flag
+	h.sessionStorage.Set(userID, SessionKeyAwaitingConfirmation, false)
+	log.Printf("DEBUG: Cleared SessionKeyAwaitingConfirmation for user %d (via cancel).", userID)
+
+	h.sessionStorage.ClearSession(userID)
+	// Remove keyboard and send confirmation
+	return c.Send("Запись отменена. Сессия очищена. Вы можете начать /start снова.", telebot.RemoveKeyboard)
 }
