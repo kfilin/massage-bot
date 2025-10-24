@@ -73,17 +73,6 @@ func (m *MockAppointmentRepository) Delete(ctx context.Context, id string) error
 // This constant is used only in this test file to define a test service's duration.
 const testServiceDurationMinutes = 60 // Example service duration for tests
 
-// newWithClock is a test helper. It does NOT mock time.Now() in the actual
-// service code (apnt_svc.Service methods) because those methods use `time.Now()`
-// directly and don't take a `Clock` interface. This stub only allows tests
-// that call it to compile. For true time mocking, `apnt_svc.Service` would
-// need to be refactored to accept a `Clock` dependency.
-func newWithClock(t time.Time) func() {
-	// This stub simply returns a no-op function for cleanup.
-	// It's here to resolve the "undefined: newWithClock" error in tests.
-	return func() {}
-}
-
 // --- Tests for Service ---
 
 func TestNewService(t *testing.T) {
@@ -255,10 +244,10 @@ func TestGetAvailableTimeSlots(t *testing.T) {
 		// Check if any returned slot starts before WorkStartHour or ends after WorkEndHour
 		for _, slot := range slots {
 			// CORRECTED: Use constants from the imported package
-			if slot.Start.Hour() < apnt_svc.WorkStartHour || slot.End.Hour() > apnt_svc.WorkEndHour {
-				if !(slot.End.Hour() == apnt_svc.WorkEndHour && slot.End.Minute() == 0) { // Allow ending exactly at WorkEndHour
-					t.Errorf("slot %s-%s is outside working hours %d:00-%d:00",
-						slot.Start.Format("15:04"), slot.End.Format("15:04"), apnt_svc.WorkStartHour, apnt_svc.WorkEndHour)
+			if slot.Start.Hour() < apnt_svc.WorkDayStartHour || slot.End.Hour() > apnt_svc.WorkDayEndHour {
+			if !(slot.End.Hour() == apnt_svc.WorkDayEndHour && slot.End.Minute() == 0) { // Allow ending exactly at WorkEndHour
+				t.Errorf("slot %s-%s is outside working hours %d:00-%d:00",
+					slot.Start.Format("15:04"), slot.End.Format("15:04"), apnt_svc.WorkDayStartHour, apnt_svc.WorkDayEndHour)
 				}
 			}
 		}
@@ -431,10 +420,10 @@ func TestCancelAppointment(t *testing.T) {
 func generateExpectedSlots(date time.Time, slotDurationMinutes int, loc *time.Location) []domain.TimeSlot {
 	var slots []domain.TimeSlot
 	// CORRECTED: Use constants from the imported package
-	dayStart := time.Date(date.Year(), date.Month(), date.Day(), apnt_svc.WorkStartHour, 0, 0, 0, loc)
-	dayEnd := time.Date(date.Year(), date.Month(), date.Day(), apnt_svc.WorkEndHour, 0, 0, 0, loc)
+	dayStart := time.Date(date.Year(), date.Month(), date.Day(), apnt_svc.WorkDayStartHour, 0, 0, 0, loc)
+	dayEnd := time.Date(date.Year(), date.Month(), date.Day(), apnt_svc.WorkDayEndHour, 0, 0, 0, loc)
 
-	interval := apnt_svc.DefaultSlotCheckInterval // Use the correct constant for iteration interval
+	interval := *apnt_svc.SlotDuration // Use the slot duration from the service package
 	serviceDuration := time.Duration(slotDurationMinutes) * time.Minute
 
 	for current := dayStart; current.Add(serviceDuration).Before(dayEnd.Add(1 * time.Minute)); current = current.Add(interval) {
