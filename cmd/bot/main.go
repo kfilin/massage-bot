@@ -22,6 +22,9 @@ func main() {
 	cfg := config.LoadConfig()
 	log.Println("Configuration loaded.")
 
+        // Start health server
+         go startHealthServer()
+
 	// 2. Initialize Google Calendar Client
 	googleCalendarClient, err := googlecalendar.NewGoogleCalendarClient()
 	if err != nil {

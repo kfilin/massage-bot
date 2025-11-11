@@ -1,0 +1,13 @@
+# Docker ignore file
+.git
+.gitignore
+README.md
+Dockerfile
+.dockerignore
+vendor/
+tmp/
+logs/
+*.log
+.env.local
+*.test
+coverage.txt

@@ -1,0 +1,18 @@
+{
+    debug
+    servers {
+        protocol {
+            experimental_http3
+        }
+    }
+}
+
+vera-bot.kfilin.icu {
+    log {
+        level DEBUG
+    }
+    tls {
+        protocols tls1.2 tls1.3
+    }
+    reverse_proxy http://massage-bot:8080
+}
