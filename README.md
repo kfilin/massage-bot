@@ -1,5 +1,8 @@
 # 🧘 Vera Massage Bot - Professional Booking System
 
+![Go Version](https://img.shields.io/badge/Go-1.21+-blue)
+![License](https://img.shields.io/badge/License-MIT-green)
+
 A production-ready Telegram bot for massage appointment booking with Google Calendar integration.
 
 ## ✨ Features
