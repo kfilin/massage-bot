@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: massage-bot
+  labels:
+    app: massage-bot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: massage-bot
+  template:
+    metadata:
+      labels:
+        app: massage-bot
+    spec:
+      containers:
+      - name: massage-bot
+        image: massage-bot:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8080
+        env:
+        - name: TG_BOT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: massage-bot-secrets
+              key: TG_BOT_TOKEN
+        - name: TG_ADMIN_ID
+          valueFrom:
+            secretKeyRef:
+              name: massage-bot-secrets
+              key: TG_ADMIN_ID
+        - name: ALLOWED_TELEGRAM_IDS
+          valueFrom:
+            secretKeyRef:
+              name: massage-bot-secrets
+              key: ALLOWED_TELEGRAM_IDS
+        - name: GOOGLE_CREDENTIALS_JSON
+          valueFrom:
+            secretKeyRef:
+              name: massage-bot-secrets
+              key: GOOGLE_CREDENTIALS_JSON
+        - name: GOOGLE_TOKEN_JSON
+          valueFrom:
+            secretKeyRef:
+              name: massage-bot-secrets
+              key: GOOGLE_TOKEN_JSON
+        - name: GOOGLE_CALENDAR_ID
+          valueFrom:
+            configMapKeyRef:
+              name: massage-bot-config
+              key: GOOGLE_CALENDAR_ID
+        - name: USE_MOCK_CALENDAR
+          valueFrom:
+            configMapKeyRef:
+              name: massage-bot-config
+              key: USE_MOCK_CALENDAR
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5

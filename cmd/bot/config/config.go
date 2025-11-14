@@ -9,20 +9,20 @@ import (
 // Config holds all application configuration settings.
 type Config struct {
 	TgBotToken                    string
-	AdminTelegramID               string // Имя поля в структуре
+	AdminTelegramID               string
 	AllowedTelegramIDs            []string
 	GoogleCalendarCredentialsPath string
+	GoogleCalendarCredentialsJSON string
 	GoogleCalendarID              string
 }
 
 // LoadConfig loads configuration from environment variables.
 func LoadConfig() *Config {
-	token := os.Getenv("TG_BOT_TOKEN") // Используем TG_BOT_TOKEN
+	token := os.Getenv("TG_BOT_TOKEN")
 	if token == "" {
 		log.Fatal("Environment variable TG_BOT_TOKEN is not set.")
 	}
 
-	// ИСПРАВЛЕНО: Читаем из переменной окружения TG_ADMIN_ID
 	adminID := os.Getenv("TG_ADMIN_ID")
 	if adminID == "" {
 		log.Println("Warning: Environment variable TG_ADMIN_ID is not set. Admin features might be limited.")
@@ -39,26 +39,29 @@ func LoadConfig() *Config {
 			}
 		}
 	} else {
-		log.Println("Warning: Environment variable ALLOWED_TELEGRAM_IDS is not set. All users will be allowed (or implement specific logic).")
+		log.Println("Warning: Environment variable ALLOWED_TELEGRAM_IDS is not set.")
 	}
 
-	// ИСПРАВЛЕНО: Теперь ожидаем GOOGLE_CREDENTIALS_PATH
+	// PROFESSIONAL FIX: Support both file path and environment variable
 	googleCredsPath := os.Getenv("GOOGLE_CREDENTIALS_PATH")
-	if googleCredsPath == "" {
-		log.Fatal("Environment variable GOOGLE_CREDENTIALS_PATH is not set. Please set it to the path of your credentials.json file (e.g., ./credentials.json).")
+	googleCredsJSON := os.Getenv("GOOGLE_CREDENTIALS_JSON")
+
+	if googleCredsPath == "" && googleCredsJSON == "" {
+		log.Fatal("Set either GOOGLE_CREDENTIALS_PATH (for Docker) or GOOGLE_CREDENTIALS_JSON (for Kubernetes)")
 	}
 
 	googleCalendarID := os.Getenv("GOOGLE_CALENDAR_ID")
 	if googleCalendarID == "" {
-		log.Println("Warning: Environment variable GOOGLE_CALENDAR_ID is not set. Defaulting to 'primary' calendar.")
+		log.Println("Warning: GOOGLE_CALENDAR_ID not set. Defaulting to 'primary'.")
 		googleCalendarID = "primary"
 	}
 
 	return &Config{
 		TgBotToken:                    token,
-		AdminTelegramID:               adminID, // Сохраняем имя поля
+		AdminTelegramID:               adminID,
 		AllowedTelegramIDs:            allowedIDs,
 		GoogleCalendarCredentialsPath: googleCredsPath,
+		GoogleCalendarCredentialsJSON: googleCredsJSON,
 		GoogleCalendarID:              googleCalendarID,
 	}
 }
