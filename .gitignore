@@ -1,12 +1,25 @@
-# Dependency directories
-vendor/
-bin/
-
-# Environment files
+# Config files
+config.yml
 .env
-credentials.json
-token.json
+.env.local
+.env.production
+
+# Database
+*.db
+*.db-shm
+*.db-wal
 
 # Binaries
 massage-bot
-logs/
+bot
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

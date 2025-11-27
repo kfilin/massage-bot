@@ -1,0 +1,9 @@
+database:
+  path: "bot.db"
+
+bot:
+  token: "YOUR_BOT_TOKEN_HERE"
+  admin_id: YOUR_ADMIN_ID_HERE
+
+server:
+  health_port: "8080"

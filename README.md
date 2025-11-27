@@ -1,34 +1,50 @@
-# 🧘 Vera Massage Bot - Professional Booking System
+# Telegram Massage Bot 🤖
 
-![Go Version](https://img.shields.io/badge/Go-1.21+-blue)
-![License](https://img.shields.io/badge/License-MIT-green)
+A sophisticated Telegram bot for managing massage appointments with built-in scheduling, user management, and admin notifications.
 
-A production-ready Telegram bot for massage appointment booking with Google Calendar integration.
+## 🚀 Features
 
-## ✨ Features
+- **Appointment Booking**: Easy time slot selection and booking  
+- **User Management**: Session-based user state management
+- **Admin Notifications**: Instant alerts for new appointments
+- **Health Monitoring**: Built-in health endpoints for DevOps
+- **SQLite Database**: Persistent data storage
 
-- **📅 Smart Booking**: Real-time availability checking with overbooking prevention
-- **🇷🇺 Russian Interface**: Complete localization for Russian-speaking clients  
-- **📱 Telegram Integration**: Seamless booking experience via Telegram
-- **🗓️ Google Calendar Sync**: Automatic synchronization with business calendar
-- **🛡️ Professional**: Clean architecture, proper error handling, health checks
+## 🛠️ Setup
 
-## 🏗️ Architecture
+### Prerequisites
+- Go 1.21+
+- Telegram Bot Token from [@BotFather](https://t.me/botfather)
 
-- **Go 1.21+** with modern patterns
-- **Clean Architecture** with ports/adapters
-- **Telegram Bot API** integration
-- **Google Calendar API** for appointment management
-- **Health checks** on port 8080 (`/health`, `/ready`)
+### Installation
 
-## 🚀 Quick Start
+1. **Clone and configure**
+   ```bash
+   git clone https://github.com/kfilin/massage-bot.git
+   cd massage-bot
+   cp config.example.yml config.yml
+   # Edit config.yml with your actual token and admin ID
 
-```bash
-# Set up environment
-export TG_BOT_TOKEN="your_telegram_bot_token"
+Run the bot
+bash
 
-# Run with Google Calendar integration
 go run cmd/bot/main.go
 
-# Or run with mock calendar for testing  
-USE_MOCK_CALENDAR=true go run cmd/bot/main.go
+🏥 Health Endpoints
+
+    GET /health - System health with database status
+
+    GET /ready - Readiness checks
+
+    GET /live - Liveness probes
+
+bash
+
+curl http://localhost:8080/health
+
+🔒 Security
+
+Sensitive data is excluded from version control. Use environment variables in production.
+📞 Support
+
+Create GitHub issues for bugs and questions.
