@@ -4,6 +4,7 @@ import (
     "fmt"
     "log"
     "net/http"
+    "os"
 )
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
@@ -11,11 +12,33 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
     fmt.Fprintf(w, `{"status": "healthy", "service": "massage-bot"}`)
 }
 
+func readyHandler(w http.ResponseWriter, r *http.Request) {
+    w.Header().Set("Content-Type", "application/json")
+    fmt.Fprintf(w, `{"status": "ready", "service": "massage-bot"}`)
+}
+
+func liveHandler(w http.ResponseWriter, r *http.Request) {
+    w.Header().Set("Content-Type", "application/json")
+    fmt.Fprintf(w, `{"status": "live", "service": "massage-bot"}`)
+}
+
 func startHealthServer() {
     http.HandleFunc("/health", healthHandler)
+    http.HandleFunc("/ready", readyHandler)
+    http.HandleFunc("/live", liveHandler)
+    http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+        w.Header().Set("Content-Type", "application/json")
+        fmt.Fprintf(w, `{"service": "massage-bot", "endpoints": ["/health", "/ready", "/live"]}`)
+    })
     
-    log.Println("Starting health server on :8080")
-    if err := http.ListenAndServe(":8080", nil); err != nil {
+    // Get port from environment or use default
+    port := os.Getenv("HEALTH_PORT")
+    if port == "" {
+        port = "8080"
+    }
+    
+    log.Printf("Starting health server on :%s", port)
+    if err := http.ListenAndServe(":"+port, nil); err != nil {
         log.Fatalf("Health server failed to start: %v", err)
     }
 }
