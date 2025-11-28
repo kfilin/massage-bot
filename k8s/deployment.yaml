@@ -5,7 +5,7 @@ metadata:
   labels:
     app: massage-bot
 spec:
-  replicas: 1
+  replicas: 2  # Changed from 1 for HA
   selector:
     matchLabels:
       app: massage-bot
@@ -16,10 +16,13 @@ spec:
     spec:
       containers:
       - name: massage-bot
-        image: massage-bot:latest
-        imagePullPolicy: Never
+        # FIXED: Use actual registry image for CI/CD
+        image: registry.gitlab.com/kfilin/massage-bot:latest
+        # FIXED: Allow pulling from registry
+        imagePullPolicy: Always
         ports:
         - containerPort: 8080
+          name: http
         env:
         - name: TG_BOT_TOKEN
           valueFrom:
@@ -56,15 +59,33 @@ spec:
             configMapKeyRef:
               name: massage-bot-config
               key: USE_MOCK_CALENDAR
+        # NEW: Resource limits for stability
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+        # ENHANCED: Better probe configuration
         livenessProbe:
           httpGet:
             path: /health
             port: 8080
           initialDelaySeconds: 30
           periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /health
             port: 8080
           initialDelaySeconds: 5
           periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 1
+        # NEW: Security context
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
