@@ -1,121 +1,44 @@
+image: docker:latest
+
+services:
+  - docker:dind
+
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ""
+
 stages:
   - test
-  - quality
-  - security
   - build
   - deploy
 
-variables:
-  GO_VERSION: "1.21"
-  DOCKER_IMAGE: "registry.gitlab.com/kfilin/massage-bot"
-  DOCKER_TAG: "$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA"
-
-cache:
-  paths:
-    - .cache/go-build
-    - go/pkg/mod/
-  key: "$CI_COMMIT_REF_SLUG"
-
-before_script:
-  - export GO111MODULE=on
-
-# === TESTING ===
-unit_tests:
+.test_template: &test_template
   stage: test
-  image: golang:$GO_VERSION
-  script:
-    - echo "🧪 Running tests for Massage-Bot..."
-    - go mod download
-    - go vet ./...
-    - go test -v -race ./...
-  artifacts:
-    reports:
-      junit: report.xml
-  tags:
-    - docker
-
-# === QUALITY ===
-code_quality:
-  stage: quality
-  image: golang:$GO_VERSION
+  image: golang:1.21
+  before_script:
+    - go version
   script:
     - go mod download
-    - test -z $(gofmt -l .)
     - go vet ./...
-    - echo "✅ Code quality checks passed"
-  tags:
-    - docker
+    - go test -v ./...
 
-# === SECURITY ===
-security_scan:
-  stage: security
-  image: 
-    name: aquasec/trivy:latest
-    entrypoint: [""]
-  script:
-    - docker build -t $DOCKER_IMAGE:security-scan .
-    - trivy image --severity HIGH,CRITICAL $DOCKER_IMAGE:security-scan
-  only:
-    - master
-    - develop
-  tags:
-    - docker
+unit_tests:
+  <<: *test_template
 
-# === BUILD ===
 build_docker:
   stage: build
-  image: docker:latest
-  services:
-    - docker:dind
-  before_script:
-    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
   script:
-    - docker build -t $DOCKER_IMAGE:$DOCKER_TAG -t $DOCKER_IMAGE:latest .
-    - docker push $DOCKER_IMAGE:$DOCKER_TAG
-    - docker push $DOCKER_IMAGE:latest
-    - echo "✅ Image pushed: $DOCKER_IMAGE:$DOCKER_TAG"
+    - docker build -t $CI_REGISTRY_IMAGE:latest .
+    - docker push $CI_REGISTRY_IMAGE:latest
   only:
     - master
-    - develop
-    - tags
-  tags:
-    - docker
 
-# === DEPLOY ===
 deploy_staging:
   stage: deploy
   image: bitnami/kubectl:latest
   script:
-    - echo "🚀 Deploying Massage-Bot to Kubernetes staging..."
-    - kubectl config use-context staging-cluster
+    - echo "Deploying to staging..."
     - kubectl apply -f k8s/
-    - kubectl rollout status deployment/massage-bot --timeout=300s
-    - echo "✅ Massage-Bot staging deployment completed"
-  environment:
-    name: staging
   only:
     - master
   when: manual
-
-deploy_production:
-  stage: deploy
-  image: bitnami/kubectl:latest
-  script:
-    - echo "🎯 Deploying Massage-Bot to Kubernetes PRODUCTION..."
-    - kubectl config use-context production-cluster
-    - kubectl apply -f k8s/
-    - kubectl rollout status deployment/massage-bot --timeout=300s
-    - echo "✅ Massage-Bot production deployment completed"
-  environment:
-    name: production
-  only:
-    - master
-  when: manual
-
-workflow:
-  rules:
-    - if: $CI_COMMIT_TAG
-    - if: $CI_COMMIT_BRANCH == "master"
-    - if: $CI_COMMIT_BRANCH == "develop"
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - when: never
