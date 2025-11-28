@@ -62,7 +62,7 @@ integration_tests:
     - docker stop massage-bot-test
     - docker rm massage-bot-test
   only:
-    - main
+    - master
     - develop
   tags:
     - docker
@@ -89,7 +89,7 @@ security_scan:
     - docker build -t $DOCKER_IMAGE:security-scan .
     - trivy image --severity HIGH,CRITICAL $DOCKER_IMAGE:security-scan
   only:
-    - main
+    - master
     - develop
   tags:
     - docker
@@ -112,7 +112,7 @@ build_docker:
     - docker push $DOCKER_IMAGE:latest
     - echo "✅ Image pushed: $DOCKER_IMAGE:$DOCKER_TAG"
   only:
-    - main
+    - master
     - develop
     - tags
   tags:
@@ -154,7 +154,7 @@ deploy_production:
 workflow:
   rules:
     - if: $CI_COMMIT_TAG
-    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "master"
     - if: $CI_COMMIT_BRANCH == "develop"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - when: never
