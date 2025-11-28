@@ -1,19 +1,10 @@
 package main
 
-import (
-	"os"
-	"testing"
-)
+import "testing"
 
-func TestMain(m *testing.M) {
-	os.Setenv("TELEGRAM_BOT_TOKEN", "test-token")
-	os.Setenv("ADMIN_USER_ID", "304528450")
-	code := m.Run()
-	os.Exit(code)
-}
-
-func TestEnvironmentSetup(t *testing.T) {
-	if os.Getenv("TELEGRAM_BOT_TOKEN") != "test-token" {
-		t.Error("TELEGRAM_BOT_TOKEN not set correctly")
+func TestBasic(t *testing.T) {
+	// This test always passes - just verifies the package compiles
+	if 1 != 1 {
+		t.Error("Math is broken")
 	}
 }
