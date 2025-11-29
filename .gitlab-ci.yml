@@ -12,7 +12,7 @@ stages:
   - build
   - deploy
 
-.test_template: &test_template
+test_template: &test_template
   stage: test
   image: golang:1.21
   before_script:
