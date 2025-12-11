@@ -1,3 +1,12 @@
+# File: .gitlab-ci.yml
+# Massage-Bot CI/CD Pipeline
+# ==========================
+
+# Control which types of pipelines can run
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH == "master"
+
 image: docker:latest
 
 services:
@@ -12,6 +21,9 @@ stages:
   - build
   - deploy
 
+# =====================
+# STAGE 1: TESTS
+# =====================
 test_template: &test_template
   stage: test
   image: golang:1.21
@@ -21,24 +33,79 @@ test_template: &test_template
     - go mod download
     - go vet ./...
     - go test -v ./...
+  artifacts:
+    reports:
+      junit: report.xml
+    paths:
+      - coverage.txt
+  coverage: '/coverage: (\d+\.\d+%)/'
 
 unit_tests:
   <<: *test_template
+  only:
+    - master
 
+# =====================
+# STAGE 2: BUILD & PUSH
+# =====================
 build_docker:
   stage: build
   script:
+    - echo "🔨 Building Docker image..."
     - docker build -t $CI_REGISTRY_IMAGE:latest .
+    - echo "🔐 Logging into GitLab Container Registry..."
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    - echo "🚀 Pushing image to registry..."
     - docker push $CI_REGISTRY_IMAGE:latest
+    - echo "✅ Image pushed: $CI_REGISTRY_IMAGE:latest"
   only:
     - master
+  # Cache Docker layers for faster builds
+  cache:
+    key: docker-cache
+    paths:
+      - /cache/.docker
 
+# =====================
+# STAGE 3: DEPLOY
+# =====================
 deploy_staging:
   stage: deploy
-  image: bitnami/kubectl:latest
+  image: 
+    name: bitnami/kubectl:latest
+    entrypoint: [""]
+  before_script:
+    - echo "📁 Setting up Kubernetes configuration..."
+    - mkdir -p ~/.kube
+    - echo "$KUBECONFIG_CONTENT" | base64 -d > ~/.kube/config
+    - chmod 600 ~/.kube/config
+    - echo "🔐 Creating image pull secret..."
+    - kubectl create secret docker-registry gitlab-registry \
+        --docker-server=registry.gitlab.com \
+        --docker-username=$CI_REGISTRY_USER \
+        --docker-password=$CI_REGISTRY_PASSWORD \
+        --docker-email="gitlab-ci@example.com" \
+        --dry-run=client -o yaml | kubectl apply -f -
+    - echo "✅ Kubernetes setup complete"
   script:
-    - echo "Deploying to staging..."
+    - echo "🚀 Deploying massage-bot to Kubernetes..."
     - kubectl apply -f k8s/
+    - echo "⏳ Waiting for deployment rollout (max 2 minutes)..."
+    - timeout 120 kubectl rollout status deployment/massage-bot
+    - echo "✅ Deployment successful!"
+    - echo ""
+    - echo "📊 FINAL DEPLOYMENT STATUS:"
+    - echo "============================"
+    - kubectl get deployments -l app=massage-bot
+    - echo ""
+    - kubectl get pods -l app=massage-bot -o wide
+    - echo ""
+    - kubectl get services -l app=massage-bot
+    - echo ""
+    - echo "🎉 Massage-Bot is now running in Kubernetes!"
+    - echo "🤖 Telegram: @vera_massage_bot"
+    - echo "🏥 Health: http://<pod-ip>:8080/health"
   only:
     - master
-  when: manual
+  when: manual  # Manual trigger since shared runners can't reach local minikube
+  timeout: 10 minutes

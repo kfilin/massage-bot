@@ -5,7 +5,9 @@ metadata:
   labels:
     app: massage-bot
 spec:
-  replicas: 1
+      imagePullSecrets:
+      - name: gitlab-registry
+  replicas: 2  # Changed from 1 for HA
   selector:
     matchLabels:
       app: massage-bot
@@ -14,12 +16,13 @@ spec:
       labels:
         app: massage-bot
     spec:
-      # ADD IMAGE PULL SECRETS HERE
       imagePullSecrets:
       - name: gitlab-registry
       containers:
       - name: massage-bot
+        # FIXED: Use actual registry image for CI/CD
         image: registry.gitlab.com/kfilin/massage-bot:latest
+        # FIXED: Allow pulling from registry
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
@@ -60,6 +63,7 @@ spec:
             configMapKeyRef:
               name: massage-bot-config
               key: USE_MOCK_CALENDAR
+        # NEW: Resource limits for stability
         resources:
           requests:
             memory: "64Mi"
@@ -67,6 +71,7 @@ spec:
           limits:
             memory: "128Mi"
             cpu: "100m"
+        # ENHANCED: Better probe configuration
         livenessProbe:
           httpGet:
             path: /health
@@ -83,6 +88,7 @@ spec:
           periodSeconds: 5
           timeoutSeconds: 3
           failureThreshold: 1
+        # NEW: Security context
         securityContext:
           allowPrivilegeEscalation: false
           runAsNonRoot: true
