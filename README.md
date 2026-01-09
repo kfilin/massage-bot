@@ -90,3 +90,8 @@ Sensitive data is excluded from version control. Use environment variables in pr
 📞 Support
 
 Create GitHub issues for bugs and questions.
+
+## 🔐 Token Management
+
+For Google OAuth token renewal procedures, see [TOKEN_RENEWAL.md](TOKEN_RENEWAL.md).
+Last renewal: 2026-01-09 | Next due: ~2026-07-09
