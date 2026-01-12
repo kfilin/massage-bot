@@ -51,12 +51,50 @@ func NewService(repo ports.AppointmentRepository) *Service {
 
 // GetAvailableServices returns a predefined list of services.
 func (s *Service) GetAvailableServices(ctx context.Context) ([]domain.Service, error) {
-	// For now, return a hardcoded list of services.
-	// In a real application, this would fetch from a database.
 	services := []domain.Service{
-		{ID: "1", Name: "Классический массаж спины", DurationMinutes: 60, Price: 1500.00},
-		{ID: "2", Name: "Антицеллюлитный массаж", DurationMinutes: 90, Price: 2500.00},
-		{ID: "3", Name: "Массаж шейно-воротниковой зоны", DurationMinutes: 30, Price: 1000.00},
+		{
+			ID:              "1",
+			Name:            "Массаж Спина + Шея",
+			DurationMinutes: 40,
+			Price:           2000.00,
+		},
+		{
+			ID:              "2",
+			Name:            "Общий массаж",
+			DurationMinutes: 60,
+			Price:           2800.00,
+		},
+		{
+			ID:              "3",
+			Name:            "Лимфодренаж",
+			DurationMinutes: 50,
+			Price:           2400.00,
+		},
+		{
+			ID:              "4",
+			Name:            "Иглоукалывание",
+			DurationMinutes: 30,
+			Price:           1400.00,
+		},
+		{
+			ID:              "5",
+			Name:            "Консультация офлайн",
+			DurationMinutes: 60,
+			Price:           2000.00,
+		},
+		{
+			ID:              "6",
+			Name:            "Консультация онлайн",
+			DurationMinutes: 45,
+			Price:           1500.00,
+		},
+		{
+			ID:              "7",
+			Name:            "Реабилитационные программы",
+			DurationMinutes: 60,
+			Price:           13000.00,
+			Description:     "от 13000 ₺ в месяц",
+		},
 	}
 	log.Printf("DEBUG: GetAvailableServices returned %d services.", len(services))
 	return services, nil

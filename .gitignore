@@ -10,8 +10,8 @@ config.yml
 *.db-wal
 
 # Binaries
-massage-bot
-bot
+/massage-bot
+/bot
 
 # IDE
 .vscode/
@@ -23,3 +23,12 @@ Thumbs.db
 
 # Logs
 *.log
+logs/
+
+# Patient data
+data/
+!data/README.md
+
+# Temporary files
+*.bak
+*.backup

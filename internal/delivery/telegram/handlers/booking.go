@@ -10,8 +10,10 @@ import (
 	"time" // Ensure time is imported
 
 	"github.com/kfilin/massage-bot/internal/domain"
-	"github.com/kfilin/massage-bot/internal/ports" // Alias to avoid conflict with package name "appointment"
-	"gopkg.in/telebot.v3"                          // Ensure telebot.v3 is correctly imported
+	"github.com/kfilin/massage-bot/internal/monitoring"
+	"github.com/kfilin/massage-bot/internal/ports"   // Alias to avoid conflict with package name "appointment"
+	"github.com/kfilin/massage-bot/internal/storage" // Import storage package
+	"gopkg.in/telebot.v3"                            // Ensure telebot.v3 is correctly imported
 )
 
 // Session keys for storing booking state
@@ -54,15 +56,16 @@ func (h *BookingHandler) HandleStart(c telebot.Context) error {
 	}
 
 	selector := &telebot.ReplyMarkup{}
-	var buttons []telebot.Btn
+	var rows []telebot.Row
 	for _, svc := range services {
-		// Callback data format: "select_service|SERVICE_ID"
-		buttons = append(buttons, selector.Data(svc.Name, "select_service", svc.ID))
+		label := fmt.Sprintf("%s - %.0f ₺", svc.Name, svc.Price)
+		if svc.Description != "" {
+			label = fmt.Sprintf("%s (%s)", label, svc.Description)
+		}
+		rows = append(rows, selector.Row(selector.Data(label, "select_service", svc.ID)))
 	}
-	selector.Inline(
-		selector.Row(buttons...),
-	)
-	return c.Send("Привет! Я бот для записи на массаж. Выберите услугу:", selector)
+	selector.Inline(rows...)
+	return c.Send("Привет! Это VERA BOT 💆✨\nВыберите услугу для записи:", selector)
 }
 
 // HandleServiceSelection handles the callback query for service selection.
@@ -248,7 +251,7 @@ func (h *BookingHandler) askForTime(c telebot.Context) error {
 	if !okS || !okD {
 		log.Printf("ERROR: Missing session data for time selection for user %d. Service OK: %t, Date OK: %t", userID, okS, okD)
 		h.sessionStorage.ClearSession(userID)
-		return c.Send("Ошибка сессии. Не удалось получить данные услуги или даты. Пожалуйста, начните /start снова.", telebot.RemoveKeyboard)
+		return c.Send("⚠️ Сессия истекла из-за перезагрузки бота.\nПожалуйста, начните заново командой /start", telebot.RemoveKeyboard)
 	}
 
 	// Make sure the selected date is at the beginning of the day in the correct timezone
@@ -263,7 +266,11 @@ func (h *BookingHandler) askForTime(c telebot.Context) error {
 	timeSlots, err := h.appointmentService.GetAvailableTimeSlots(context.Background(), selectedDateInLoc, service.DurationMinutes)
 	if err != nil {
 		log.Printf("ERROR: Error getting available time slots for user %d: %v", userID, err)
-		return c.EditOrSend("Произошла ошибка при получении доступных временных слотов. Пожалуйста, попробуйте другую дату.", telebot.RemoveKeyboard)
+		// Clean up the calendar keyboard before showing the error
+		if c.Message() != nil {
+			c.Bot().EditReplyMarkup(c.Message(), nil)
+		}
+		return c.Send("❌ Ошибка при получении слотов: " + err.Error() + "\n\nПожалуйста, начните заново: /start")
 	}
 	log.Printf("DEBUG: Received %d time slots for user %d.", len(timeSlots), userID)
 
@@ -338,7 +345,6 @@ func (h *BookingHandler) HandleTimeSelection(c telebot.Context) error {
 		log.Printf("ERROR: Invalid time format in selection: %s, error: %v", timeStr, err)
 		return c.Edit("Некорректное время. Пожалуйста, попробуйте /start снова.")
 	}
-
 	h.sessionStorage.Set(userID, SessionKeyTime, timeStr)
 	log.Printf("DEBUG: Time selected and stored in session for user %d: %s", userID, timeStr)
 
@@ -400,34 +406,32 @@ func (h *BookingHandler) askForConfirmation(c telebot.Context) error {
 	}
 
 	confirmMessage := fmt.Sprintf(
-		"Пожалуйста, подтвердите вашу запись:\n\n"+
-			"Услуга: *%s*\n"+
-			"Дата: *%s*\n"+
-			"Время: *%s*\n"+
-			"Имя: *%s*\n\n"+
-			"Всё верно? *Пожалуйста, используйте кнопки ниже для подтверждения или отмены.*", // Added instruction
+		"<b>Пожалуйста, подтвердите вашу запись:</b>\n\n"+
+			"Услуга: <b>%s</b>\n"+
+			"Цена: <b>%.0f ₺</b>\n"+
+			"Дата: <b>%s</b>\n"+
+			"Время: <b>%s</b>\n"+
+			"Имя: <b>%s</b>\n\n"+
+			"Всё верно?",
 		service.Name,
+		service.Price,
 		appointmentTime.Format("02.01.2006"),
 		appointmentTime.Format("15:04"),
 		name,
 	)
 
-	// Reply Keyboard for confirmation
-	confirmKeyboard := &telebot.ReplyMarkup{
-		ReplyKeyboard: [][]telebot.ReplyButton{
-			{{Text: "Подтвердить"}},
-			{{Text: "Отменить запись"}},
-		},
-		ResizeKeyboard:  true,
-		OneTimeKeyboard: true, // Hide after one use
-	}
+	// Inline Keyboard - One button per row for maximum prominence
+	selector := &telebot.ReplyMarkup{}
+	selector.Inline(
+		selector.Row(selector.Data("✅ ПОДТВЕРДИТЬ", "confirm_booking")),
+		selector.Row(selector.Data("❌ ОТМЕНИТЬ", "cancel_booking")),
+	)
 
-	// Set session flag indicating awaiting confirmation
+	// Set session flag indicating awaiting confirmation (keep for fallback/cleanup)
 	h.sessionStorage.Set(userID, SessionKeyAwaitingConfirmation, true)
 	log.Printf("DEBUG: Set SessionKeyAwaitingConfirmation for user %d to true.", userID)
 
-	// ИСПРАВЛЕНО: Передаем ReplyKeyboard как второй аргумент, а ParseMode как отдельную SendOption
-	return c.Send(confirmMessage, confirmKeyboard, telebot.ParseMode(telebot.ModeMarkdown))
+	return c.Send(confirmMessage, selector, telebot.ModeHTML)
 }
 
 // HandleConfirmBooking handles the confirmation of a booking.
@@ -500,11 +504,41 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 		}
 	}
 
+	// Save patient record
+	patient := domain.Patient{
+		TelegramID:     strconv.FormatInt(userID, 10),
+		Name:           name,
+		FirstVisit:     time.Now(),
+		LastVisit:      time.Now(),
+		TotalVisits:    1,
+		HealthStatus:   "initial",
+		CurrentService: service.Name,
+		TherapistNotes: fmt.Sprintf("Первая запись: %s на %s",
+			service.Name,
+			appointmentTime.Format("02.01.2006 15:04")),
+	}
+
+	if err := storage.SavePatient(patient); err != nil {
+		log.Printf("WARNING: Failed to save patient record for user %d: %v", userID, err)
+		// Don't fail the booking, just log the error
+	} else {
+		log.Printf("Patient record saved for user %d", userID)
+	}
+
+	// Increment booking metric
+	monitoring.IncrementBooking(service.Name)
+
 	// Clear session on successful booking
 	h.sessionStorage.ClearSession(userID)
 
-	return c.Send(fmt.Sprintf("Ваша запись на услугу '%s' на %s в %s успешно подтверждена! Ждем вас.",
-		service.Name, appointmentTime.Format("02.01.2006"), appointmentTime.Format("15:04")), telebot.RemoveKeyboard)
+	// Add button to download the record
+	selector := &telebot.ReplyMarkup{}
+	selector.Inline(
+		selector.Row(selector.Data("📄 СКАЧАТЬ МЕД-КАРТУ", "download_record")),
+	)
+
+	return c.Send(fmt.Sprintf("Ваша запись на услугу '%s' на %s в %s успешно подтверждена! Ждем вас.\n\nВы можете скачать вашу медицинскую карту ниже:",
+		service.Name, appointmentTime.Format("02.01.2006"), appointmentTime.Format("15:04")), selector, telebot.RemoveKeyboard)
 }
 
 // HandleCancel handles the "Отменить запись" (Cancel booking) button
@@ -518,4 +552,71 @@ func (h *BookingHandler) HandleCancel(c telebot.Context) error {
 	h.sessionStorage.ClearSession(userID)
 	// Remove keyboard and send confirmation
 	return c.Send("Запись отменена. Сессия очищена. Вы можете начать /start снова.", telebot.RemoveKeyboard)
+}
+
+// HandleMyRecords shows patient their records summary
+func (h *BookingHandler) HandleMyRecords(c telebot.Context) error {
+	userID := c.Sender().ID
+	telegramID := strconv.FormatInt(userID, 10)
+
+	patient, err := storage.GetPatient(telegramID)
+	if err != nil {
+		return c.Send(`📝 У вас еще нет медицинской карты.
+
+После первой записи на массаж, ваша карта будет создана автоматически.
+
+Запишитесь через /start чтобы начать!`)
+	}
+
+	message := fmt.Sprintf(`📋 *Ваша медицинская карта*
+
+👤 *Имя:* %s
+📅 *Первое посещение:* %s
+📅 *Последний визит:* %s
+🔢 *Всего посещений:* %d
+💆 *Последняя услуга:* %s
+
+📝 *Заметки вашего доктора:*
+%s
+
+Для получения полной записи в формате Markdown нажмите /downloadrecord`,
+		patient.Name,
+		patient.FirstVisit.Format("02.01.2006"),
+		patient.LastVisit.Format("02.01.2006"),
+		patient.TotalVisits,
+		patient.CurrentService,
+		patient.TherapistNotes)
+
+	return c.Send(message, telebot.ParseMode(telebot.ModeMarkdown))
+}
+
+// HandleDownloadRecord sends the Markdown file
+func (h *BookingHandler) HandleDownloadRecord(c telebot.Context) error {
+	userID := c.Sender().ID
+	telegramID := strconv.FormatInt(userID, 10)
+
+	filePath, err := storage.GetPatientMarkdownFile(telegramID)
+	if err != nil {
+		return c.Send(`📭 Файл с вашей медицинской картой не найден.
+
+Возможные причины:
+1. Вы еще не записывались на массаж
+2. Ваша карта была создана недавно
+
+Запишитесь через /start чтобы создать вашу карту!`)
+	}
+
+	doc := &telebot.Document{
+		File:     telebot.FromDisk(filePath),
+		FileName: "medical_record.md",
+		Caption: `📄 Ваша медицинская карта
+
+*Как открыть этот файл:*
+1. **Рекомендуем Obsidian** (бесплатно) — отличный инструмент для ваших записей. Скачайте для любого устройства на https://obsidian.md/download
+2. **Или любой текстовый редактор** (Блокнот, TextEdit)
+
+*Скачайте Obsidian для удобного ведения медицинского дневника!*`,
+	}
+
+	return c.Send(doc)
 }

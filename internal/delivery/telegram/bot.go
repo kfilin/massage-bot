@@ -35,6 +35,8 @@ func StartBot(
 
 	b.Handle("/start", bookingHandler.HandleStart)
 	b.Handle("/cancel", bookingHandler.HandleCancel)
+	b.Handle("/myrecords", bookingHandler.HandleMyRecords)
+	b.Handle("/downloadrecord", bookingHandler.HandleDownloadRecord)
 
 	// Обработчик для всех inline-кнопок
 	b.Handle(telebot.OnCallback, func(c telebot.Context) error {
@@ -58,6 +60,15 @@ func StartBot(
 		} else if strings.HasPrefix(trimmedData, "select_time|") {
 			log.Printf("DEBUG: OnCallback: Matched 'select_time' prefix.")
 			return bookingHandler.HandleTimeSelection(c)
+		} else if trimmedData == "confirm_booking" {
+			log.Printf("DEBUG: OnCallback: Matched 'confirm_booking' data.")
+			return bookingHandler.HandleConfirmBooking(c)
+		} else if trimmedData == "cancel_booking" {
+			log.Printf("DEBUG: OnCallback: Matched 'cancel_booking' data.")
+			return bookingHandler.HandleCancel(c)
+		} else if trimmedData == "download_record" {
+			log.Printf("DEBUG: OnCallback: Matched 'download_record' data.")
+			return bookingHandler.HandleDownloadRecord(c)
 		} else if trimmedData == "ignore" {
 			log.Printf("DEBUG: OnCallback: Matched 'ignore' data.")
 			return nil // Просто игнорируем кнопки-заглушки
@@ -77,16 +88,17 @@ func StartBot(
 		// Проверяем, ожидает ли бот подтверждения
 		if awaitingConfirmation, ok := session[handlers.SessionKeyAwaitingConfirmation].(bool); ok && awaitingConfirmation {
 			log.Printf("DEBUG: OnText: Bot is awaiting confirmation for user %d.", userID)
-			switch text {
-			case "Подтвердить":
-				log.Printf("DEBUG: OnText: Matched 'Подтвердить' for confirmation.")
+			cleanText := strings.ToLower(strings.TrimSpace(text))
+			switch cleanText {
+			case "подтвердить", "да", "д", "yes", "y", "ok", "ок":
+				log.Printf("DEBUG: OnText: Matched confirmation text '%s' for user %d.", cleanText, userID)
 				return bookingHandler.HandleConfirmBooking(c)
-			case "Отменить запись":
-				log.Printf("DEBUG: OnText: Matched 'Отменить запись' for cancellation.")
+			case "отменить запись", "нет", "н", "no", "n", "отмена":
+				log.Printf("DEBUG: OnText: Matched cancellation text '%s' for user %d.", cleanText, userID)
 				return bookingHandler.HandleCancel(c)
 			default:
 				log.Printf("DEBUG: OnText: Invalid text input '%s' while awaiting confirmation for user %d.", text, userID)
-				return c.Send("Пожалуйста, используйте кнопки 'Подтвердить' или 'Отменить запись'.")
+				return c.Send("Пожалуйста, используйте кнопки под сообщением или напишите 'Да' для подтверждения.")
 			}
 		}
 

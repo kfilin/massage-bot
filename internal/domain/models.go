@@ -11,6 +11,7 @@ type Service struct {
 	Name            string  `json:"name"`
 	DurationMinutes int     `json:"duration_minutes"`
 	Price           float64 `json:"price"`
+	Description     string  `json:"description,omitempty"`
 }
 
 // TimeSlot represents an available time slot for an appointment.
@@ -65,3 +66,15 @@ func init() {
 }
 
 // --- Конец секции констант ---
+
+// Patient represents a patient/client record
+type Patient struct {
+	TelegramID     string    `json:"telegram_id"`
+	Name           string    `json:"name"`
+	FirstVisit     time.Time `json:"first_visit"`
+	LastVisit      time.Time `json:"last_visit"`
+	TotalVisits    int       `json:"total_visits"`
+	HealthStatus   string    `json:"health_status"`
+	TherapistNotes string    `json:"therapist_notes,omitempty"`
+	CurrentService string    `json:"current_service,omitempty"`
+}

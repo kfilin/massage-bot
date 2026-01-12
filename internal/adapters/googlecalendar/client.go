@@ -14,6 +14,8 @@ import (
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/calendar/v3"
 	"google.golang.org/api/option"
+
+	"github.com/kfilin/massage-bot/internal/monitoring"
 )
 
 // NewGoogleCalendarClient creates and authenticates a Google Calendar service client.
@@ -47,7 +49,26 @@ func NewGoogleCalendarClient() (*calendar.Service, error) {
 		return nil, fmt.Errorf("unable to get Google API token: %w", err)
 	}
 
+	// Update expiry metric
+	// We try to catch the long-term refresh token expiry if available,
+	// otherwise fallback to access token expiry.
+	expiryDays := 180.0 // Default 6 months as per user expectation
+
+	tokenJSON := os.Getenv("GOOGLE_TOKEN_JSON")
+	var rawData struct {
+		RefreshTokenExpiresIn float64 `json:"refresh_token_expires_in"`
+	}
+	if err := json.Unmarshal([]byte(tokenJSON), &rawData); err == nil && rawData.RefreshTokenExpiresIn > 0 {
+		expiryDays = rawData.RefreshTokenExpiresIn / 86400
+		log.Printf("DEBUG: Detected Refresh Token expiry in %.1f days", expiryDays)
+	} else if !token.Expiry.IsZero() {
+		expiryDays = time.Until(token.Expiry).Hours() / 24
+		log.Printf("DEBUG: Falling back to Access Token expiry: %.2f hours", expiryDays*24)
+	}
+
 	client := config.Client(ctx, token)
+	monitoring.UpdateTokenExpiry(expiryDays)
+
 	return calendar.NewService(ctx, option.WithHTTPClient(client))
 }
 
@@ -62,7 +83,9 @@ func getToken(config *oauth2.Config) (*oauth2.Token, error) {
 			log.Println("Loaded Google token from GOOGLE_TOKEN_JSON environment variable.")
 			return &tok, nil
 		}
-		log.Printf("Warning: Failed to unmarshal GOOGLE_TOKEN_JSON from env: %v. Will try file or re-authenticate.", err)
+		log.Printf("CRITICAL: Failed to unmarshal GOOGLE_TOKEN_JSON from env: %v. Raw length: %d", err, len(tokenFromEnv))
+	} else {
+		log.Println("DEBUG: GOOGLE_TOKEN_JSON environment variable is empty.")
 	}
 
 	// Fallback to token.json file for local development
@@ -154,7 +177,7 @@ func tokenFromFile(file string) (*oauth2.Token, error) {
 
 // saveToken saves a token to a file.
 func saveToken(path string, token *oauth2.Token) {
-	fmt.Printf("Saving credential file to: %s\n", path)
+	log.Printf("Saving credential file to: %s", path)
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		log.Fatalf("Unable to cache oauth token: %v", err)

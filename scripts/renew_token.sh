@@ -12,8 +12,8 @@ echo "Tokens expire every ~6 months. Last renewal: 2026-01-09"
 echo ""
 
 # Your credentials (update these with your actual values)
-CLIENT_ID="451987724111-3p6vs3dvk96sh42gaeuplcp26t9t3998.apps.googleusercontent.com"
-CLIENT_SECRET="GOCSPX-YOUR_CLIENT_SECRET_HERE"
+CLIENT_ID="YOUR_CLIENT_ID_HERE"
+CLIENT_SECRET="YOUR_CLIENT_SECRET_HERE"
 
 echo "📋 Step 1: Generate Authorization URL"
 echo "-------------------------------------"
