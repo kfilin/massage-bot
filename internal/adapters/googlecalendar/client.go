@@ -81,6 +81,13 @@ func getToken(config *oauth2.Config) (*oauth2.Token, error) {
 		err := json.Unmarshal([]byte(tokenFromEnv), &tok)
 		if err == nil {
 			log.Println("Loaded Google token from GOOGLE_TOKEN_JSON environment variable.")
+			// If Expiry is zero, it means it was likely pasted from a raw Google response
+			// that uses "expires_in" instead of "expiry". We force it to the past
+			// so that TokenSource will automatically refresh it using the RefreshToken.
+			if tok.Expiry.IsZero() && tok.RefreshToken != "" {
+				log.Println("DEBUG: Token expiry is missing, forcing refresh check.")
+				tok.Expiry = time.Now().Add(-1 * time.Hour)
+			}
 			return &tok, nil
 		}
 		log.Printf("CRITICAL: Failed to unmarshal GOOGLE_TOKEN_JSON from env: %v. Raw length: %d", err, len(tokenFromEnv))
@@ -172,6 +179,9 @@ func tokenFromFile(file string) (*oauth2.Token, error) {
 	defer f.Close()
 	tok := &oauth2.Token{}
 	err = json.NewDecoder(f).Decode(tok)
+	if err == nil && tok.Expiry.IsZero() && tok.RefreshToken != "" {
+		tok.Expiry = time.Now().Add(-1 * time.Hour)
+	}
 	return tok, err
 }
 
