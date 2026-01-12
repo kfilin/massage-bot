@@ -31,12 +31,17 @@ func StartBot(
 		return
 	}
 
-	bookingHandler := handlers.NewBookingHandler(appointmentService, sessionStorage)
+	bookingHandler := handlers.NewBookingHandler(appointmentService, sessionStorage, allowedTelegramIDs)
 
 	b.Handle("/start", bookingHandler.HandleStart)
 	b.Handle("/cancel", bookingHandler.HandleCancel)
 	b.Handle("/myrecords", bookingHandler.HandleMyRecords)
+	b.Handle("/myappointments", bookingHandler.HandleMyAppointments)
 	b.Handle("/downloadrecord", bookingHandler.HandleDownloadRecord)
+	b.Handle("/upload", bookingHandler.HandleUploadCommand)
+	b.Handle("/backup", bookingHandler.HandleBackup)
+	b.Handle("/ban", bookingHandler.HandleBan)
+	b.Handle("/unban", bookingHandler.HandleUnban)
 
 	// Обработчик для всех inline-кнопок
 	b.Handle(telebot.OnCallback, func(c telebot.Context) error {
@@ -66,6 +71,9 @@ func StartBot(
 		} else if trimmedData == "cancel_booking" {
 			log.Printf("DEBUG: OnCallback: Matched 'cancel_booking' data.")
 			return bookingHandler.HandleCancel(c)
+		} else if strings.HasPrefix(trimmedData, "cancel_appt|") {
+			log.Printf("DEBUG: OnCallback: Matched 'cancel_appt' prefix.")
+			return bookingHandler.HandleCancelAppointmentCallback(c)
 		} else if trimmedData == "download_record" {
 			log.Printf("DEBUG: OnCallback: Matched 'download_record' data.")
 			return bookingHandler.HandleDownloadRecord(c)

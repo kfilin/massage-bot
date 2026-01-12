@@ -302,3 +302,29 @@ func (s *Service) FindByID(ctx context.Context, id string) (*domain.Appointment,
 	log.Printf("DEBUG: Found appointment with ID %s.", id)
 	return appt, nil
 }
+
+// GetCustomerAppointments returns all upcoming appointments for a specific customer.
+func (s *Service) GetCustomerAppointments(ctx context.Context, customerTgID string) ([]domain.Appointment, error) {
+	log.Printf("DEBUG: GetCustomerAppointments called for customer TGID: %s", customerTgID)
+	if customerTgID == "" {
+		return nil, domain.ErrInvalidID
+	}
+
+	allAppts, err := s.repo.FindAll(ctx)
+	if err != nil {
+		if errors.Is(err, domain.ErrAppointmentNotFound) {
+			return []domain.Appointment{}, nil
+		}
+		return nil, fmt.Errorf("failed to fetch appointments for customer: %w", err)
+	}
+
+	var customerAppts []domain.Appointment
+	for _, appt := range allAppts {
+		if appt.CustomerTgID == customerTgID {
+			customerAppts = append(customerAppts, appt)
+		}
+	}
+
+	log.Printf("DEBUG: Found %d appointments for customer %s", len(customerAppts), customerTgID)
+	return customerAppts, nil
+}

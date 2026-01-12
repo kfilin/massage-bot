@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time" // Ensure time is imported
@@ -29,21 +31,31 @@ const (
 type BookingHandler struct {
 	appointmentService ports.AppointmentService
 	sessionStorage     ports.SessionStorage
+	adminIDs           []string
 }
 
 // NewBookingHandler creates a new BookingHandler.
-func NewBookingHandler(appointmentService ports.AppointmentService, sessionStorage ports.SessionStorage) *BookingHandler {
+func NewBookingHandler(appointmentService ports.AppointmentService, sessionStorage ports.SessionStorage, adminIDs []string) *BookingHandler {
 	return &BookingHandler{
 		appointmentService: appointmentService,
 		sessionStorage:     sessionStorage,
+		adminIDs:           adminIDs,
 	}
 }
 
 // HandleStart handles the /start command, greeting the user and offering services.
 func (h *BookingHandler) HandleStart(c telebot.Context) error {
-	log.Printf("DEBUG: Entered HandleStart for user %d", c.Sender().ID)
+	userID := c.Sender().ID
+	telegramID := strconv.FormatInt(userID, 10)
+
+	// Check if user is banned
+	if banned, _ := storage.IsUserBanned(telegramID); banned {
+		return c.Send("⛔ Вы были заблокированы администратором и не можете пользоваться ботом.")
+	}
+
+	log.Printf("DEBUG: Entered HandleStart for user %d", userID)
 	// Clear any previous session for the user
-	h.sessionStorage.ClearSession(c.Sender().ID)
+	h.sessionStorage.ClearSession(userID)
 
 	services, err := h.appointmentService.GetAvailableServices(context.Background())
 	if err != nil {
@@ -525,6 +537,15 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 		log.Printf("Patient record saved for user %d", userID)
 	}
 
+	// Notify admin of new booking
+	for _, adminIDStr := range h.adminIDs {
+		adminID, _ := strconv.ParseInt(adminIDStr, 10, 64)
+		h.BotNotify(c.Bot(), adminID, fmt.Sprintf("🆕 *Новая запись!*\n\nПациент: %s (ID: %s)\nУслуга: %s\nДата: %s\nВремя: %s",
+			name, patient.TelegramID, service.Name,
+			appointmentTime.Format("02.01.2006"),
+			appointmentTime.Format("15:04")))
+	}
+
 	// Increment booking metric
 	monitoring.IncrementBooking(service.Name)
 
@@ -619,4 +640,251 @@ func (h *BookingHandler) HandleDownloadRecord(c telebot.Context) error {
 	}
 
 	return c.Send(doc)
+}
+
+// HandleMyAppointments lists user's upcoming appointments
+func (h *BookingHandler) HandleMyAppointments(c telebot.Context) error {
+	userID := c.Sender().ID
+	telegramID := strconv.FormatInt(userID, 10)
+
+	appts, err := h.appointmentService.GetCustomerAppointments(context.Background(), telegramID)
+	if err != nil {
+		log.Printf("ERROR: Failed to get appointments for user %d: %v", userID, err)
+		return c.Send("Ошибка при получении списка ваших записей. Пожалуйста, попробуйте позже.")
+	}
+
+	if len(appts) == 0 {
+		return c.Send("У вас пока нет активных записей. Вы можете записаться через /start")
+	}
+
+	h.sessionStorage.ClearSession(userID)
+
+	var message string = "📋 *Ваши текущие записи:*\n\n"
+	selector := &telebot.ReplyMarkup{}
+	var rows []telebot.Row
+
+	for _, appt := range appts {
+		apptTime := appt.StartTime.In(domain.ApptTimeZone)
+		message += fmt.Sprintf("🗓 *%s*\n🕒 %s\n💆 %s\n\n",
+			apptTime.Format("02.01.2006"),
+			apptTime.Format("15:04"),
+			appt.Service.Name)
+
+		btn := selector.Data(fmt.Sprintf("❌ Отменить %s (%s)", apptTime.Format("02.01"), apptTime.Format("15:04")), "cancel_appt", appt.ID)
+		rows = append(rows, selector.Row(btn))
+	}
+
+	selector.Inline(rows...)
+
+	return c.Send(message, selector, telebot.ParseMode(telebot.ModeMarkdown))
+}
+
+// HandleCancelAppointmentCallback handles the specific cancellation of an appointment
+func (h *BookingHandler) HandleCancelAppointmentCallback(c telebot.Context) error {
+	callbackData := strings.TrimSpace(c.Callback().Data)
+	parts := strings.Split(callbackData, "|")
+	if len(parts) < 2 {
+		return c.Respond(&telebot.CallbackResponse{Text: "Ошибка: неверные данные для отмены."})
+	}
+
+	appointmentID := parts[1]
+	log.Printf("DEBUG: HandleCancelAppointmentCallback for ID: %s", appointmentID)
+
+	// Get appointment details BEFORE deleting for notification
+	appt, _ := h.appointmentService.FindByID(context.Background(), appointmentID)
+
+	err := h.appointmentService.CancelAppointment(context.Background(), appointmentID)
+	if err != nil {
+		log.Printf("ERROR: Failed to cancel appointment %s: %v", appointmentID, err)
+		return c.Respond(&telebot.CallbackResponse{Text: "Не удалось отменить запись. Возможно, она уже отменена."})
+	}
+
+	// Notify admin
+	if appt != nil {
+		for _, adminIDStr := range h.adminIDs {
+			adminID, _ := strconv.ParseInt(adminIDStr, 10, 64)
+			h.BotNotify(c.Bot(), adminID, fmt.Sprintf("⚠️ *Запись отменена!*\n\nПациент: %s (ID: %s)\nУслуга: %s\nДата: %s\nВремя: %s",
+				appt.CustomerName, appt.CustomerTgID, appt.Service.Name,
+				appt.StartTime.In(domain.ApptTimeZone).Format("02.01.2006"),
+				appt.StartTime.In(domain.ApptTimeZone).Format("15:04")))
+		}
+
+		// Re-save patient record to refresh Markdown (remove cancelled appt from summary)
+		if patient, err := storage.GetPatient(appt.CustomerTgID); err == nil {
+			// Decrement total visits if we are cancelling
+			if patient.TotalVisits > 0 {
+				patient.TotalVisits--
+			}
+			storage.SavePatient(patient)
+		}
+	}
+
+	c.Respond(&telebot.CallbackResponse{Text: "Запись успешно отменена!"})
+	c.Edit("✅ Ваша запись успешно отменена и удалена из календаря.")
+
+	return h.HandleMyAppointments(c)
+}
+
+// HandleUploadCommand explains how to upload documents
+func (h *BookingHandler) HandleUploadCommand(c telebot.Context) error {
+	return c.Send(`📤 *Загрузка медицинских документов*
+
+Вы можете отправить мне свои результаты обследований (МРТ, КТ, рентген, анализы) в форматах **PDF, JPG, PNG** или **DICOM (.dcm)**.
+
+*Инструкция:*
+1. Просто прикрепите файл или фото к сообщению и отправьте его мне.
+2. Я автоматически сохраню его в вашу медицинскую карту.
+3. Доктор увидит ваши документы при следующем посещении.
+
+⚠️ *Максимальный размер файла: 50 МБ*`, telebot.ParseMode(telebot.ModeMarkdown))
+}
+
+// HandleFileMessage processes incoming documents and photos
+func (h *BookingHandler) HandleFileMessage(c telebot.Context) error {
+	userID := c.Sender().ID
+	telegramID := strconv.FormatInt(userID, 10)
+
+	var fileID string
+	var fileName string
+	var fileSize int
+
+	if doc := c.Message().Document; doc != nil {
+		fileID = doc.FileID
+		fileName = doc.FileName
+		fileSize = int(doc.FileSize)
+	} else if photo := c.Message().Photo; photo != nil {
+		fileID = photo.FileID
+		fileName = fmt.Sprintf("photo_%d.jpg", time.Now().Unix())
+		fileSize = int(photo.FileSize)
+	} else {
+		return nil // Not a document or photo
+	}
+
+	// 50MB limit (50 * 1024 * 1024 bytes)
+	if fileSize > 50*1024*1024 {
+		return c.Send("❌ Файл слишком большой. Максимальный размер: 50 МБ.")
+	}
+
+	// Check if patient exists
+	if _, err := storage.GetPatient(telegramID); err != nil {
+		return c.Send("❌ Сначала запишитесь на прием через /start, чтобы я мог создать вашу карту и сохранить документ.")
+	}
+
+	msg, err := c.Bot().Send(c.Recipient(), "⏳ Загружаю и сохраняю ваш документ...")
+	if err != nil {
+		log.Printf("ERROR: Failed to send status message: %v", err)
+	}
+
+	// Get file from Telegram servers
+	fileReader, err := c.Bot().File(&telebot.File{FileID: fileID})
+	if err != nil {
+		log.Printf("ERROR: Failed to download file from Telegram: %v", err)
+		return c.Send("❌ Ошибка при загрузке файла. Пожалуйста, попробуйте еще раз.")
+	}
+	defer fileReader.Close()
+
+	// Read all data
+	data, err := io.ReadAll(fileReader)
+	if err != nil {
+		log.Printf("ERROR: Failed to read file data: %v", err)
+		return c.Send("❌ Ошибка при обработке файла.")
+	}
+
+	// Save to storage
+	_, err = storage.SavePatientDocument(telegramID, fileName, data)
+	if err != nil {
+		log.Printf("ERROR: Failed to save patient document: %v", err)
+		return c.Send("❌ Ошибка при сохранении файла на сервере.")
+	}
+
+	c.Bot().Delete(msg)
+	return c.Send(fmt.Sprintf("✅ Документ '%s' успешно сохранен в вашу медицинскую карту!", fileName))
+}
+
+// HandleBackup creates a zip of the data and sends it to the admin
+func (h *BookingHandler) HandleBackup(c telebot.Context) error {
+	isAdmin := false
+	userIDStr := strconv.FormatInt(c.Sender().ID, 10)
+	for _, id := range h.adminIDs {
+		if id == userIDStr {
+			isAdmin = true
+			break
+		}
+	}
+
+	if !isAdmin {
+		return c.Send("⛔ У вас нет прав для выполнения этой команды.")
+	}
+
+	c.Send("📦 Подготавливаю резервную копию данных...")
+
+	zipPath, err := storage.CreateBackup()
+	if err != nil {
+		log.Printf("ERROR: Failed to create backup: %v", err)
+		return c.Send("❌ Ошибка при создании резервной копии.")
+	}
+
+	doc := &telebot.Document{
+		File:     telebot.FromDisk(zipPath),
+		FileName: filepath.Base(zipPath),
+		Caption:  fmt.Sprintf("💾 Резервная копия данных от %s", time.Now().Format("02.01.2006 15:04")),
+	}
+
+	return c.Send(doc)
+}
+
+// BotNotify is a helper to send notifications to admins
+func (h *BookingHandler) BotNotify(b *telebot.Bot, to int64, message string) {
+	_, err := b.Send(&telebot.User{ID: to}, message, telebot.ParseMode(telebot.ModeMarkdown))
+	if err != nil {
+		log.Printf("ERROR: Failed to send notification to admin %d: %v", to, err)
+	}
+}
+
+// HandleBan adds a user to the blacklist
+func (h *BookingHandler) HandleBan(c telebot.Context) error {
+	if !h.IsAdmin(c.Sender().ID) {
+		return c.Send("⛔ Доступ запрещен.")
+	}
+
+	args := c.Args()
+	if len(args) < 1 {
+		return c.Send("Использование: /ban {telegram_id}")
+	}
+
+	targetID := args[0]
+	if err := storage.BanUser(targetID); err != nil {
+		return c.Send("❌ Ошибка при блокировке пользователя.")
+	}
+
+	return c.Send(fmt.Sprintf("✅ Пользователь %s заблокирован.", targetID))
+}
+
+// HandleUnban removes a user from the blacklist
+func (h *BookingHandler) HandleUnban(c telebot.Context) error {
+	if !h.IsAdmin(c.Sender().ID) {
+		return c.Send("⛔ Доступ запрещен.")
+	}
+
+	args := c.Args()
+	if len(args) < 1 {
+		return c.Send("Использование: /unban {telegram_id}")
+	}
+
+	targetID := args[0]
+	if err := storage.UnbanUser(targetID); err != nil {
+		return c.Send("❌ Ошибка при разблокировке пользователя.")
+	}
+
+	return c.Send(fmt.Sprintf("✅ Пользователь %s разблокирован.", targetID))
+}
+
+func (h *BookingHandler) IsAdmin(userID int64) bool {
+	userIDStr := strconv.FormatInt(userID, 10)
+	for _, id := range h.adminIDs {
+		if id == userIDStr {
+			return true
+		}
+	}
+	return false
 }

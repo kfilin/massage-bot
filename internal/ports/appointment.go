@@ -13,6 +13,8 @@ type AppointmentService interface {
 	GetAvailableTimeSlots(ctx context.Context, date time.Time, durationMinutes int) ([]domain.TimeSlot, error)
 	CreateAppointment(ctx context.Context, appointment *domain.Appointment) (*domain.Appointment, error)
 	CancelAppointment(ctx context.Context, appointmentID string) error
+	GetCustomerAppointments(ctx context.Context, customerTgID string) ([]domain.Appointment, error)
+	FindByID(ctx context.Context, appointmentID string) (*domain.Appointment, error)
 }
 
 // AppointmentRepository defines the interface for data persistence (e.g., Google Calendar).

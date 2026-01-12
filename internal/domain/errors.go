@@ -13,4 +13,5 @@ var (
 	ErrAppointmentNotFound   = errors.New("appointment not found")
 	ErrInvalidID             = errors.New("invalid ID provided")
 	ErrCalendarEventNotFound = errors.New("calendar event not found")
+	ErrUserBanned            = errors.New("user is banned")
 )

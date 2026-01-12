@@ -37,9 +37,14 @@ func (a *adapter) Create(ctx context.Context, appt *domain.Appointment) (*domain
 		return nil, fmt.Errorf("appointment StartTime or EndTime is zero; ensure set by service layer")
 	}
 
+	description := appt.Notes
+	if appt.CustomerTgID != "" {
+		description = fmt.Sprintf("TGID:%s\n%s", appt.CustomerTgID, appt.Notes)
+	}
+
 	event := &calendar.Event{
 		Summary:     fmt.Sprintf("%s - %s", appt.Service.Name, appt.CustomerName),
-		Description: appt.Notes,
+		Description: description,
 		Start: &calendar.EventDateTime{
 			DateTime: appt.StartTime.Format(time.RFC3339),
 			TimeZone: appt.StartTime.Location().String(),
@@ -206,10 +211,46 @@ func eventToAppointment(event *calendar.Event) (*domain.Appointment, error) {
 	duration := int(endTime.Sub(startTime).Minutes())
 
 	// Populate other fields by parsing event.Summary and event.Description
-	customerName := ""           // Placeholder - You need to extract this from summary/description
-	customerTgID := ""           // Placeholder - You need to extract this
-	serviceName := event.Summary // Assuming summary contains service name
+	customerTgID := ""
 	notes := event.Description
+
+	// Extract TGID if present in description
+	// Format: TGID:123456789\nNotes
+	if len(event.Description) > 5 && event.Description[:5] == "TGID:" {
+		var extractedID string
+		var remainingNotes string
+		n, _ := fmt.Sscanf(event.Description, "TGID:%s", &extractedID)
+		if n > 0 {
+			// Find the newline to get the rest of the notes
+			for i, char := range event.Description {
+				if char == '\n' {
+					customerTgID = extractedID
+					remainingNotes = event.Description[i+1:]
+					break
+				}
+			}
+			if customerTgID == "" { // No newline found
+				customerTgID = extractedID
+				remainingNotes = ""
+			}
+			notes = remainingNotes
+		}
+	}
+
+	customerName := "" // Still placeholder, usually derived from summary
+	if len(event.Summary) > 0 {
+		// Summary format: "Service Name - Customer Name"
+		// This is a simple heuristic
+		parts := domain.SplitSummary(event.Summary)
+		if len(parts) >= 2 {
+			customerName = parts[1]
+		}
+	}
+
+	serviceName := event.Summary
+	if parts := domain.SplitSummary(event.Summary); len(parts) >= 1 {
+		serviceName = parts[0]
+	}
 
 	return &domain.Appointment{
 		ID:           event.Id,

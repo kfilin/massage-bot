@@ -36,6 +36,9 @@ WORKDIR /app
 COPY --from=builder --chown=app:app /build/massage-bot .
 COPY --from=builder --chown=app:app /build/.env .env
 
+# Pre-create data and logs directories with correct permissions
+RUN mkdir -p /app/data /app/logs && chown -R app:app /app/data /app/logs
+
 # Switch to non-root user
 USER app
 

@@ -78,3 +78,17 @@ type Patient struct {
 	TherapistNotes string    `json:"therapist_notes,omitempty"`
 	CurrentService string    `json:"current_service,omitempty"`
 }
+
+// SplitSummary splits a calendar event summary into [Service Name, Customer Name]
+func SplitSummary(summary string) []string {
+	// Standard format: "Service Name - Customer Name"
+	// We'll use " - " as the delimiter
+	parts := []string{summary}
+	for i := len(summary) - 3; i >= 0; i-- {
+		if summary[i:i+3] == " - " {
+			parts = []string{summary[:i], summary[i+3:]}
+			break
+		}
+	}
+	return parts
+}

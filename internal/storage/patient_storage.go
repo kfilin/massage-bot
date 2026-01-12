@@ -1,16 +1,26 @@
 package storage
 
 import (
+	"archive/zip"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/kfilin/massage-bot/internal/domain"
 )
 
-var DataDir = "data"
+var DataDir string
+
+func init() {
+	DataDir = os.Getenv("DATA_DIR")
+	if DataDir == "" {
+		DataDir = "data"
+	}
+}
 
 func SavePatient(patient domain.Patient) error {
 	// Create patient directory
@@ -41,6 +51,27 @@ func SavePatient(patient domain.Patient) error {
 	return nil
 }
 
+func SavePatientDocument(telegramID string, filename string, data []byte) (string, error) {
+	docDir := filepath.Join(DataDir, "patients", telegramID, "documents")
+	if err := os.MkdirAll(docDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create documents directory: %w", err)
+	}
+
+	filePath := filepath.Join(docDir, filename)
+	if err := os.WriteFile(filePath, data, 0644); err != nil {
+		return "", fmt.Errorf("failed to write document file: %w", err)
+	}
+
+	// Update the patient record to include this new document
+	patient, err := GetPatient(telegramID)
+	if err == nil {
+		// Just re-save to trigger markdown regeneration
+		SavePatient(patient)
+	}
+
+	return filePath, nil
+}
+
 func generateMarkdownRecord(p domain.Patient) string {
 	return fmt.Sprintf(`# Медицинская карта: %s
 
@@ -60,6 +91,9 @@ func generateMarkdownRecord(p domain.Patient) string {
    *Скачайте на [obsidian.md/download](https://obsidian.md/download)*
 2. **Или любой текстовый редактор** (Блокнот, TextEdit).
 
+## Прикрепленные документы
+%s
+
 *Создано Vera Massage Bot • %s*`,
 		p.Name,
 		p.TelegramID,
@@ -68,7 +102,24 @@ func generateMarkdownRecord(p domain.Patient) string {
 		p.TotalVisits,
 		p.CurrentService,
 		p.TherapistNotes,
+		listDocuments(p.TelegramID),
 		time.Now().Format("02.01.2006"))
+}
+
+func listDocuments(telegramID string) string {
+	docDir := filepath.Join(DataDir, "patients", telegramID, "documents")
+	files, err := os.ReadDir(docDir)
+	if err != nil || len(files) == 0 {
+		return "Документов пока нет."
+	}
+
+	var list string
+	for _, f := range files {
+		if !f.IsDir() {
+			list += fmt.Sprintf("- [[documents/%s|%s]]\n", f.Name(), f.Name())
+		}
+	}
+	return list
 }
 
 func GetPatient(telegramID string) (domain.Patient, error) {
@@ -95,4 +146,119 @@ func GetPatientMarkdownFile(telegramID string) (string, error) {
 	}
 
 	return mdPath, nil
+}
+
+// BanUser adds a telegram ID to the blacklist
+func BanUser(telegramID string) error {
+	path := filepath.Join(DataDir, "blacklist.txt")
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	if isBanned, _ := IsUserBanned(telegramID); isBanned {
+		return nil
+	}
+
+	_, err = f.WriteString(telegramID + "\n")
+	return err
+}
+
+// UnbanUser removes a telegram ID from the blacklist
+func UnbanUser(telegramID string) error {
+	path := filepath.Join(DataDir, "blacklist.txt")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+
+	lines := strings.Split(string(content), "\n")
+	var newLines []string
+	for _, line := range lines {
+		if strings.TrimSpace(line) != telegramID && strings.TrimSpace(line) != "" {
+			newLines = append(newLines, line)
+		}
+	}
+
+	return os.WriteFile(path, []byte(strings.Join(newLines, "\n")+"\n"), 0644)
+}
+
+// IsUserBanned checks if a telegram ID is in the blacklist
+func IsUserBanned(telegramID string) (bool, error) {
+	path := filepath.Join(DataDir, "blacklist.txt")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	lines := strings.Split(string(content), "\n")
+	for _, line := range lines {
+		if strings.TrimSpace(line) == telegramID {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// CreateBackup creates a zip file of the entire patient data directory
+func CreateBackup() (string, error) {
+	backupDir := filepath.Join(DataDir, "backups")
+	if err := os.MkdirAll(backupDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create backup directory: %w", err)
+	}
+
+	timestamp := time.Now().Format("20060102_150405")
+	backupPath := filepath.Join(backupDir, fmt.Sprintf("backup_%s.zip", timestamp))
+
+	newZipFile, err := os.Create(backupPath)
+	if err != nil {
+		return "", err
+	}
+	defer newZipFile.Close()
+
+	zipWriter := zip.NewWriter(newZipFile)
+	defer zipWriter.Close()
+
+	// Walk through the patient data directory
+	patientsPath := filepath.Join(DataDir, "patients")
+	err = filepath.Walk(patientsPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+
+		relPath, err := filepath.Rel(DataDir, path)
+		if err != nil {
+			return err
+		}
+
+		zipFile, err := zipWriter.Create(relPath)
+		if err != nil {
+			return err
+		}
+
+		fsFile, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer fsFile.Close()
+
+		_, err = io.Copy(zipFile, fsFile)
+		return err
+	})
+
+	if err != nil {
+		return "", fmt.Errorf("failed to walk and zip data: %w", err)
+	}
+
+	return backupPath, nil
 }
