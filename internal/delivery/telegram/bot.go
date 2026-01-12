@@ -112,6 +112,14 @@ func StartBot(
 
 		// Оригинальная логика для других текстовых вводов (имя и т.д.)
 		switch text {
+		case "🗓 Записаться":
+			return bookingHandler.HandleStart(c)
+		case "📅 Мои записи":
+			return bookingHandler.HandleMyAppointments(c)
+		case "📄 Мед-карта":
+			return bookingHandler.HandleMyRecords(c)
+		case "📤 Загрузить документы":
+			return bookingHandler.HandleUploadCommand(c)
 		case "Подтвердить": // Этот случай будет срабатывать только если SessionKeyAwaitingConfirmation = false (чего быть не должно)
 			log.Printf("DEBUG: OnText: Matched 'Подтвердить' (unexpectedly outside confirmation flow).")
 			return bookingHandler.HandleConfirmBooking(c)

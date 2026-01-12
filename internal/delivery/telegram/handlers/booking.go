@@ -67,17 +67,76 @@ func (h *BookingHandler) HandleStart(c telebot.Context) error {
 		return c.Send("В настоящее время услуги недоступны. Пожалуйста, попробуйте позже.")
 	}
 
+	// First, send the persistent main menu
+	c.Send("💆 Добро пожаловать!", h.GetMainMenu())
+
 	selector := &telebot.ReplyMarkup{}
 	var rows []telebot.Row
+	var btnBatch []telebot.Btn
+
+	// Smart Adaptive Layout with Clinical Styling for Mobile
 	for _, svc := range services {
-		label := fmt.Sprintf("%s - %.0f ₺", svc.Name, svc.Price)
-		if svc.Description != "" {
-			label = fmt.Sprintf("%s (%s)", label, svc.Description)
+		name := svc.Name
+		// Surgical Copywriting: Shorten names to fit 2-column layout on iPhone
+		switch name {
+		case "Массаж Спина + Шея":
+			name = "💆 Спина + Шея"
+		case "Общий массаж":
+			name = "💆 Общий"
+		case "Лимфодренаж":
+			name = "🌊 Лимфо"
+		case "Иглоукалывание":
+			name = "📍 Иглы"
+		case "Консультация офлайн":
+			name = "👥 Офлайн"
+		case "Консультация онлайн":
+			name = "💻 Онлайн"
+		case "Реабилитационные программы":
+			// Special handling for price prefix
+			label := fmt.Sprintf("🦾 Реабилитация · от %.0f₺", svc.Price)
+			btn := selector.Data(label, "select_service", svc.ID)
+			if len(btnBatch) > 0 {
+				rows = append(rows, selector.Row(btnBatch...))
+				btnBatch = nil
+			}
+			rows = append(rows, selector.Row(btn))
+			continue
 		}
-		rows = append(rows, selector.Row(selector.Data(label, "select_service", svc.ID)))
+
+		label := fmt.Sprintf("%s · %.0f₺", name, svc.Price)
+		btn := selector.Data(label, "select_service", svc.ID)
+
+		// iPhone 2-column limit is ~22 chars. If name is long, it stays a full row.
+		if len([]rune(label)) > 22 {
+			if len(btnBatch) > 0 {
+				rows = append(rows, selector.Row(btnBatch...))
+				btnBatch = nil
+			}
+			rows = append(rows, selector.Row(btn))
+		} else {
+			btnBatch = append(btnBatch, btn)
+			if len(btnBatch) == 2 {
+				rows = append(rows, selector.Row(btnBatch...))
+				btnBatch = nil
+			}
+		}
 	}
+	if len(btnBatch) > 0 {
+		rows = append(rows, selector.Row(btnBatch...))
+	}
+
 	selector.Inline(rows...)
-	return c.Send("Привет! Это VERA BOT 💆✨\nВыберите услугу для записи:", selector)
+	return c.Send("Выберите услугу для записи:", selector)
+}
+
+// GetMainMenu returns the persistent Reply Keyboard for patients in a compact 2x2 grid
+func (h *BookingHandler) GetMainMenu() *telebot.ReplyMarkup {
+	menu := &telebot.ReplyMarkup{ResizeKeyboard: true}
+	menu.Reply(
+		menu.Row(menu.Text("🗓 Записаться"), menu.Text("📅 Мои записи")),
+		menu.Row(menu.Text("📄 Мед-карта"), menu.Text("📤 Загрузить документы")),
+	)
+	return menu
 }
 
 // HandleServiceSelection handles the callback query for service selection.
@@ -552,6 +611,9 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 	// Clear session on successful booking
 	h.sessionStorage.ClearSession(userID)
 
+	// Send Main Menu and a success message
+	c.Send("✅ Запись подтверждена!", h.GetMainMenu())
+
 	// Add button to download the record
 	selector := &telebot.ReplyMarkup{}
 	selector.Inline(
@@ -559,7 +621,7 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 	)
 
 	return c.Send(fmt.Sprintf("Ваша запись на услугу '%s' на %s в %s успешно подтверждена! Ждем вас.\n\nВы можете скачать вашу медицинскую карту ниже:",
-		service.Name, appointmentTime.Format("02.01.2006"), appointmentTime.Format("15:04")), selector, telebot.RemoveKeyboard)
+		service.Name, appointmentTime.Format("02.01.2006"), appointmentTime.Format("15:04")), selector)
 }
 
 // HandleCancel handles the "Отменить запись" (Cancel booking) button
@@ -665,17 +727,31 @@ func (h *BookingHandler) HandleMyAppointments(c telebot.Context) error {
 
 	for _, appt := range appts {
 		apptTime := appt.StartTime.In(domain.ApptTimeZone)
-		message += fmt.Sprintf("🗓 *%s*\n🕒 %s\n💆 %s\n\n",
+		message += fmt.Sprintf("🗓 *%s*\n🕒 %s\n💆 %s\n",
 			apptTime.Format("02.01.2006"),
 			apptTime.Format("15:04"),
 			appt.Service.Name)
 
-		btn := selector.Data(fmt.Sprintf("❌ Отменить %s (%s)", apptTime.Format("02.01"), apptTime.Format("15:04")), "cancel_appt", appt.ID)
-		rows = append(rows, selector.Row(btn))
+		// Smart Cancellation Logic: Only show Cancel button if more than 24 hours remain
+		// Compare with current time in the same location
+		now := time.Now().In(domain.ApptTimeZone)
+		timeRemaining := appt.StartTime.Sub(now)
+
+		if timeRemaining > 24*time.Hour {
+			btn := selector.Data(fmt.Sprintf("❌ Отменить %s (%s)", apptTime.Format("02.01"), apptTime.Format("15:04")), "cancel_appt", appt.ID)
+			rows = append(rows, selector.Row(btn))
+		} else {
+			message += "⚠️ _Отмена только через терапевта_\n"
+			// Fixed: Removed the lady placeholder. Link to be updated with correct username.
+			btnContact := selector.URL("💬 Написать терапевту", "https://t.me/VeraFethiye")
+			rows = append(rows, selector.Row(btnContact))
+		}
+		message += "\n"
 	}
 
 	selector.Inline(rows...)
 
+	// Send with Inline Keyboard ONLY (no Reply Keyboard here to avoid conflicts)
 	return c.Send(message, selector, telebot.ParseMode(telebot.ModeMarkdown))
 }
 
@@ -690,8 +766,19 @@ func (h *BookingHandler) HandleCancelAppointmentCallback(c telebot.Context) erro
 	appointmentID := parts[1]
 	log.Printf("DEBUG: HandleCancelAppointmentCallback for ID: %s", appointmentID)
 
-	// Get appointment details BEFORE deleting for notification
+	// Get appointment details BEFORE deleting for block check
 	appt, _ := h.appointmentService.FindByID(context.Background(), appointmentID)
+
+	if appt != nil {
+		now := time.Now().In(domain.ApptTimeZone)
+		if appt.StartTime.Sub(now) < 24*time.Hour {
+			log.Printf("BLOCKED: Late cancellation attempt for user %s, appt %s", appt.CustomerTgID, appt.ID)
+			return c.Respond(&telebot.CallbackResponse{
+				Text:      "⛔ До записи меньше 24ч!\nАвтоматическая отмена невозможна.\nПожалуйста, напишите терапевту напрямую.",
+				ShowAlert: true,
+			})
+		}
+	}
 
 	err := h.appointmentService.CancelAppointment(context.Background(), appointmentID)
 	if err != nil {
