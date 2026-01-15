@@ -96,3 +96,20 @@ docker-compose up -d --force-recreate
     - `adapters/googlecalendar/`: Google API integration.
     - `storage/`: File-based persistence.
     - `domain/`: Data models and interfaces.
+
+## 🔐 Admin Commands
+
+| Command | Description |
+| :--- | :--- |
+| `/backup` | Download complete patient data as ZIP |
+| `/block` | Block time slots for personal matters (gym, lunch, etc.) |
+| `/ban {id}` | Shadow ban a user |
+| `/unban {id}` | Remove user from blacklist |
+| `/status` | Check bot health and metrics |
+
+### Using `/block`
+1. Send `/block` to the bot
+2. Select duration (30min, 1h, 1.5h, 2h, or all day)
+3. Pick date from calendar
+4. Select time slot
+5. Confirm - creates "⛔ Blocked" event in Google Calendar

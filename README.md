@@ -8,6 +8,7 @@ A professional Telegram bot for scheduling massage appointments, managing medica
 ## 🌟 Key Features
 
 - **Smart Booking**: Interactive calendar for scheduling appointments.
+- **Schedule Blocking**: Admins can block time slots for personal matters (gym, lunch, etc.).
 - **Medical Records**: Automatically generates Markdown-based medical cards (`.md`) for each patient.
 - **Document Storage**: Securely saves MRI, X-Ray, Videos, and Voice messages to the patient's record.
 - **Blacklist System**: "Shadow ban" feature to politely block unwanted users.
