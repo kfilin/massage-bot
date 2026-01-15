@@ -1,28 +1,34 @@
 services:
-  massage-bot:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: massage-bot
-    ports:
-      - "8080:8080"
-    environment:
-      - TG_BOT_TOKEN=${TG_BOT_TOKEN}
+  vera-bot:
+    image: registry.gitlab.com/kfilin/massage-bot:latest
+    container_name: vera-bot
+    user: 1000:1000
+    restart: unless-stopped
+    networks:
+      - caddy-test-net
     env_file:
       - .env
-    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=debug # Add debug logging
+      - GOOGLE_DEBUG=true # Enable Google debug
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
-    volumes:
-      - ./logs:/app/logs
-      - ${GOOGLE_CREDENTIALS_PATH}:/app/credentials.json:ro
-      - ./token.json:/app/token.json:rw  # MAP EXISTING TOKEN
+      start_period: 60s
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    # CRITICAL: Added volumes to persist patient data and logs locally
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+
+networks:
+  caddy-test-net:
+    external: true

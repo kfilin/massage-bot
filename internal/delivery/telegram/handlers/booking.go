@@ -2,9 +2,8 @@ package handlers
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io"
+	"html"
 	"log"
 	"path/filepath"
 	"strconv"
@@ -25,6 +24,7 @@ const (
 	SessionKeyTime                 = "time"
 	SessionKeyName                 = "name"
 	SessionKeyAwaitingConfirmation = "awaiting_confirmation" // NEW: Key to indicate awaiting confirmation
+	SessionKeyIsAdminBlock         = "is_admin_block"        // Flag to indicate admin blocking mode
 )
 
 // BookingHandler handles booking-related commands and callbacks.
@@ -46,12 +46,7 @@ func NewBookingHandler(appointmentService ports.AppointmentService, sessionStora
 // HandleStart handles the /start command, greeting the user and offering services.
 func (h *BookingHandler) HandleStart(c telebot.Context) error {
 	userID := c.Sender().ID
-	telegramID := strconv.FormatInt(userID, 10)
-
-	// Check if user is banned
-	if banned, _ := storage.IsUserBanned(telegramID); banned {
-		return c.Send("⛔ Вы были заблокированы администратором и не можете пользоваться ботом.")
-	}
+	// Middleware handles ban check globally
 
 	log.Printf("DEBUG: Entered HandleStart for user %d", userID)
 	// Clear any previous session for the user
@@ -69,6 +64,8 @@ func (h *BookingHandler) HandleStart(c telebot.Context) error {
 
 	// First, send the persistent main menu
 	c.Send("💆 Добро пожаловать!", h.GetMainMenu())
+
+	h.sessionStorage.Set(c.Sender().ID, SessionKeyIsAdminBlock, false)
 
 	selector := &telebot.ReplyMarkup{}
 	var rows []telebot.Row
@@ -129,6 +126,45 @@ func (h *BookingHandler) HandleStart(c telebot.Context) error {
 	return c.Send("Выберите услугу для записи:", selector)
 }
 
+// HandleBlock initiates the admin Blocking Time flow
+func (h *BookingHandler) HandleBlock(c telebot.Context) error {
+	userID := c.Sender().ID
+
+	// Check if user is admin
+	isAdmin := false
+	userIDStr := strconv.FormatInt(userID, 10)
+	for _, id := range h.adminIDs {
+		if id == userIDStr {
+			isAdmin = true
+			break
+		}
+	}
+
+	if !isAdmin {
+		return c.Send("❌ Эта команда доступна только администраторам.")
+	}
+
+	// Set session flag for Admin Block Mode
+	h.sessionStorage.Set(userID, SessionKeyIsAdminBlock, true)
+
+	// Define Fake Services for Blocking
+	selector := &telebot.ReplyMarkup{}
+
+	btn30 := selector.Data("⛔ 30 мин", "select_service", "block_30")
+	btn60 := selector.Data("⛔ 1 час", "select_service", "block_60")
+	btn90 := selector.Data("⛔ 1.5 часа", "select_service", "block_90")
+	btn120 := selector.Data("⛔ 2 часа", "select_service", "block_120")
+	btnDay := selector.Data("📅 Весь день", "select_service", "block_day") // Special handling needed?
+
+	selector.Inline(
+		selector.Row(btn30, btn60),
+		selector.Row(btn90, btn120),
+		selector.Row(btnDay),
+	)
+
+	return c.Send("🔒 <b>Блокировка времени</b>\nВыберите длительность:", selector, telebot.ModeHTML)
+}
+
 // GetMainMenu returns the persistent Reply Keyboard for patients in a compact 2x2 grid
 func (h *BookingHandler) GetMainMenu() *telebot.ReplyMarkup {
 	menu := &telebot.ReplyMarkup{ResizeKeyboard: true}
@@ -157,6 +193,42 @@ func (h *BookingHandler) HandleServiceSelection(c telebot.Context) error {
 	log.Printf("DEBUG: HandleServiceSelection - Extracted serviceID: '%s'", serviceID)
 
 	userID := c.Sender().ID
+
+	// HANDLE ADMIN BLOCKING "FAKE" SERVICES
+	if strings.HasPrefix(serviceID, "block_") {
+		var durationMinutes int
+		var name string
+
+		switch serviceID {
+		case "block_30":
+			durationMinutes = 30
+			name = "⛔ Блок: 30 мин"
+		case "block_60":
+			durationMinutes = 60
+			name = "⛔ Блок: 1 час"
+		case "block_90":
+			durationMinutes = 90
+			name = "⛔ Блок: 1.5 часа"
+		case "block_120":
+			durationMinutes = 120
+			name = "⛔ Блок: 2 часа"
+		case "block_day":
+			durationMinutes = 480 // 8 hours (work day) - or handle differently
+			name = "⛔ Блок: Весь день"
+		}
+
+		fakeService := domain.Service{
+			ID:              serviceID,
+			Name:            name,
+			DurationMinutes: durationMinutes,
+			Price:           0,
+		}
+
+		// Store service struct directly in session (consistent with normal services)
+		h.sessionStorage.Set(userID, SessionKeyService, fakeService)
+
+		return h.askForDate(c, fakeService.Name) // Proceed to date selection directly
+	}
 
 	services, err := h.appointmentService.GetAvailableServices(context.Background())
 	if err != nil {
@@ -427,6 +499,16 @@ func (h *BookingHandler) HandleTimeSelection(c telebot.Context) error {
 		}
 	}
 
+	// Check if this is a block service (skip name input)
+	sessionData := h.sessionStorage.Get(userID)
+	if service, ok := sessionData[SessionKeyService].(domain.Service); ok {
+		if strings.HasPrefix(service.ID, "block_") {
+			h.sessionStorage.Set(userID, SessionKeyName, "Admin")
+			log.Printf("DEBUG: Block service detected, skipping name input for user %d", userID)
+			return h.askForConfirmation(c)
+		}
+	}
+
 	// Теперь переходим к запросу имени.
 	// Используем c.Send для отправки нового сообщения и удаления ReplyKeyboard
 	return c.Send("Пожалуйста, введите ваше имя и фамилию для записи (например, Иван Иванов).", telebot.RemoveKeyboard)
@@ -479,12 +561,14 @@ func (h *BookingHandler) askForConfirmation(c telebot.Context) error {
 	confirmMessage := fmt.Sprintf(
 		"<b>Пожалуйста, подтвердите вашу запись:</b>\n\n"+
 			"Услуга: <b>%s</b>\n"+
+			"Длительность: <b>%d мин</b>\n"+
 			"Цена: <b>%.0f ₺</b>\n"+
 			"Дата: <b>%s</b>\n"+
 			"Время: <b>%s</b>\n"+
 			"Имя: <b>%s</b>\n\n"+
 			"Всё верно?",
 		service.Name,
+		service.DurationMinutes,
 		service.Price,
 		appointmentTime.Format("02.01.2006"),
 		appointmentTime.Format("15:04"),
@@ -544,65 +628,114 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 	appointmentTime = time.Date(appointmentTime.Year(), appointmentTime.Month(), appointmentTime.Day(),
 		appointmentTime.Hour(), appointmentTime.Minute(), 0, 0, loc)
 
-	// Create the Appointment object
-	appointment := &domain.Appointment{
+	// Check if this is an Admin Block action
+	isAdminBlock := false
+	session := h.sessionStorage.Get(userID)
+	if val, ok := session[SessionKeyIsAdminBlock].(bool); ok && val {
+		isAdminBlock = true
+	}
+
+	// Create appointment model
+	appt := domain.Appointment{
+		ServiceID:    service.ID,
 		Service:      service,
+		Time:         appointmentTime,
 		StartTime:    appointmentTime,
-		EndTime:      appointmentTime.Add(time.Duration(service.DurationMinutes) * time.Minute),
 		Duration:     service.DurationMinutes,
+		CustomerTgID: strconv.FormatInt(userID, 10),
 		CustomerName: name,
-		CustomerTgID: strconv.FormatInt(userID, 10), // Store Telegram User ID as string
+		Notes:        "Telegram Bot Booking",
 	}
 
-	// Call the appointment service to create the appointment
-	_, err = h.appointmentService.CreateAppointment(context.Background(), appointment)
+	if isAdminBlock {
+		appt.Notes = "Manual Block by Admin"
+		appt.CustomerName = "Admin Block"
+		// Use a distinct summary for blocks
+		// The service name is already "⛔ Block: X min"
+	}
+
+	// Save to Google Calendar (and internal DB via adapter)
+	_, err = h.appointmentService.CreateAppointment(context.Background(), &appt)
 	if err != nil {
-		log.Printf("Error creating appointment for user %d: %v", userID, err)
-		// Handle specific errors from the service layer
-		switch {
-		case errors.Is(err, domain.ErrSlotUnavailable):
-			return c.Send("К сожалению, выбранное время уже занято. Пожалуйста, выберите другой слот.", telebot.RemoveKeyboard)
-		case errors.Is(err, domain.ErrAppointmentInPast):
-			return c.Send("Выбранное время уже в прошлом. Пожалуйста, выберите будущее время.", telebot.RemoveKeyboard)
-		case errors.Is(err, domain.ErrOutsideWorkingHours):
-			return c.Send("Выбранное время выходит за рамки рабочего дня. Пожалуйста, выберите другое время.", telebot.RemoveKeyboard)
-		case errors.Is(err, domain.ErrInvalidDuration):
-			return c.Send("Некорректная длительность услуги. Пожалуйста, свяжитесь с администратором.", telebot.RemoveKeyboard)
-		case errors.Is(err, domain.ErrInvalidAppointment):
-			return c.Send("Некорректные данные для записи. Пожалуйста, попробуйте сначала.", telebot.RemoveKeyboard)
-		default:
-			return c.Send("Произошла ошибка при создании записи. Пожалуйста, попробуйте позже.", telebot.RemoveKeyboard)
+		log.Printf("Error creating appointment: %v", err)
+		if strings.Contains(err.Error(), "slot is not available") {
+			return c.Send("❌ К сожалению, это время уже занято. Пожалуйста, выберите другое время.", telebot.RemoveKeyboard)
 		}
+		if isAdminBlock {
+			return c.Send(fmt.Sprintf("❌ Ошибка при создании блокировки: %v", err), telebot.RemoveKeyboard)
+		}
+		return c.Send("Произошла ошибка при создании записи. Пожалуйста, попробуйте позже.", telebot.RemoveKeyboard)
 	}
 
-	// Save patient record
-	patient := domain.Patient{
-		TelegramID:     strconv.FormatInt(userID, 10),
-		Name:           name,
-		FirstVisit:     time.Now(),
-		LastVisit:      time.Now(),
-		TotalVisits:    1,
-		HealthStatus:   "initial",
-		CurrentService: service.Name,
-		TherapistNotes: fmt.Sprintf("Первая запись: %s на %s",
-			service.Name,
-			appointmentTime.Format("02.01.2006 15:04")),
+	if isAdminBlock {
+		// For blocks, we are done. Confirm to admin.
+		// Clear session
+		h.sessionStorage.ClearSession(userID)
+
+		// Use createdAppt info if available, otherwise use request data
+		return c.Send(fmt.Sprintf("✅ <b>Время заблокировано!</b>\n\n📅 %s\n⏰ %s\n⏳ %s",
+			appointmentTime.Format("02.01.2006"),
+			appointmentTime.Format("15:04"),
+			service.Name), telebot.ModeHTML)
+	}
+
+	// Sync TotalVisits with actual appointments in repository
+	// This ensures that even if previous counts were off, we correct them based on actual data
+	activeAppointments, err := h.appointmentService.GetCustomerAppointments(context.Background(), strconv.FormatInt(userID, 10))
+	actualCount := 1 // Start with 1 for the current new booking (if not yet in repo visibility, but it is created above)
+	if err == nil {
+		actualCount = len(activeAppointments)
+	}
+
+	// Update or create patient record
+	var patient domain.Patient
+	existingPatient, err := storage.GetPatient(strconv.FormatInt(userID, 10))
+	if err == nil {
+		// Patient exists, update fields
+		patient = existingPatient
+		patient.LastVisit = time.Now()
+
+		// Self-healing logic:
+		// If the actual count from calendar is greater than our stored count, prefer the calendar count.
+		// This handles the case where users booked slots before we started tracking properly.
+		if actualCount > patient.TotalVisits {
+			patient.TotalVisits = actualCount
+		} else {
+			patient.TotalVisits++
+		}
+
+		patient.CurrentService = service.Name
+		patient.TherapistNotes = fmt.Sprintf("Запись: %s на %s", service.Name, appointmentTime.Format("02.01.2006 15:04"))
+	} else {
+		// New patient
+		patient = domain.Patient{
+			TelegramID:     strconv.FormatInt(userID, 10),
+			Name:           name,
+			FirstVisit:     time.Now(),
+			LastVisit:      time.Now(),
+			TotalVisits:    actualCount,
+			HealthStatus:   "initial",
+			CurrentService: service.Name,
+			TherapistNotes: fmt.Sprintf("Первая запись: %s на %s",
+				service.Name,
+				appointmentTime.Format("02.01.2006 15:04")),
+		}
 	}
 
 	if err := storage.SavePatient(patient); err != nil {
 		log.Printf("WARNING: Failed to save patient record for user %d: %v", userID, err)
 		// Don't fail the booking, just log the error
 	} else {
-		log.Printf("Patient record saved for user %d", userID)
+		log.Printf("Patient record saved for user %d (TotalVisits: %d)", userID, patient.TotalVisits)
 	}
 
 	// Notify admin of new booking
 	for _, adminIDStr := range h.adminIDs {
 		adminID, _ := strconv.ParseInt(adminIDStr, 10, 64)
-		h.BotNotify(c.Bot(), adminID, fmt.Sprintf("🆕 *Новая запись!*\n\nПациент: %s (ID: %s)\nУслуга: %s\nДата: %s\nВремя: %s",
+		h.BotNotify(c.Bot(), adminID, fmt.Sprintf("🆕 *Новая запись!*\n\nПациент: %s (ID: %s)\nУслуга: %s\nДата: %s\nВремя: %s\nВсего посещений: %d",
 			name, patient.TelegramID, service.Name,
 			appointmentTime.Format("02.01.2006"),
-			appointmentTime.Format("15:04")))
+			appointmentTime.Format("15:00"), patient.TotalVisits)) // Added TotalVisits to admin notification
 	}
 
 	// Increment booking metric
@@ -835,29 +968,49 @@ func (h *BookingHandler) HandleFileMessage(c telebot.Context) error {
 	var fileName string
 	var fileSize int
 
-	if doc := c.Message().Document; doc != nil {
+	msg := c.Message()
+	if doc := msg.Document; doc != nil {
 		fileID = doc.FileID
 		fileName = doc.FileName
 		fileSize = int(doc.FileSize)
-	} else if photo := c.Message().Photo; photo != nil {
+	} else if photo := msg.Photo; photo != nil {
 		fileID = photo.FileID
 		fileName = fmt.Sprintf("photo_%d.jpg", time.Now().Unix())
 		fileSize = int(photo.FileSize)
+	} else if vid := msg.Video; vid != nil {
+		fileID = vid.FileID
+		fileName = vid.FileName
+		if fileName == "" {
+			fileName = fmt.Sprintf("video_%d.mp4", time.Now().Unix())
+		}
+		fileSize = int(vid.FileSize)
+	} else if anim := msg.Animation; anim != nil {
+		fileID = anim.FileID
+		fileName = anim.FileName
+		if fileName == "" {
+			fileName = fmt.Sprintf("animation_%d.mp4", time.Now().Unix())
+		}
+		fileSize = int(anim.FileSize)
+	} else if voice := msg.Voice; voice != nil {
+		fileID = voice.FileID
+		fileName = fmt.Sprintf("voice_%d.ogg", time.Now().Unix())
+		fileSize = int(voice.FileSize)
 	} else {
-		return nil // Not a document or photo
+		return nil // Not a recognized media type
 	}
 
-	// 50MB limit (50 * 1024 * 1024 bytes)
-	if fileSize > 50*1024*1024 {
-		return c.Send("❌ Файл слишком большой. Максимальный размер: 50 МБ.")
+	// 500MB limit for all files
+	if fileSize > 500*1024*1024 {
+		return c.Send("❌ Файл слишком большой. Максимальный размер: 500 МБ.")
 	}
 
 	// Check if patient exists
-	if _, err := storage.GetPatient(telegramID); err != nil {
+	patient, err := storage.GetPatient(telegramID)
+	if err != nil {
 		return c.Send("❌ Сначала запишитесь на прием через /start, чтобы я мог создать вашу карту и сохранить документ.")
 	}
 
-	msg, err := c.Bot().Send(c.Recipient(), "⏳ Загружаю и сохраняю ваш документ...")
+	statusMsg, err := c.Bot().Send(c.Recipient(), "⏳ Загружаю и сохраняю ваш файл...")
 	if err != nil {
 		log.Printf("ERROR: Failed to send status message: %v", err)
 	}
@@ -866,26 +1019,35 @@ func (h *BookingHandler) HandleFileMessage(c telebot.Context) error {
 	fileReader, err := c.Bot().File(&telebot.File{FileID: fileID})
 	if err != nil {
 		log.Printf("ERROR: Failed to download file from Telegram: %v", err)
-		return c.Send("❌ Ошибка при загрузке файла. Пожалуйста, попробуйте еще раз.")
+		c.Bot().Delete(statusMsg)
+		return c.Send("❌ Ошибка при загрузке файла. Возможно, он слишком большой для Telegram-бота (лимит 20МБ).\n\nПопробуйте отправить файл меньшего размера или ссылкой.")
 	}
 	defer fileReader.Close()
 
-	// Read all data
-	data, err := io.ReadAll(fileReader)
-	if err != nil {
-		log.Printf("ERROR: Failed to read file data: %v", err)
-		return c.Send("❌ Ошибка при обработке файла.")
-	}
-
-	// Save to storage
-	_, err = storage.SavePatientDocument(telegramID, fileName, data)
+	// Save to storage using Reader for efficiency
+	_, err = storage.SavePatientDocumentReader(telegramID, fileName, fileReader)
 	if err != nil {
 		log.Printf("ERROR: Failed to save patient document: %v", err)
+		c.Bot().Delete(statusMsg)
 		return c.Send("❌ Ошибка при сохранении файла на сервере.")
 	}
 
-	c.Bot().Delete(msg)
-	return c.Send(fmt.Sprintf("✅ Документ '%s' успешно сохранен в вашу медицинскую карту!", fileName))
+	c.Bot().Delete(statusMsg)
+	c.Send(fmt.Sprintf("✅ Файл '%s' успешно сохранен в вашу медицинскую карту!", fileName))
+
+	// Notify admins with HTML to avoid parsing errors with underscores in filenames
+	notification := fmt.Sprintf("📂 <b>Новый файл в мед-карте!</b>\n\nПациент: %s (ID: %s)\nФайл: <code>%s</code>\nРазмер: %.2f MB",
+		html.EscapeString(patient.Name),
+		html.EscapeString(telegramID),
+		html.EscapeString(fileName),
+		float64(fileSize)/(1024*1024))
+
+	for _, adminIDStr := range h.adminIDs {
+		adminID, _ := strconv.ParseInt(adminIDStr, 10, 64)
+		h.BotNotify(c.Bot(), adminID, notification)
+	}
+
+	return nil
 }
 
 // HandleBackup creates a zip of the data and sends it to the admin
@@ -922,7 +1084,7 @@ func (h *BookingHandler) HandleBackup(c telebot.Context) error {
 
 // BotNotify is a helper to send notifications to admins
 func (h *BookingHandler) BotNotify(b *telebot.Bot, to int64, message string) {
-	_, err := b.Send(&telebot.User{ID: to}, message, telebot.ParseMode(telebot.ModeMarkdown))
+	_, err := b.Send(&telebot.User{ID: to}, message, telebot.ModeHTML)
 	if err != nil {
 		log.Printf("ERROR: Failed to send notification to admin %d: %v", to, err)
 	}

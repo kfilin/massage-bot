@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -49,6 +50,33 @@ func SavePatient(patient domain.Patient) error {
 	}
 
 	return nil
+}
+
+func SavePatientDocumentReader(telegramID string, filename string, r io.Reader) (string, error) {
+	docDir := filepath.Join(DataDir, "patients", telegramID, "documents")
+	if err := os.MkdirAll(docDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create documents directory: %w", err)
+	}
+
+	filePath := filepath.Join(docDir, filename)
+	f, err := os.Create(filePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to create document file: %w", err)
+	}
+	defer f.Close()
+
+	if _, err := io.Copy(f, r); err != nil {
+		return "", fmt.Errorf("failed to save document data: %w", err)
+	}
+
+	// Update the patient record to include this new document
+	patient, err := GetPatient(telegramID)
+	if err == nil {
+		// Just re-save to trigger markdown regeneration
+		SavePatient(patient)
+	}
+
+	return filePath, nil
 }
 
 func SavePatientDocument(telegramID string, filename string, data []byte) (string, error) {
@@ -108,16 +136,34 @@ func generateMarkdownRecord(p domain.Patient) string {
 
 func listDocuments(telegramID string) string {
 	docDir := filepath.Join(DataDir, "patients", telegramID, "documents")
-	files, err := os.ReadDir(docDir)
-	if err != nil || len(files) == 0 {
+	entries, err := os.ReadDir(docDir)
+	if err != nil || len(entries) == 0 {
 		return "Документов пока нет."
 	}
 
-	var list string
-	for _, f := range files {
-		if !f.IsDir() {
-			list += fmt.Sprintf("- [[documents/%s|%s]]\n", f.Name(), f.Name())
+	type fileInfo struct {
+		name    string
+		modTime time.Time
+	}
+	var infos []fileInfo
+	for _, e := range entries {
+		if !e.IsDir() {
+			fi, err := e.Info()
+			if err == nil {
+				infos = append(infos, fileInfo{name: e.Name(), modTime: fi.ModTime()})
+			}
 		}
+	}
+
+	// Sort by ModTime (newest first)
+	sort.Slice(infos, func(i, j int) bool {
+		return infos[i].modTime.After(infos[j].modTime)
+	})
+
+	var list string
+	for _, info := range infos {
+		// Obsidian format with time prefix for clinical precision
+		list += fmt.Sprintf("- [%s] [[documents/%s|%s]]\n", info.modTime.Format("02.01.2006 15:04"), info.name, info.name)
 	}
 	return list
 }
@@ -157,7 +203,7 @@ func BanUser(telegramID string) error {
 	}
 	defer f.Close()
 
-	if isBanned, _ := IsUserBanned(telegramID); isBanned {
+	if isBanned, _ := IsUserBanned(telegramID, ""); isBanned {
 		return nil
 	}
 
@@ -187,8 +233,8 @@ func UnbanUser(telegramID string) error {
 	return os.WriteFile(path, []byte(strings.Join(newLines, "\n")+"\n"), 0644)
 }
 
-// IsUserBanned checks if a telegram ID is in the blacklist
-func IsUserBanned(telegramID string) (bool, error) {
+// IsUserBanned checks if a telegram ID or username is in the blacklist
+func IsUserBanned(telegramID string, username string) (bool, error) {
 	path := filepath.Join(DataDir, "blacklist.txt")
 	content, err := os.ReadFile(path)
 	if err != nil {
@@ -200,7 +246,12 @@ func IsUserBanned(telegramID string) (bool, error) {
 
 	lines := strings.Split(string(content), "\n")
 	for _, line := range lines {
-		if strings.TrimSpace(line) == telegramID {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		// Match numeric ID or @username
+		if trimmed == telegramID || (username != "" && (trimmed == username || trimmed == "@"+username)) {
 			return true, nil
 		}
 	}

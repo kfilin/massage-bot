@@ -2,12 +2,14 @@ package telegram
 
 import (
 	"log"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/kfilin/massage-bot/internal/delivery/telegram/handlers"
 	"github.com/kfilin/massage-bot/internal/domain"
-	"github.com/kfilin/massage-bot/internal/ports" // Import ports for interfaces
+	"github.com/kfilin/massage-bot/internal/ports"   // Import ports for interfaces
+	"github.com/kfilin/massage-bot/internal/storage" // Import storage pkg for ban check
 	"gopkg.in/telebot.v3"
 )
 
@@ -31,7 +33,50 @@ func StartBot(
 		return
 	}
 
-	bookingHandler := handlers.NewBookingHandler(appointmentService, sessionStorage, allowedTelegramIDs)
+	// Ensure Admin ID is in the allowed list for notifications
+	// Use a map to deduplicate IDs ensuring no double notifications
+	adminMap := make(map[string]bool)
+	if adminTelegramID != "" {
+		adminMap[adminTelegramID] = true
+	}
+	for _, id := range allowedTelegramIDs {
+		if id != "" {
+			adminMap[id] = true
+		}
+	}
+
+	finalAdminIDs := make([]string, 0, len(adminMap))
+	for id := range adminMap {
+		finalAdminIDs = append(finalAdminIDs, id)
+	}
+
+	bookingHandler := handlers.NewBookingHandler(appointmentService, sessionStorage, finalAdminIDs)
+
+	// GLOBAL MIDDLEWARE: Enforce ban check on ALL entry points
+	b.Use(func(next telebot.HandlerFunc) telebot.HandlerFunc {
+		return func(c telebot.Context) error {
+			if c.Sender() == nil {
+				return next(c)
+			}
+			telegramID := strconv.FormatInt(c.Sender().ID, 10)
+			username := c.Sender().Username
+			if banned, _ := storage.IsUserBanned(telegramID, username); banned {
+				log.Printf("BLOCKED (Middleware): Banned user %s (@%s) tried to access bot.", telegramID, username)
+
+				// SHADOW BAN: Polite "No spots available" message
+				shadowBanMsg := "К сожалению, на данный момент свободных мест для записи нет. Попробуйте позже."
+
+				if c.Callback() != nil {
+					return c.Respond(&telebot.CallbackResponse{
+						Text:      shadowBanMsg,
+						ShowAlert: true,
+					})
+				}
+				return c.Send(shadowBanMsg, telebot.RemoveKeyboard)
+			}
+			return next(c)
+		}
+	})
 
 	b.Handle("/start", bookingHandler.HandleStart)
 	b.Handle("/cancel", bookingHandler.HandleCancel)
@@ -41,7 +86,16 @@ func StartBot(
 	b.Handle("/upload", bookingHandler.HandleUploadCommand)
 	b.Handle("/backup", bookingHandler.HandleBackup)
 	b.Handle("/ban", bookingHandler.HandleBan)
+	b.Handle("/ban", bookingHandler.HandleBan)
 	b.Handle("/unban", bookingHandler.HandleUnban)
+	b.Handle("/block", bookingHandler.HandleBlock)
+
+	// Register file/media handlers
+	b.Handle(telebot.OnDocument, bookingHandler.HandleFileMessage)
+	b.Handle(telebot.OnPhoto, bookingHandler.HandleFileMessage)
+	b.Handle(telebot.OnVideo, bookingHandler.HandleFileMessage)
+	b.Handle(telebot.OnAnimation, bookingHandler.HandleFileMessage)
+	b.Handle(telebot.OnVoice, bookingHandler.HandleFileMessage)
 
 	// Обработчик для всех inline-кнопок
 	b.Handle(telebot.OnCallback, func(c telebot.Context) error {

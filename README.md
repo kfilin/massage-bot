@@ -1,97 +1,38 @@
-# 🏗️ Massage Bot - Telegram Appointment System
+# 💆 Vera Massage Bot
 
-A production-ready Telegram bot for massage appointment booking with Google Calendar integration.
+![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)
+![License](https://img.shields.io/badge/License-Private-red)
 
-## 🚀 Quick Start
+A professional Telegram bot for scheduling massage appointments, managing medical records, and tracking patient history. Built for Vera massage studio in Fethiye.
 
-```bash
-# Clone and build
-git clone https://github.com/kfilin/massage-bot
-cd massage-bot
-go run cmd/bot/main.go
+## 🌟 Key Features
 
-🔐 Environment Configuration
-Required Environment Variables
-bash
+- **Smart Booking**: Interactive calendar for scheduling appointments.
+- **Medical Records**: Automatically generates Markdown-based medical cards (`.md`) for each patient.
+- **Document Storage**: Securely saves MRI, X-Ray, Videos, and Voice messages to the patient's record.
+- **Blacklist System**: "Shadow ban" feature to politely block unwanted users.
+- **Admin Dashboard**: Real-time notifications for bookings, cancellations, and file uploads.
+- **Google Calendar Sync**: Two-way synchronization with the therapist's calendar.
 
-# Telegram Bot Configuration
-BOT_TOKEN=your_telegram_bot_token_here
-ADMIN_ID=your_telegram_user_id_here
+## 📚 Documentation
 
-# Health Server Configuration  
-HEALTH_PORT=8080  # Port for health check endpoints (default: 8080)
+Detailed documentation is available for both users and developers:
 
-# Google Calendar Configuration (choose one method)
+- **[📖 User Guide](USER_GUIDE.md)**  
+  *For Patients*: How to book, cancel, and access your medical card.
 
-Google Calendar Setup
-Method 1: Environment Variables (Recommended for containers)
-bash
+- **[🛠 Developer Guide](DEVELOPER.md)**  
+  *For Maintainers*: System architecture, configuration, testing, and deployment instructions.
 
-# Google OAuth Credentials (JSON format)
-GOOGLE_CREDENTIALS_JSON='{"web":{"client_id":"...","client_secret":"...","redirect_uris":["http://localhost:8080"]}}'
+## 🚀 Quick Start (Admin)
 
-# Google OAuth Token (after initial authentication)
-GOOGLE_TOKEN_JSON='{"access_token":"...","token_type":"Bearer",...}'
+1. **Configure**: Ensure `.env` is set up with your `TG_BOT_TOKEN` and `TG_ADMIN_ID`.
+2. **Run**:
+   ```bash
+   make run
+   ```
+3. **Backup**:
+   Use `/backup` in the bot to download a ZIP of all patient data.
 
-# Google Calendar ID
-GOOGLE_CALENDAR_ID=your_calendar_id@gmail.com
-
-Method 2: Local Files (for development)
-bash
-
-# Place credentials.json in project root
-# Place token.json in project root (generated after first OAuth flow)
-
-Getting Google OAuth Credentials:
-
-    Go to Google Cloud Console
-
-    Create a new project or select existing one
-
-    Enable Google Calendar API
-
-    Create OAuth 2.0 credentials (Web application)
-
-    Set authorized redirect URIs to: http://localhost:8080
-
-    Download credentials JSON or copy to environment variable
-
-🏥 Health Endpoints
-
-    GET /health - Application health status
-
-    GET /ready - Readiness for traffic
-
-    GET /live - Liveness probe
-
-    GET / - Service information
-
-The health server port can be configured via HEALTH_PORT environment variable.
-bash
-
-curl http://localhost:8080/health
-
-🐳 Containerization
-bash
-
-# Build Docker image
-docker build -t massage-bot:latest .
-
-# Run container
-docker run -d -p 8080:8080 \
-  -e BOT_TOKEN=your_token \
-  -e ADMIN_ID=your_id \
-  -e HEALTH_PORT=8080 \
-  massage-bot:latest
-
-🔒 Security
-
-Sensitive data is excluded from version control. Use environment variables in production.
-📞 Support
-
-Create GitHub issues for bugs and questions.
-
-## 🔐 Token Management
-
-For Google OAuth token renewal procedures, see [TOKEN_RENEWAL.md](TOKEN_RENEWAL.md).
-Last renewal: 2026-01-09 | Next due: ~2026-07-09
+---
+*Created by Kirill Filin & AntiGravity AI.*
