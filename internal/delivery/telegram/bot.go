@@ -89,6 +89,7 @@ func StartBot(
 	b.Handle("/ban", bookingHandler.HandleBan)
 	b.Handle("/unban", bookingHandler.HandleUnban)
 	b.Handle("/block", bookingHandler.HandleBlock)
+	b.Handle("/status", bookingHandler.HandleStatus)
 
 	// Register file/media handlers
 	b.Handle(telebot.OnDocument, bookingHandler.HandleFileMessage)

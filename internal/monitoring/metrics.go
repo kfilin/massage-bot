@@ -1,6 +1,9 @@
 package monitoring
 
 import (
+	"sync/atomic"
+	"time"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -30,11 +33,17 @@ var (
 			Help: "Days until OAuth token expiry",
 		},
 	)
+
+	// Internal counters for status display
+	StartTime      = time.Now()
+	totalBookings  int64
+	activeSessions int64
 )
 
 // Helper functions
 func IncrementBooking(serviceName string) {
 	BookingsTotal.WithLabelValues(serviceName).Inc()
+	atomic.AddInt64(&totalBookings, 1)
 }
 
 func UpdateTokenExpiry(days float64) {
@@ -43,4 +52,14 @@ func UpdateTokenExpiry(days float64) {
 
 func UpdateActiveSessions(count int) {
 	ActiveSessions.Set(float64(count))
+	atomic.StoreInt64(&activeSessions, int64(count))
+}
+
+// Getter functions for status command
+func GetTotalBookings() int64 {
+	return atomic.LoadInt64(&totalBookings)
+}
+
+func GetActiveSessions() int64 {
+	return atomic.LoadInt64(&activeSessions)
 }

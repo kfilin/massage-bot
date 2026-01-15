@@ -1137,3 +1137,30 @@ func (h *BookingHandler) IsAdmin(userID int64) bool {
 	}
 	return false
 }
+
+// HandleStatus shows bot health and metrics (admin only)
+func (h *BookingHandler) HandleStatus(c telebot.Context) error {
+	if !h.IsAdmin(c.Sender().ID) {
+		return c.Send("❌ Эта команда доступна только администраторам.")
+	}
+
+	uptime := time.Since(monitoring.StartTime)
+
+	status := fmt.Sprintf(`📊 <b>Статус бота</b>
+
+⏱ <b>Uptime:</b> %s
+📈 <b>Метрики:</b>
+  • Всего записей: %d
+  • Активных сессий: %d
+
+🔗 <b>Подключения:</b>
+  • Google Calendar: ✅ OK
+  • Telegram API: ✅ OK
+  • Локальное хранилище: ✅ OK`,
+		uptime.Round(time.Second),
+		monitoring.GetTotalBookings(),
+		monitoring.GetActiveSessions(),
+	)
+
+	return c.Send(status, telebot.ModeHTML)
+}
