@@ -328,3 +328,15 @@ func (s *Service) GetCustomerAppointments(ctx context.Context, customerTgID stri
 	log.Printf("DEBUG: Found %d appointments for customer %s", len(customerAppts), customerTgID)
 	return customerAppts, nil
 }
+
+// GetTotalUpcomingCount returns the total number of upcoming appointments for all customers.
+func (s *Service) GetTotalUpcomingCount(ctx context.Context) (int, error) {
+	allAppts, err := s.repo.FindAll(ctx)
+	if err != nil {
+		if errors.Is(err, domain.ErrAppointmentNotFound) {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("failed to fetch all appointments: %w", err)
+	}
+	return len(allAppts), nil
+}

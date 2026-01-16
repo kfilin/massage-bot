@@ -1161,21 +1161,26 @@ func (h *BookingHandler) HandleStatus(c telebot.Context) error {
 	}
 
 	uptime := time.Since(monitoring.StartTime)
+	totalAppts, err := h.appointmentService.GetTotalUpcomingCount(context.Background())
+	if err != nil {
+		log.Printf("ERROR: Failed to get total upcoming count in status: %v", err)
+		totalAppts = 0 // Fallback
+	}
 
 	status := fmt.Sprintf(`📊 <b>Статус бота</b>
 
 ⏱ <b>Uptime:</b> %s
 📈 <b>Метрики:</b>
-  • Всего записей: %d
-  • Активных сессий: %d
+  • Всего записей (в календаре): %d
+  • Сессий с запуска: %d
 
 🔗 <b>Подключения:</b>
   • Google Calendar: ✅ OK
   • Telegram API: ✅ OK
   • Локальное хранилище: ✅ OK`,
 		uptime.Round(time.Second),
+		totalAppts,
 		monitoring.GetTotalBookings(),
-		monitoring.GetActiveSessions(),
 	)
 
 	return c.Send(status, telebot.ModeHTML)

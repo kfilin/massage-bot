@@ -15,6 +15,7 @@ type AppointmentService interface {
 	CancelAppointment(ctx context.Context, appointmentID string) error
 	GetCustomerAppointments(ctx context.Context, customerTgID string) ([]domain.Appointment, error)
 	FindByID(ctx context.Context, appointmentID string) (*domain.Appointment, error)
+	GetTotalUpcomingCount(ctx context.Context) (int, error)
 }
 
 // AppointmentRepository defines the interface for data persistence (e.g., Google Calendar).
