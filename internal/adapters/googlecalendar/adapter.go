@@ -63,10 +63,20 @@ func (a *adapter) Create(ctx context.Context, appt *domain.Appointment) (*domain
 	}
 
 	appt.ID = createdEvent.Id // Store the Google Calendar event ID
-	log.Printf("SUCCESS: Google Calendar event created in calendar '%s': %s (ID: %s) Start: %s End: %s",
-		a.calendarID, createdEvent.Summary, createdEvent.Id, createdEvent.Start.DateTime, createdEvent.End.DateTime)
+	log.Printf("SUCCESS: Event created in '%s': %s (ID: %s) Link: %s",
+		a.calendarID, createdEvent.Summary, createdEvent.Id, createdEvent.HtmlLink)
 
 	return appt, nil
+}
+
+// GetAccountInfo returns the email address associated with the authenticated calendar.
+func (a *adapter) GetAccountInfo(ctx context.Context) (string, error) {
+	cal, err := a.client.Calendars.Get(a.calendarID).Context(ctx).Do()
+	if err != nil {
+		return "", err
+	}
+	// Many times primary calendar summary is the email address
+	return cal.Summary, nil
 }
 
 // GetAvailableSlots fetches available time slots from Google Calendar.
@@ -136,15 +146,18 @@ func (a *adapter) FindAll(ctx context.Context) ([]domain.Appointment, error) {
 	events, err := a.client.Events.List(a.calendarID).
 		ShowDeleted(false).
 		SingleEvents(true).
-		TimeMin(time.Now().Add(-24 * time.Hour).Format(time.RFC3339)). // Include events from yesterday for safety
-		MaxResults(2500).                                              // Increase limit to ensure we see future blocks
+		TimeMin(time.Now().Add(-24 * time.Hour).Format(time.RFC3339)).
+		MaxResults(2500).
 		OrderBy("startTime").
 		Do()
 	if err != nil {
 		return nil, fmt.Errorf("failed to list all calendar events from '%s': %w", a.calendarID, err)
 	}
 
-	log.Printf("DEBUG: FindAll retrieved %d events from calendar '%s'", len(events.Items), a.calendarID)
+	log.Printf("DEBUG: Found %d total items in calendar '%s'", len(events.Items), a.calendarID)
+	for i, item := range events.Items {
+		log.Printf("EVENT [%d]: ID=%s, Summary='%s', Status=%s, Transparency=%s", i, item.Id, item.Summary, item.Status, item.Transparency)
+	}
 	var appointments []domain.Appointment
 	for _, event := range events.Items {
 		appt, err := eventToAppointment(event)

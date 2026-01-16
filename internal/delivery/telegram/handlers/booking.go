@@ -1167,6 +1167,12 @@ func (h *BookingHandler) HandleStatus(c telebot.Context) error {
 		totalAppts = 0 // Fallback
 	}
 
+	accountInfo, err := h.appointmentService.GetCalendarAccountInfo(context.Background())
+	if err != nil {
+		log.Printf("ERROR: Failed to get calendar account info: %v", err)
+		accountInfo = "Unknown"
+	}
+
 	status := fmt.Sprintf(`📊 <b>Статус бота</b>
 
 ⏱ <b>Uptime:</b> %s
@@ -1175,12 +1181,13 @@ func (h *BookingHandler) HandleStatus(c telebot.Context) error {
   • Сессий с запуска: %d
 
 🔗 <b>Подключения:</b>
-  • Google Calendar: ✅ OK
+  • Google Calendar: ✅ %s
   • Telegram API: ✅ OK
   • Локальное хранилище: ✅ OK`,
 		uptime.Round(time.Second),
 		totalAppts,
 		monitoring.GetTotalBookings(),
+		accountInfo,
 	)
 
 	return c.Send(status, telebot.ModeHTML)

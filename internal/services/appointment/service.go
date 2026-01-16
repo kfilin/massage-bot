@@ -340,3 +340,8 @@ func (s *Service) GetTotalUpcomingCount(ctx context.Context) (int, error) {
 	}
 	return len(allAppts), nil
 }
+
+// GetCalendarAccountInfo returns the email address or summary of the connected Google Calendar.
+func (s *Service) GetCalendarAccountInfo(ctx context.Context) (string, error) {
+	return s.repo.GetAccountInfo(ctx)
+}
