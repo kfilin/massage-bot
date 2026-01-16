@@ -24,6 +24,9 @@ func (m *mockRepo) FindAll(ctx context.Context) ([]domain.Appointment, error) {
 func (m *mockRepo) Delete(ctx context.Context, id string) error {
 	return nil
 }
+func (m *mockRepo) GetAccountInfo(ctx context.Context) (string, error) {
+	return "mock@example.com", nil
+}
 
 func TestGetAvailableTimeSlots(t *testing.T) {
 	repo := &mockRepo{
