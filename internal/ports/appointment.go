@@ -17,6 +17,8 @@ type AppointmentService interface {
 	FindByID(ctx context.Context, appointmentID string) (*domain.Appointment, error)
 	GetTotalUpcomingCount(ctx context.Context) (int, error)
 	GetCalendarAccountInfo(ctx context.Context) (string, error)
+	GetCalendarID() string
+	ListCalendars(ctx context.Context) ([]string, error)
 }
 
 // AppointmentRepository defines the interface for data persistence (e.g., Google Calendar).
@@ -27,6 +29,8 @@ type AppointmentRepository interface {
 	FindByID(ctx context.Context, id string) (*domain.Appointment, error)
 	Delete(ctx context.Context, id string) error
 	GetAccountInfo(ctx context.Context) (string, error)
+	GetCalendarID() string
+	ListCalendars(ctx context.Context) ([]string, error)
 }
 
 // SessionStorage defines the interface for managing user sessions (e.g., in-memory or Redis).

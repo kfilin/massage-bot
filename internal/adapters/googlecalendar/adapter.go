@@ -75,8 +75,23 @@ func (a *adapter) GetAccountInfo(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// Many times primary calendar summary is the email address
 	return cal.Summary, nil
+}
+
+func (a *adapter) GetCalendarID() string {
+	return a.calendarID
+}
+
+func (a *adapter) ListCalendars(ctx context.Context) ([]string, error) {
+	list, err := a.client.CalendarList.List().Context(ctx).Do()
+	if err != nil {
+		return nil, err
+	}
+	var res []string
+	for _, item := range list.Items {
+		res = append(res, fmt.Sprintf("%s (%s)", item.Summary, item.Id))
+	}
+	return res, nil
 }
 
 // GetAvailableSlots fetches available time slots from Google Calendar.
@@ -160,6 +175,12 @@ func (a *adapter) FindAll(ctx context.Context) ([]domain.Appointment, error) {
 	}
 	var appointments []domain.Appointment
 	for _, event := range events.Items {
+		// SKIP TRANSPARENT (FREE) EVENTS
+		if event.Transparency == "transparent" {
+			log.Printf("DEBUG: Skipping transparent (FREE) event: %s", event.Summary)
+			continue
+		}
+
 		appt, err := eventToAppointment(event)
 		if err != nil {
 			log.Printf("Warning: failed to convert event %s ('%s') to appointment: %v", event.Id, event.Summary, err)

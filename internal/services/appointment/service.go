@@ -345,3 +345,11 @@ func (s *Service) GetTotalUpcomingCount(ctx context.Context) (int, error) {
 func (s *Service) GetCalendarAccountInfo(ctx context.Context) (string, error) {
 	return s.repo.GetAccountInfo(ctx)
 }
+
+func (s *Service) GetCalendarID() string {
+	return s.repo.GetCalendarID()
+}
+
+func (s *Service) ListCalendars(ctx context.Context) ([]string, error) {
+	return s.repo.ListCalendars(ctx)
+}

@@ -27,6 +27,12 @@ func (m *mockRepo) Delete(ctx context.Context, id string) error {
 func (m *mockRepo) GetAccountInfo(ctx context.Context) (string, error) {
 	return "mock@example.com", nil
 }
+func (m *mockRepo) GetCalendarID() string {
+	return "primary"
+}
+func (m *mockRepo) ListCalendars(ctx context.Context) ([]string, error) {
+	return []string{"Primary (primary)"}, nil
+}
 
 func TestGetAvailableTimeSlots(t *testing.T) {
 	repo := &mockRepo{
