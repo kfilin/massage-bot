@@ -199,11 +199,27 @@ func eventToAppointment(event *calendar.Event) (*domain.Appointment, error) {
 		return nil, fmt.Errorf("malformed event data for ID %s", event.Id)
 	}
 
-	startTime, err := time.Parse(time.RFC3339, event.Start.DateTime)
+	var startTime, endTime time.Time
+	var err error
+
+	if event.Start.DateTime != "" {
+		startTime, err = time.Parse(time.RFC3339, event.Start.DateTime)
+	} else if event.Start.Date != "" {
+		startTime, err = time.Parse("2006-01-02", event.Start.Date)
+	} else {
+		return nil, fmt.Errorf("event %s has no start time or date", event.Id)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("error parsing start time for event ID %s: %v", event.Id, err)
 	}
-	endTime, err := time.Parse(time.RFC3339, event.End.DateTime)
+
+	if event.End.DateTime != "" {
+		endTime, err = time.Parse(time.RFC3339, event.End.DateTime)
+	} else if event.End.Date != "" {
+		endTime, err = time.Parse("2006-01-02", event.End.Date)
+	} else {
+		endTime = startTime
+	}
 	if err != nil {
 		return nil, fmt.Errorf("error parsing end time for event ID %s: %v", event.Id, err)
 	}

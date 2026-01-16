@@ -144,14 +144,27 @@ func StartBot(
 	// Обработчик для всех текстовых сообщений
 	b.Handle(telebot.OnText, func(c telebot.Context) error {
 		userID := c.Sender().ID
-		session := sessionStorage.Get(userID)
-		text := c.Text()
+		text := strings.TrimSpace(c.Text())
 		log.Printf("Received text: \"%s\" from user %d", text, userID)
 
-		// Проверяем, ожидает ли бот подтверждения
+		// Priority level 1: Main menu buttons (always available)
+		switch text {
+		case "🗓 Записаться":
+			return bookingHandler.HandleStart(c)
+		case "📅 Мои записи":
+			return bookingHandler.HandleMyAppointments(c)
+		case "📄 Мед-карта":
+			return bookingHandler.HandleMyRecords(c)
+		case "📤 Загрузить документы":
+			return bookingHandler.HandleUploadCommand(c)
+		}
+
+		session := sessionStorage.Get(userID)
+
+		// Priority level 2: Confirmation flow
 		if awaitingConfirmation, ok := session[handlers.SessionKeyAwaitingConfirmation].(bool); ok && awaitingConfirmation {
 			log.Printf("DEBUG: OnText: Bot is awaiting confirmation for user %d.", userID)
-			cleanText := strings.ToLower(strings.TrimSpace(text))
+			cleanText := strings.ToLower(text)
 			switch cleanText {
 			case "подтвердить", "да", "д", "yes", "y", "ok", "ок":
 				log.Printf("DEBUG: OnText: Matched confirmation text '%s' for user %d.", cleanText, userID)
@@ -165,17 +178,9 @@ func StartBot(
 			}
 		}
 
-		// Оригинальная логика для других текстовых вводов (имя и т.д.)
+		// Priority level 3: Standard flow (Name input, etc.)
 		switch text {
-		case "🗓 Записаться":
-			return bookingHandler.HandleStart(c)
-		case "📅 Мои записи":
-			return bookingHandler.HandleMyAppointments(c)
-		case "📄 Мед-карта":
-			return bookingHandler.HandleMyRecords(c)
-		case "📤 Загрузить документы":
-			return bookingHandler.HandleUploadCommand(c)
-		case "Подтвердить": // Этот случай будет срабатывать только если SessionKeyAwaitingConfirmation = false (чего быть не должно)
+		case "Подтвердить": // Safety fallback
 			log.Printf("DEBUG: OnText: Matched 'Подтвердить' (unexpectedly outside confirmation flow).")
 			return bookingHandler.HandleConfirmBooking(c)
 		case "Отменить запись":
