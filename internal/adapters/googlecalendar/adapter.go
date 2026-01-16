@@ -59,11 +59,12 @@ func (a *adapter) Create(ctx context.Context, appt *domain.Appointment) (*domain
 
 	createdEvent, err := a.client.Events.Insert(a.calendarID, event).Context(ctx).Do()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create calendar event: %w", err)
+		return nil, fmt.Errorf("failed to create calendar event (Check if GOOGLE_CALENDAR_ID '%s' is correct): %w", a.calendarID, err)
 	}
 
 	appt.ID = createdEvent.Id // Store the Google Calendar event ID
-	log.Printf("Google Calendar event created: %s (ID: %s)", createdEvent.Summary, createdEvent.Id)
+	log.Printf("SUCCESS: Google Calendar event created in calendar '%s': %s (ID: %s) Start: %s End: %s",
+		a.calendarID, createdEvent.Summary, createdEvent.Id, createdEvent.Start.DateTime, createdEvent.End.DateTime)
 
 	return appt, nil
 }
@@ -135,20 +136,23 @@ func (a *adapter) FindAll(ctx context.Context) ([]domain.Appointment, error) {
 	events, err := a.client.Events.List(a.calendarID).
 		ShowDeleted(false).
 		SingleEvents(true).
-		TimeMin(time.Now().Format(time.RFC3339)). // From now
+		TimeMin(time.Now().Add(-24 * time.Hour).Format(time.RFC3339)). // Include events from yesterday for safety
+		MaxResults(2500).                                              // Increase limit to ensure we see future blocks
 		OrderBy("startTime").
 		Do()
 	if err != nil {
-		return nil, fmt.Errorf("failed to list all calendar events: %w", err)
+		return nil, fmt.Errorf("failed to list all calendar events from '%s': %w", a.calendarID, err)
 	}
 
+	log.Printf("DEBUG: FindAll retrieved %d events from calendar '%s'", len(events.Items), a.calendarID)
 	var appointments []domain.Appointment
 	for _, event := range events.Items {
 		appt, err := eventToAppointment(event)
 		if err != nil {
-			log.Printf("Warning: failed to convert event %s to appointment: %v", event.Id, err)
+			log.Printf("Warning: failed to convert event %s ('%s') to appointment: %v", event.Id, event.Summary, err)
 			continue
 		}
+		log.Printf("DEBUG: FindAll recognized event: %s (%s - %s) ID: %s", appt.Service.Name, appt.StartTime.Format("02.01 15:04"), appt.EndTime.Format("15:04"), appt.ID)
 		appointments = append(appointments, *appt)
 	}
 	return appointments, nil
