@@ -672,6 +672,22 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 		// Clear session
 		h.sessionStorage.ClearSession(userID)
 
+		// Notify OTHER admin(s) about the block
+		blockerName := c.Sender().FirstName
+		if blockerName == "" {
+			blockerName = c.Sender().Username
+		}
+		for _, adminIDStr := range h.adminIDs {
+			adminID, _ := strconv.ParseInt(adminIDStr, 10, 64)
+			if adminID != userID { // Don't notify the admin who created the block
+				h.BotNotify(c.Bot(), adminID, fmt.Sprintf("🔒 *Время заблокировано*\n\nАдмин: %s\nДата: %s\nВремя: %s\nДлительность: %s",
+					blockerName,
+					appointmentTime.Format("02.01.2006"),
+					appointmentTime.Format("15:04"),
+					service.Name))
+			}
+		}
+
 		// Use createdAppt info if available, otherwise use request data
 		return c.Send(fmt.Sprintf("✅ <b>Время заблокировано!</b>\n\n📅 %s\n⏰ %s\n⏳ %s",
 			appointmentTime.Format("02.01.2006"),
