@@ -37,7 +37,7 @@ func startHealthServer() {
 	// Get port from environment or use default
 	port := os.Getenv("HEALTH_PORT")
 	if port == "" {
-		port = "8080"
+		port = "8081"
 	}
 
 	log.Printf("Starting health server on :%s", port)
