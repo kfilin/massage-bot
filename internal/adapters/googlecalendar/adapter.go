@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/kfilin/massage-bot/internal/domain" // Импортируем domain
@@ -53,18 +54,42 @@ func (a *adapter) Create(ctx context.Context, appt *domain.Appointment) (*domain
 			DateTime: appt.EndTime.Format(time.RFC3339),
 			TimeZone: appt.EndTime.Location().String(),
 		},
-		// Add attendees if necessary, e.g., []string{appt.CustomerEmail}
-		// Assuming for now it's a simple booking on the calendar.
 	}
 
-	createdEvent, err := a.client.Events.Insert(a.calendarID, event).Context(ctx).Do()
+	// Add Google Meet support for online consultations
+	if strings.Contains(strings.ToLower(appt.Service.Name), "онлайн") || strings.Contains(strings.ToLower(appt.Service.Name), "online") {
+		event.ConferenceData = &calendar.ConferenceData{
+			CreateRequest: &calendar.CreateConferenceRequest{
+				RequestId: fmt.Sprintf("meet-%d", time.Now().UnixNano()),
+				ConferenceSolutionKey: &calendar.ConferenceSolutionKey{
+					Type: "hangoutsMeet",
+				},
+			},
+		}
+	}
+
+	createdEvent, err := a.client.Events.Insert(a.calendarID, event).
+		ConferenceDataVersion(1). // Required for conference generation
+		Context(ctx).
+		Do()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create calendar event (Check if GOOGLE_CALENDAR_ID '%s' is correct): %w", a.calendarID, err)
 	}
 
 	appt.ID = createdEvent.Id // Store the Google Calendar event ID
-	log.Printf("SUCCESS: Event created in '%s': %s (ID: %s) Link: %s",
-		a.calendarID, createdEvent.Summary, createdEvent.Id, createdEvent.HtmlLink)
+
+	// Extract Meet Link if generated
+	if createdEvent.ConferenceData != nil && len(createdEvent.ConferenceData.EntryPoints) > 0 {
+		for _, entry := range createdEvent.ConferenceData.EntryPoints {
+			if entry.EntryPointType == "video" {
+				appt.MeetLink = entry.Uri
+				break
+			}
+		}
+	}
+
+	log.Printf("SUCCESS: Event created in '%s': %s (ID: %s) Link: %s Meet: %s",
+		a.calendarID, createdEvent.Summary, createdEvent.Id, createdEvent.HtmlLink, appt.MeetLink)
 
 	return appt, nil
 }

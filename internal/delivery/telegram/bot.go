@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"log"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -50,7 +51,13 @@ func StartBot(
 		finalAdminIDs = append(finalAdminIDs, id)
 	}
 
-	bookingHandler := handlers.NewBookingHandler(appointmentService, sessionStorage, finalAdminIDs)
+	// Retrieve therapist ID from environment
+	therapistID := os.Getenv("TG_THERAPIST_ID")
+	if therapistID == "" {
+		log.Println("WARNING: TG_THERAPIST_ID not set in environment.")
+	}
+
+	bookingHandler := handlers.NewBookingHandler(appointmentService, sessionStorage, finalAdminIDs, therapistID)
 
 	// GLOBAL MIDDLEWARE: Enforce ban check on ALL entry points
 	b.Use(func(next telebot.HandlerFunc) telebot.HandlerFunc {
@@ -111,7 +118,10 @@ func StartBot(
 
 		// Добавляем логирование для каждой ветки if/else if
 		// Используем trimmedData для проверки префикса
-		if strings.HasPrefix(trimmedData, "select_service|") {
+		if strings.HasPrefix(trimmedData, "select_category|") {
+			log.Printf("DEBUG: OnCallback: Matched 'select_category' prefix.")
+			return bookingHandler.HandleCategorySelection(c)
+		} else if strings.HasPrefix(trimmedData, "select_service|") {
 			log.Printf("DEBUG: OnCallback: Matched 'select_service' prefix.")
 			return bookingHandler.HandleServiceSelection(c)
 		} else if strings.HasPrefix(trimmedData, "select_date|") || strings.HasPrefix(trimmedData, "navigate_month|") {

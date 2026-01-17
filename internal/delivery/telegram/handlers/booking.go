@@ -17,113 +17,123 @@ import (
 	"gopkg.in/telebot.v3"                            // Ensure telebot.v3 is correctly imported
 )
 
-// Session keys for storing booking state
-const (
-	SessionKeyService              = "service"
-	SessionKeyDate                 = "date"
-	SessionKeyTime                 = "time"
-	SessionKeyName                 = "name"
-	SessionKeyAwaitingConfirmation = "awaiting_confirmation" // NEW: Key to indicate awaiting confirmation
-	SessionKeyIsAdminBlock         = "is_admin_block"        // Flag to indicate admin blocking mode
-)
-
 // BookingHandler handles booking-related commands and callbacks.
 type BookingHandler struct {
 	appointmentService ports.AppointmentService
 	sessionStorage     ports.SessionStorage
 	adminIDs           []string
+	therapistID        string // Added to notify Vera
 }
 
+// Session keys
+const (
+	SessionKeyService              = "service"
+	SessionKeyDate                 = "date"
+	SessionKeyTime                 = "time"
+	SessionKeyName                 = "name"
+	SessionKeyAwaitingConfirmation = "awaiting_confirmation"
+	SessionKeyCategory             = "category" // New for categorized menu
+	SessionKeyIsAdminBlock         = "is_admin_block"
+)
+
 // NewBookingHandler creates a new BookingHandler.
-func NewBookingHandler(appointmentService ports.AppointmentService, sessionStorage ports.SessionStorage, adminIDs []string) *BookingHandler {
+func NewBookingHandler(appointmentService ports.AppointmentService, sessionStorage ports.SessionStorage, adminIDs []string, therapistID string) *BookingHandler {
 	return &BookingHandler{
 		appointmentService: appointmentService,
 		sessionStorage:     sessionStorage,
 		adminIDs:           adminIDs,
+		therapistID:        therapistID,
 	}
 }
 
 // HandleStart handles the /start command, greeting the user and offering services.
 func (h *BookingHandler) HandleStart(c telebot.Context) error {
 	userID := c.Sender().ID
-	// Middleware handles ban check globally
-
 	log.Printf("DEBUG: Entered HandleStart for user %d", userID)
-	// Clear any previous session for the user
 	h.sessionStorage.ClearSession(userID)
-
-	services, err := h.appointmentService.GetAvailableServices(context.Background())
-	if err != nil {
-		log.Printf("Error getting available services: %v", err)
-		return c.Send("Произошла ошибка при получении списка услуг. Пожалуйста, попробуйте позже.")
-	}
-
-	if len(services) == 0 {
-		return c.Send("В настоящее время услуги недоступны. Пожалуйста, попробуйте позже.")
-	}
 
 	// First, send the persistent main menu
 	c.Send("💆 Добро пожаловать!", h.GetMainMenu())
 
-	h.sessionStorage.Set(c.Sender().ID, SessionKeyIsAdminBlock, false)
+	h.sessionStorage.Set(userID, SessionKeyIsAdminBlock, false)
+
+	return h.showCategories(c)
+}
+
+func (h *BookingHandler) showCategories(c telebot.Context) error {
+	selector := &telebot.ReplyMarkup{}
+	btnMassages := selector.Data("💆 Массаж", "select_category", "massages")
+	btnConsultations := selector.Data("👥 Консультация", "select_category", "consultations")
+	btnOther := selector.Data("✨ Другие услуги", "select_category", "other")
+
+	selector.Inline(
+		selector.Row(btnMassages),
+		selector.Row(btnConsultations),
+		selector.Row(btnOther),
+	)
+
+	msg := "Выберите категорию услуг:"
+	if c.Callback() != nil {
+		return c.Edit(msg, selector)
+	}
+	return c.Send(msg, selector)
+}
+
+// HandleCategorySelection handles the callback query for category selection.
+func (h *BookingHandler) HandleCategorySelection(c telebot.Context) error {
+	data := strings.TrimSpace(c.Callback().Data)
+	parts := strings.Split(data, "|")
+	if len(parts) != 2 || parts[0] != "select_category" {
+		return c.Edit("Ошибка выбора категории.")
+	}
+
+	category := parts[1]
+	if category == "back" {
+		return h.showCategories(c)
+	}
+
+	userID := c.Sender().ID
+	h.sessionStorage.Set(userID, SessionKeyCategory, category)
+
+	services, err := h.appointmentService.GetAvailableServices(context.Background())
+	if err != nil {
+		log.Printf("Error getting services: %v", err)
+		return c.Edit("Ошибка загрузки услуг.")
+	}
 
 	selector := &telebot.ReplyMarkup{}
 	var rows []telebot.Row
-	var btnBatch []telebot.Btn
 
-	// Smart Adaptive Layout with Clinical Styling for Mobile
 	for _, svc := range services {
+		include := false
 		name := svc.Name
-		// Surgical Copywriting: Shorten names to fit 2-column layout on iPhone
-		switch name {
-		case "Массаж Спина + Шея":
-			name = "💆 Спина + Шея"
-		case "Общий массаж":
-			name = "💆 Общий"
-		case "Лимфодренаж":
-			name = "🌊 Лимфо"
-		case "Иглоукалывание":
-			name = "📍 Иглы"
-		case "Консультация офлайн":
-			name = "👥 Офлайн"
-		case "Консультация онлайн":
-			name = "💻 Онлайн"
-		case "Реабилитационные программы":
-			// Special handling for price prefix
-			label := fmt.Sprintf("🦾 Реабилитация · от %.0f₺", svc.Price)
-			btn := selector.Data(label, "select_service", svc.ID)
-			if len(btnBatch) > 0 {
-				rows = append(rows, selector.Row(btnBatch...))
-				btnBatch = nil
+
+		switch category {
+		case "massages":
+			if name == "Массаж Спина + Шея" || name == "Общий массаж" || name == "Лимфодренаж" {
+				include = true
 			}
-			rows = append(rows, selector.Row(btn))
-			continue
+		case "consultations":
+			if name == "Консультация офлайн" || name == "Консультация онлайн" {
+				include = true
+			}
+		case "other":
+			if name == "Иглоукалывание" || name == "Реабилитационные программы" {
+				include = true
+			}
 		}
 
-		label := fmt.Sprintf("%s · %.0f₺", name, svc.Price)
-		btn := selector.Data(label, "select_service", svc.ID)
-
-		// iPhone 2-column limit is ~22 chars. If name is long, it stays a full row.
-		if len([]rune(label)) > 22 {
-			if len(btnBatch) > 0 {
-				rows = append(rows, selector.Row(btnBatch...))
-				btnBatch = nil
-			}
-			rows = append(rows, selector.Row(btn))
-		} else {
-			btnBatch = append(btnBatch, btn)
-			if len(btnBatch) == 2 {
-				rows = append(rows, selector.Row(btnBatch...))
-				btnBatch = nil
-			}
+		if include {
+			label := fmt.Sprintf("%s · %.0f₺", name, svc.Price)
+			rows = append(rows, selector.Row(selector.Data(label, "select_service", svc.ID)))
 		}
 	}
-	if len(btnBatch) > 0 {
-		rows = append(rows, selector.Row(btnBatch...))
-	}
+
+	btnBack := selector.Data("⬅️ Назад", "select_category", "back")
+	rows = append(rows, selector.Row(btnBack))
 
 	selector.Inline(rows...)
-	return c.Send("Выберите услугу для записи:", selector)
+	return c.Edit("Выберите конкретную услугу:", selector)
 }
 
 // HandleBlock initiates the admin Blocking Time flow
@@ -745,13 +755,30 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 		log.Printf("Patient record saved for user %d (TotalVisits: %d)", userID, patient.TotalVisits)
 	}
 
-	// Notify admin of new booking
+	// 1. Notify Admin(s)
 	for _, adminIDStr := range h.adminIDs {
 		adminID, _ := strconv.ParseInt(adminIDStr, 10, 64)
-		h.BotNotify(c.Bot(), adminID, fmt.Sprintf("🆕 *Новая запись!*\n\nПациент: %s (ID: %s)\nУслуга: %s\nДата: %s\nВремя: %s\nВсего посещений: %d",
+		msg := fmt.Sprintf("🆕 *Новая запись!*\n\nПациент: %s (ID: %s)\nУслуга: %s\nДата: %s\nВремя: %s\nВсего посещений: %d",
 			name, patient.TelegramID, service.Name,
 			appointmentTime.Format("02.01.2006"),
-			appointmentTime.Format("15:00"), patient.TotalVisits)) // Added TotalVisits to admin notification
+			appointmentTime.Format("15:04"), patient.TotalVisits)
+		if appt.MeetLink != "" {
+			msg += fmt.Sprintf("\n\n💻 *Google Meet:* %s", appt.MeetLink)
+		}
+		h.BotNotify(c.Bot(), adminID, msg)
+	}
+
+	// 2. Notify Therapist (Vera)
+	if h.therapistID != "" {
+		therapistID, _ := strconv.ParseInt(h.therapistID, 10, 64)
+		msg := fmt.Sprintf("🆕 *Вера, у вас новая запись!*\n\nПациент: %s\nУслуга: %s\nДата: %s\nВремя: %s",
+			name, service.Name,
+			appointmentTime.Format("02.01.2006"),
+			appointmentTime.Format("15:04"))
+		if appt.MeetLink != "" {
+			msg += fmt.Sprintf("\n\n💻 *Google Meet:* %s", appt.MeetLink)
+		}
+		h.BotNotify(c.Bot(), therapistID, msg)
 	}
 
 	// Increment booking metric
@@ -760,17 +787,21 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 	// Clear session on successful booking
 	h.sessionStorage.ClearSession(userID)
 
-	// Send Main Menu and a success message
-	c.Send("✅ Запись подтверждена!", h.GetMainMenu())
+	// 3. Confirm to Patient
+	confirmationMsg := fmt.Sprintf("✅ <b>Запись подтверждена!</b>\n\n📅 %s\n⏰ %s\n⏳ %s",
+		appointmentTime.Format("02.01.2006"),
+		appointmentTime.Format("15:04"),
+		service.Name)
+	if appt.MeetLink != "" {
+		confirmationMsg += fmt.Sprintf("\n\n💻 <b>Ссылка на Google Meet:</b>\n%s", appt.MeetLink)
+	}
 
-	// Add button to download the record
 	selector := &telebot.ReplyMarkup{}
 	selector.Inline(
 		selector.Row(selector.Data("📄 СКАЧАТЬ МЕД-КАРТУ", "download_record")),
 	)
 
-	return c.Send(fmt.Sprintf("Ваша запись на услугу '%s' на %s в %s успешно подтверждена! Ждем вас.\n\nВы можете скачать вашу медицинскую карту ниже:",
-		service.Name, appointmentTime.Format("02.01.2006"), appointmentTime.Format("15:04")), selector)
+	return c.Send(confirmationMsg, h.GetMainMenu(), selector, telebot.ModeHTML)
 }
 
 // HandleCancel handles the "Отменить запись" (Cancel booking) button

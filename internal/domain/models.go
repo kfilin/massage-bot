@@ -38,8 +38,9 @@ type Appointment struct {
 	CustomerName string `json:"customer_name"`  // Client's name from Telegram (e.g., FirstName LastName)
 	CustomerTgID string `json:"customer_tg_id"` // Telegram User ID
 
-	Notes           string `json:"notes"`             // Any additional notes for the appointment
-	CalendarEventID string `json:"calendar_event_id"` // ID из Google Calendar или другого репозитория
+	Notes           string `json:"notes"`               // Any additional notes for the appointment
+	CalendarEventID string `json:"calendar_event_id"`   // ID из Google Calendar или другого репозитория
+	MeetLink        string `json:"meet_link,omitempty"` // Google Meet link for online consultations
 }
 
 // --- Константы и глобальные переменные для временных слотов и рабочего дня ---
