@@ -337,6 +337,8 @@ func generateCalendar(month time.Time) *telebot.ReplyMarkup {
 				weekBtns = append(weekBtns, selector.Data(" ", "ignore"))
 			} else if currentDay.Truncate(24 * time.Hour).Before(nowInLoc) { // Disable past dates
 				weekBtns = append(weekBtns, selector.Data(fmt.Sprintf("%d", currentDay.Day()), "ignore"))
+			} else if currentDay.Weekday() == time.Saturday || currentDay.Weekday() == time.Sunday { // Disable weekends
+				weekBtns = append(weekBtns, selector.Data(fmt.Sprintf("%d", currentDay.Day()), "ignore"))
 			} else {
 				// Callback data format: "select_date|YYYY-MM-DD"
 				weekBtns = append(weekBtns, selector.Data(fmt.Sprintf("%d", currentDay.Day()), "select_date", currentDay.Format("2006-01-02")))
@@ -521,7 +523,7 @@ func (h *BookingHandler) HandleTimeSelection(c telebot.Context) error {
 
 	// Теперь переходим к запросу имени.
 	// Используем c.Send для отправки нового сообщения и удаления ReplyKeyboard
-	return c.Send("Пожалуйста, введите ваше имя и фамилию для записи (например, Иван Иванов).", telebot.RemoveKeyboard)
+	return c.Send("Пожалуйста, введите ваше имя и фамилию для записи (например, Иван Иванов).")
 }
 
 // HandleNameInput handles the user's name input (regular text message).
@@ -814,7 +816,7 @@ func (h *BookingHandler) HandleCancel(c telebot.Context) error {
 
 	h.sessionStorage.ClearSession(userID)
 	// Remove keyboard and send confirmation
-	return c.Send("Запись отменена. Сессия очищена. Вы можете начать /start снова.", telebot.RemoveKeyboard)
+	return c.Send("Запись отменена. Сессия очищена. Вы можете начать /start снова.", h.GetMainMenu())
 }
 
 // HandleMyRecords shows patient their records summary
