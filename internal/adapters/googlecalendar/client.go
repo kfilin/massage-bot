@@ -104,10 +104,11 @@ func getToken(config *oauth2.Config) (*oauth2.Token, error) {
 	log.Printf("Warning: Failed to load token from token.json: %v. Initiating new authentication.", err)
 
 	// --- START MANUAL LISTENER FOR OAUTH CALLBACK ---
-	authCodeChan := make(chan string)     // Channel to receive the authorization code
-	server := &http.Server{Addr: ":8080"} // Server listening on port 8080
+	authCodeChan := make(chan string) // Channel to receive the authorization code
+	mux := http.NewServeMux()
+	server := &http.Server{Addr: ":8080", Handler: mux} // Server listening on port 8080
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		code := r.URL.Query().Get("code")
 		if code != "" {
 			fmt.Fprintf(w, "Authentication successful! You can close this tab.")
