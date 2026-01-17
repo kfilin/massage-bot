@@ -95,13 +95,13 @@ func getToken(config *oauth2.Config) (*oauth2.Token, error) {
 		log.Println("DEBUG: GOOGLE_TOKEN_JSON environment variable is empty.")
 	}
 
-	// Fallback to token.json file for local development
-	tok, err := tokenFromFile("token.json")
+	// Fallback to data/token.json file for local development
+	tok, err := tokenFromFile("data/token.json")
 	if err == nil {
-		log.Println("Loaded Google token from token.json file.")
+		log.Println("Loaded Google token from data/token.json file.")
 		return tok, nil
 	}
-	log.Printf("Warning: Failed to load token from token.json: %v. Initiating new authentication.", err)
+	log.Printf("Warning: Failed to load token from data/token.json: %v. Initiating new authentication.", err)
 
 	// --- START MANUAL LISTENER FOR OAUTH CALLBACK ---
 	authCodeChan := make(chan string) // Channel to receive the authorization code
@@ -165,7 +165,7 @@ func getToken(config *oauth2.Config) (*oauth2.Token, error) {
 	}
 
 	// Save the new token to file (for local development)
-	saveToken("token.json", tok)
+	saveToken("data/token.json", tok)
 	log.Println("New Google token generated and saved locally. Remember to update GOOGLE_TOKEN_JSON on Heroku!")
 
 	return tok, nil
