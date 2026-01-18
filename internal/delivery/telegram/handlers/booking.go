@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"html"
@@ -19,10 +20,12 @@ import (
 
 // BookingHandler handles booking-related commands and callbacks.
 type BookingHandler struct {
-	appointmentService ports.AppointmentService
-	sessionStorage     ports.SessionStorage
-	adminIDs           []string
-	therapistID        string // Added to notify Vera
+	appointmentService   ports.AppointmentService
+	sessionStorage       ports.SessionStorage
+	adminIDs             []string
+	therapistID          string // Added to notify Vera
+	pdfGenerator         ports.PDFGenerator
+	transcriptionService ports.TranscriptionService
 }
 
 // Session keys
@@ -37,12 +40,14 @@ const (
 )
 
 // NewBookingHandler creates a new BookingHandler.
-func NewBookingHandler(appointmentService ports.AppointmentService, sessionStorage ports.SessionStorage, adminIDs []string, therapistID string) *BookingHandler {
+func NewBookingHandler(appointmentService ports.AppointmentService, sessionStorage ports.SessionStorage, adminIDs []string, therapistID string, pdfGen ports.PDFGenerator, trans ports.TranscriptionService) *BookingHandler {
 	return &BookingHandler{
-		appointmentService: appointmentService,
-		sessionStorage:     sessionStorage,
-		adminIDs:           adminIDs,
-		therapistID:        therapistID,
+		appointmentService:   appointmentService,
+		sessionStorage:       sessionStorage,
+		adminIDs:             adminIDs,
+		therapistID:          therapistID,
+		pdfGenerator:         pdfGen,
+		transcriptionService: trans,
 	}
 }
 
@@ -175,6 +180,16 @@ func (h *BookingHandler) HandleBlock(c telebot.Context) error {
 	return c.Send("🔒 <b>Блокировка времени</b>\nВыберите длительность:", selector, telebot.ModeHTML)
 }
 
+// getMainMenuWithBackBtn returns the main menu with an additional "Select another date" button
+func (h *BookingHandler) getMainMenuWithBackBtn() *telebot.ReplyMarkup {
+	menu := h.GetMainMenu()
+	// Insert "Select another date" as the first row.
+	// telebot.v3 uses ReplyButton for ReplyKeyboard.
+	backBtnRow := []telebot.ReplyButton{{Text: "⬅️ Выбрать другую дату"}}
+	menu.ReplyKeyboard = append([][]telebot.ReplyButton{backBtnRow}, menu.ReplyKeyboard...)
+	return menu
+}
+
 // GetMainMenu returns the persistent Reply Keyboard for patients in a compact 2x2 grid
 func (h *BookingHandler) GetMainMenu() *telebot.ReplyMarkup {
 	menu := &telebot.ReplyMarkup{ResizeKeyboard: true}
@@ -277,16 +292,17 @@ func (h *BookingHandler) askForDate(c telebot.Context, serviceName string) error
 	// Use domain.ApptTimeZone for consistency across the application
 	currentMonth := time.Date(year, month, 1, 0, 0, 0, 0, domain.ApptTimeZone)
 
-	calendarKeyboard := generateCalendar(currentMonth)
+	calendarKeyboard := h.generateCalendar(currentMonth)
 
 	return c.EditOrSend(
-		fmt.Sprintf("Отлично, услуга '%s' выбрана. Теперь выберите дату:", serviceName),
+		fmt.Sprintf("Отлично, услуга '%s' выбрана. Теперь выберите дату:\n\n<i>░X░ — дата недоступна</i>", serviceName),
 		calendarKeyboard,
+		telebot.ModeHTML,
 	)
 }
 
 // generateCalendar creates an inline keyboard for month navigation and date selection.
-func generateCalendar(month time.Time) *telebot.ReplyMarkup {
+func (h *BookingHandler) generateCalendar(month time.Time) *telebot.ReplyMarkup {
 	log.Printf("DEBUG: Generating calendar for month: %s", month.Format("2006-01"))
 	selector := &telebot.ReplyMarkup{}
 	var rows []telebot.Row
@@ -296,8 +312,7 @@ func generateCalendar(month time.Time) *telebot.ReplyMarkup {
 	nextMonth := month.AddDate(0, 1, 0)
 	rows = append(rows, selector.Row(
 		selector.Data("⬅️", "navigate_month", prevMonth.Format("2006-01")),
-		// Используем "January" для форматирования месяца, чтобы Go перевел его
-		selector.Data(month.Format("January 2006"), "ignore"), // Current month, no action
+		selector.Data(month.Format("January 2006"), "ignore"),
 		selector.Data("➡️", "navigate_month", nextMonth.Format("2006-01")),
 	))
 
@@ -315,33 +330,33 @@ func generateCalendar(month time.Time) *telebot.ReplyMarkup {
 
 	// Dates
 	firstDayOfMonth := month
-	// Adjust to Monday
-	offset := (int(firstDayOfMonth.Weekday()) + 6) % 7 // Monday = 0, Sunday = 6
+	offset := (int(firstDayOfMonth.Weekday()) + 6) % 7
 	startDay := firstDayOfMonth.AddDate(0, 0, -offset)
 
-	for week := 0; week < 6; week++ { // Max 6 weeks for a month
+	for week := 0; week < 6; week++ {
 		var weekBtns []telebot.Btn
 		for day := 0; day < 7; day++ {
 			currentDay := startDay.AddDate(0, 0, week*7+day)
-			// Check if the current day is not in the past
-			// Using domain.ApptTimeZone for consistency
 			loc := domain.ApptTimeZone
 			if loc == nil {
-				log.Println("WARNING: domain.ApptTimeZone is nil during calendar generation, defaulting to Local time.")
 				loc = time.Local
 			}
-			nowInLoc := time.Now().In(loc).Truncate(24 * time.Hour) // Truncate to start of day in local time
+			nowInLoc := time.Now().In(loc).Truncate(24 * time.Hour)
 
 			if currentDay.Month() != month.Month() {
-				// Empty button for days outside the current month
 				weekBtns = append(weekBtns, selector.Data(" ", "ignore"))
-			} else if currentDay.Truncate(24 * time.Hour).Before(nowInLoc) { // Disable past dates
-				weekBtns = append(weekBtns, selector.Data(fmt.Sprintf("%d", currentDay.Day()), "ignore"))
-			} else if currentDay.Weekday() == time.Saturday || currentDay.Weekday() == time.Sunday { // Disable weekends
-				weekBtns = append(weekBtns, selector.Data(fmt.Sprintf("%d", currentDay.Day()), "ignore"))
 			} else {
-				// Callback data format: "select_date|YYYY-MM-DD"
-				weekBtns = append(weekBtns, selector.Data(fmt.Sprintf("%d", currentDay.Day()), "select_date", currentDay.Format("2006-01-02")))
+				dayStr := fmt.Sprintf("%d", currentDay.Day())
+				isPast := currentDay.Truncate(24 * time.Hour).Before(nowInLoc)
+				isWeekend := currentDay.Weekday() == time.Saturday || currentDay.Weekday() == time.Sunday
+
+				if isPast || isWeekend {
+					// Use a "faded" look for unavailable dates
+					fadedDay := fmt.Sprintf("░%d░", currentDay.Day())
+					weekBtns = append(weekBtns, selector.Data(fadedDay, "ignore"))
+				} else {
+					weekBtns = append(weekBtns, selector.Data(dayStr, "select_date", currentDay.Format("2006-01-02")))
+				}
 			}
 		}
 		rows = append(rows, selector.Row(weekBtns...))
@@ -370,8 +385,8 @@ func (h *BookingHandler) HandleDateSelection(c telebot.Context) error {
 			log.Printf("ERROR: Invalid month format in navigation: %s, error: %v", monthStr, err)
 			return c.Edit("Некорректная дата. Попробуйте снова.")
 		}
-		calendarKeyboard := generateCalendar(selectedMonth)
-		return c.Edit(c.Message().Text, calendarKeyboard) // Edit the existing message
+		calendarKeyboard := h.generateCalendar(selectedMonth)
+		return c.Edit(c.Message().Text, calendarKeyboard, telebot.ModeHTML) // Edit the existing message
 	} else if strings.HasPrefix(data, "select_date|") {
 		parts := strings.Split(data, "|")
 		if len(parts) != 2 || parts[0] != "select_date" {
@@ -431,13 +446,7 @@ func (h *BookingHandler) askForTime(c telebot.Context) error {
 
 	if len(timeSlots) == 0 {
 		// Используем c.EditOrSend для обновления сообщения, если слотов нет
-		return c.EditOrSend("На эту дату нет доступных временных слотов. Пожалуйста, выберите другую дату.", &telebot.ReplyMarkup{
-			ReplyKeyboard: [][]telebot.ReplyButton{
-				{{Text: "⬅️ Выбрать другую дату"}},
-			},
-			ResizeKeyboard:  true,
-			OneTimeKeyboard: true,
-		})
+		return c.EditOrSend("На эту дату нет доступных временных слотов. Пожалуйста, выберите другую дату.", h.getMainMenuWithBackBtn())
 	}
 
 	selector := &telebot.ReplyMarkup{}
@@ -450,14 +459,8 @@ func (h *BookingHandler) askForTime(c telebot.Context) error {
 	}
 	selector.Inline(rows...)
 
-	// Создаем ReplyKeyboard для кнопки "Выбрать другую дату"
-	replyKeyboard := &telebot.ReplyMarkup{
-		ReplyKeyboard: [][]telebot.ReplyButton{
-			{{Text: "⬅️ Выбрать другую дату"}},
-		},
-		ResizeKeyboard:  true,
-		OneTimeKeyboard: true,
-	}
+	// Используем специальную клавиатуру: Кнопка "Назад" + Главное меню
+	replyKeyboard := h.getMainMenuWithBackBtn()
 
 	// Редактируем предыдущее сообщение (календарь) с новой инлайн-клавиатурой (слоты времени)
 	err = c.Edit(
@@ -733,7 +736,9 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 		}
 
 		patient.CurrentService = service.Name
-		patient.TherapistNotes = fmt.Sprintf("Запись: %s на %s", service.Name, appointmentTime.Format("02.01.2006 15:04"))
+		// Append new booking info to existing clinical notes
+		bookingInfo := fmt.Sprintf("\n\n🩺 Запись: %s на %s", service.Name, appointmentTime.Format("02.01.2006 15:04"))
+		patient.TherapistNotes += bookingInfo
 	} else {
 		// New patient
 		patient = domain.Patient{
@@ -755,6 +760,8 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 		// Don't fail the booking, just log the error
 	} else {
 		log.Printf("Patient record saved for user %d (TotalVisits: %d)", userID, patient.TotalVisits)
+		// Trigger background PDF update to keep the data folder sync'd
+		h.triggerPDFUpdate(patient)
 	}
 
 	// 1. Notify Admin(s)
@@ -826,41 +833,45 @@ func (h *BookingHandler) HandleMyRecords(c telebot.Context) error {
 
 	patient, err := storage.GetPatient(telegramID)
 	if err != nil {
-		return c.Send(`📝 У вас еще нет медицинской карты.
+		return c.Send(`📊 <b>Ваша медицинская карта</b>
 
-После первой записи на массаж, ваша карта будет создана автоматически.
+У вас еще нет активной медицинской карты. Она создается автоматически после первого посещения.
 
-Запишитесь через /start чтобы начать!`)
+Запишитесь на прием через меню бота!`, telebot.ModeHTML)
 	}
 
-	message := fmt.Sprintf(`📋 *Ваша медицинская карта*
+	card := fmt.Sprintf(`📋 <b>КАРТА ПАЦИЕНТА #%s</b>
 
-👤 *Имя:* %s
-📅 *Первое посещение:* %s
-📅 *Последний визит:* %s
-🔢 *Всего посещений:* %d
-💆 *Последняя услуга:* %s
+👤 <b>ФИО:</b> %s
+📅 <b>Первое посещение:</b> %s
+📅 <b>Последний визит:</b> %s
+🔢 <b>Всего визитов:</b> %d
+💆 <b>Текущая услуга:</b> %s
 
-📝 *Заметки вашего доктора:*
-%s
-
-Для получения полной записи в формате Markdown нажмите /downloadrecord`,
-		patient.Name,
+🩺 <b>Клинические заметки:</b>
+<i>%s</i>`,
+		patient.TelegramID,
+		html.EscapeString(patient.Name),
 		patient.FirstVisit.Format("02.01.2006"),
 		patient.LastVisit.Format("02.01.2006"),
 		patient.TotalVisits,
-		patient.CurrentService,
-		patient.TherapistNotes)
+		html.EscapeString(patient.CurrentService),
+		html.EscapeString(patient.TherapistNotes))
 
-	return c.Send(message, telebot.ParseMode(telebot.ModeMarkdown))
+	// Compact menu for record management
+	selector := &telebot.ReplyMarkup{}
+	btnDownload := selector.Data("📄 СКАЧАТЬ PDF (A4)", "download_record")
+	selector.Inline(selector.Row(btnDownload))
+
+	return c.Send(card, telebot.ModeHTML, selector)
 }
 
-// HandleDownloadRecord sends the Markdown file
+// HandleDownloadRecord sends the PDF medical card
 func (h *BookingHandler) HandleDownloadRecord(c telebot.Context) error {
 	userID := c.Sender().ID
 	telegramID := strconv.FormatInt(userID, 10)
 
-	filePath, err := storage.GetPatientMarkdownFile(telegramID)
+	patient, err := storage.GetPatient(telegramID)
 	if err != nil {
 		return c.Send(`📭 Файл с вашей медицинской картой не найден.
 
@@ -871,16 +882,30 @@ func (h *BookingHandler) HandleDownloadRecord(c telebot.Context) error {
 Запишитесь через /start чтобы создать вашу карту!`)
 	}
 
+	statusMsg, _ := c.Bot().Send(c.Recipient(), "⏳ Формирую PDF-версию вашей карты...")
+
+	htmlContent := storage.GenerateHTMLRecord(patient)
+	pdfBytes, err := h.pdfGenerator.GeneratePDF(context.Background(), htmlContent)
+
+	if statusMsg != nil {
+		c.Bot().Delete(statusMsg)
+	}
+
+	if err != nil {
+		log.Printf("ERROR: Failed to generate PDF for user %d: %v", userID, err)
+		return c.Send("❌ Ошибка при генерации PDF. Пожалуйста, попробуйте позже.")
+	}
+
+	// Save the generated PDF locally for future reference
+	if err := storage.SavePatientPDF(telegramID, pdfBytes); err != nil {
+		log.Printf("WARNING: Failed to save PDF locally for user %d: %v", userID, err)
+		// We don't return an error here as the PDF was generated successfully and can still be sent
+	}
+
 	doc := &telebot.Document{
-		File:     telebot.FromDisk(filePath),
-		FileName: "medical_record.md",
-		Caption: `📄 Ваша медицинская карта
-
-*Как открыть этот файл:*
-1. **Рекомендуем Obsidian** (бесплатно) — отличный инструмент для ваших записей. Скачайте для любого устройства на https://obsidian.md/download
-2. **Или любой текстовый редактор** (Блокнот, TextEdit)
-
-*Скачайте Obsidian для удобного ведения медицинского дневника!*`,
+		File:     telebot.FromReader(bytes.NewReader(pdfBytes)),
+		FileName: fmt.Sprintf("medical_record_%s.pdf", patient.Name),
+		Caption:  "📄 Ваша медицинская карта в формате PDF.",
 	}
 
 	return c.Send(doc)
@@ -914,12 +939,12 @@ func (h *BookingHandler) HandleMyAppointments(c telebot.Context) error {
 			apptTime.Format("15:04"),
 			appt.Service.Name)
 
-		// Smart Cancellation Logic: Only show Cancel button if more than 24 hours remain
+		// Smart Cancellation Logic: Only show Cancel button if more than 72 hours (3 days) remain
 		// Compare with current time in the same location
 		now := time.Now().In(domain.ApptTimeZone)
 		timeRemaining := appt.StartTime.Sub(now)
 
-		if timeRemaining > 24*time.Hour {
+		if timeRemaining > 72*time.Hour {
 			btn := selector.Data(fmt.Sprintf("❌ Отменить %s (%s)", apptTime.Format("02.01"), apptTime.Format("15:04")), "cancel_appt", appt.ID)
 			rows = append(rows, selector.Row(btn))
 		} else {
@@ -953,10 +978,10 @@ func (h *BookingHandler) HandleCancelAppointmentCallback(c telebot.Context) erro
 
 	if appt != nil {
 		now := time.Now().In(domain.ApptTimeZone)
-		if appt.StartTime.Sub(now) < 24*time.Hour {
+		if appt.StartTime.Sub(now) < 72*time.Hour {
 			log.Printf("BLOCKED: Late cancellation attempt for user %s, appt %s", appt.CustomerTgID, appt.ID)
 			return c.Respond(&telebot.CallbackResponse{
-				Text:      "⛔ До записи меньше 24ч!\nАвтоматическая отмена невозможна.\nПожалуйста, напишите терапевту напрямую.",
+				Text:      "⛔ До записи меньше 3 дней!\nАвтоматическая отмена невозможна.\nПожалуйста, напишите терапевту напрямую.",
 				ShowAlert: true,
 			})
 		}
@@ -985,6 +1010,7 @@ func (h *BookingHandler) HandleCancelAppointmentCallback(c telebot.Context) erro
 				patient.TotalVisits--
 			}
 			storage.SavePatient(patient)
+			h.triggerPDFUpdate(patient)
 		}
 	}
 
@@ -1082,7 +1108,34 @@ func (h *BookingHandler) HandleFileMessage(c telebot.Context) error {
 	}
 
 	c.Bot().Delete(statusMsg)
-	c.Send(fmt.Sprintf("✅ Файл '%s' успешно сохранен в вашу медицинскую карту!", fileName))
+
+	// Special handling for voice: Transcribe and append to notes
+	if voice := msg.Voice; voice != nil {
+		transMsg, _ := c.Bot().Send(c.Recipient(), "📝 Расшифровываю ваше аудио-сообщение...")
+
+		// We need a fresh reader or the content of the file
+		fileReader, _ := c.Bot().File(&telebot.File{FileID: fileID})
+		transcript, err := h.transcriptionService.Transcribe(context.Background(), fileReader, fileName)
+
+		if transMsg != nil {
+			c.Bot().Delete(transMsg)
+		}
+
+		if err == nil && transcript != "" {
+			// Save transcripts to dedicated field instead of clinical notes
+			prefix := fmt.Sprintf("\n\n[🎙 %s]: ", time.Now().Format("02.01.2006 15:04"))
+			patient.VoiceTranscripts += prefix + transcript
+			storage.SavePatient(patient)
+			h.triggerPDFUpdate(patient)
+			c.Send("✅ Аудио расшифровано и сохранено в архиве записей.")
+		} else {
+			log.Printf("ERROR: Transcription failed for user %d: %v", userID, err)
+			c.Send("⚠️ Аудио сохранено, но не удалось его расшифровать.")
+		}
+	} else {
+		h.triggerPDFUpdate(patient)
+		c.Send(fmt.Sprintf("✅ Файл '%s' успешно сохранен в вашу медицинскую карту!", fileName))
+	}
 
 	// Notify admins with HTML to avoid parsing errors with underscores in filenames
 	notification := fmt.Sprintf("📂 <b>Новый файл в мед-карте!</b>\n\nПациент: %s (ID: %s)\nФайл: <code>%s</code>\nРазмер: %.2f MB",
@@ -1233,4 +1286,21 @@ func (h *BookingHandler) HandleStatus(c telebot.Context) error {
 	)
 
 	return c.Send(status, telebot.ModeHTML)
+}
+
+// triggerPDFUpdate generates and saves the patient's PDF record in the background.
+func (h *BookingHandler) triggerPDFUpdate(patient domain.Patient) {
+	go func() {
+		log.Printf("DEBUG: Background PDF update triggered for user %s", patient.TelegramID)
+		htmlContent := storage.GenerateHTMLRecord(patient)
+		pdfBytes, err := h.pdfGenerator.GeneratePDF(context.Background(), htmlContent)
+		if err != nil {
+			log.Printf("ERROR: Background PDF generation failed for user %s: %v", patient.TelegramID, err)
+			return
+		}
+
+		if err := storage.SavePatientPDF(patient.TelegramID, pdfBytes); err != nil {
+			log.Printf("ERROR: Background PDF save failed for user %s: %v", patient.TelegramID, err)
+		}
+	}()
 }

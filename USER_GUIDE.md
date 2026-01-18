@@ -25,13 +25,13 @@ You will see a main menu at the bottom of your screen with these buttons:
 ---
 
 ## ❌ How to Cancel
-If your plans change, please cancel at least **24 hours in advance**:
+If your plans change, please cancel at least **72 hours (3 days) in advance**:
 1. Tap **📅 My Appointments**.
 2. You will see a list of your upcoming visits.
 3. Tap the **Cancel** button next to the appointment you wish to remove.
 4. Confirm the cancellation. 
 
-> ⚠️ The bot may block last-minute cancellations (less than 24h). In that case, please contact Vera directly.
+> ⚠️ The bot may block last-minute cancellations (less than 3 days). In that case, please contact Vera directly.
 
 ---
 

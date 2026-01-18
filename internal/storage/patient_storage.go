@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -41,14 +42,22 @@ func SavePatient(patient domain.Patient) error {
 		return fmt.Errorf("failed to write JSON file: %w", err)
 	}
 
-	// 2. Save Markdown record (for patients to download)
-	mdPath := filepath.Join(patientDir, "medical_record.md")
-	mdContent := generateMarkdownRecord(patient)
+	return nil
+}
 
-	if err := os.WriteFile(mdPath, []byte(mdContent), 0644); err != nil {
-		return fmt.Errorf("failed to write markdown file: %w", err)
+// SavePatientPDF saves the generated medical record PDF to the patient's directory.
+func SavePatientPDF(telegramID string, pdfBytes []byte) error {
+	patientDir := filepath.Join(DataDir, "patients", telegramID)
+	if err := os.MkdirAll(patientDir, 0755); err != nil {
+		return fmt.Errorf("failed to create patient directory: %w", err)
 	}
 
+	pdfPath := filepath.Join(patientDir, "medical_record.pdf")
+	if err := os.WriteFile(pdfPath, pdfBytes, 0644); err != nil {
+		return fmt.Errorf("failed to write PDF file: %w", err)
+	}
+
+	log.Printf("DEBUG: Saved patient PDF to %s (%d bytes)", pdfPath, len(pdfBytes))
 	return nil
 }
 
@@ -100,40 +109,6 @@ func SavePatientDocument(telegramID string, filename string, data []byte) (strin
 	return filePath, nil
 }
 
-func generateMarkdownRecord(p domain.Patient) string {
-	return fmt.Sprintf(`# Медицинская карта: %s
-
-**Telegram ID:** %s  
-**Первое посещение:** %s  
-**Последний визит:** %s  
-**Всего посещений:** %d  
-**Текущая услуга:** %s
-
-## Заметки терапевта
-%s
-
-## Как открыть этот файл
-1. **Рекомендуем Obsidian** (бесплатно) — это мощный инструмент для ведения заметок, который превратит вашу медицинскую карту в удобную базу данных. Он доступен для **всех ваших устройств**:
-   - 💻 **Компьютер:** Windows, macOS, Linux
-   - 📱 **Мобильный:** Скачайте в App Store или Google Play
-   *Скачайте на [obsidian.md/download](https://obsidian.md/download)*
-2. **Или любой текстовый редактор** (Блокнот, TextEdit).
-
-## Прикрепленные документы
-%s
-
-*Создано Vera Massage Bot • %s*`,
-		p.Name,
-		p.TelegramID,
-		p.FirstVisit.Format("02.01.2006"),
-		p.LastVisit.Format("02.01.2006"),
-		p.TotalVisits,
-		p.CurrentService,
-		p.TherapistNotes,
-		listDocuments(p.TelegramID),
-		time.Now().Format("02.01.2006"))
-}
-
 func listDocuments(telegramID string) string {
 	docDir := filepath.Join(DataDir, "patients", telegramID, "documents")
 	entries, err := os.ReadDir(docDir)
@@ -168,6 +143,139 @@ func listDocuments(telegramID string) string {
 	return list
 }
 
+func GenerateHTMLRecord(p domain.Patient) string {
+	docs := listDocuments(p.TelegramID)
+	// Replace obsidian links with simple text for PDF
+	docs = strings.ReplaceAll(docs, "[[documents/", "")
+	docs = strings.ReplaceAll(docs, "|", " - ")
+	docs = strings.ReplaceAll(docs, "]]", "")
+
+	// Handle separation of transcripts if new field is empty but they are in notes
+	notes := p.TherapistNotes
+	transcripts := p.VoiceTranscripts
+
+	return fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.8; color: #2c3e50; max-width: 900px; margin: 0 auto; padding: 50px; background-color: #fff; }
+        .document-wrapper { border: 1px solid #e1e8ed; padding: 40px; border-radius: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .header { text-align: left; border-bottom: 3px solid #3498db; padding-bottom: 20px; margin-bottom: 40px; }
+        .header h1 { color: #2980b9; margin: 0; font-size: 2.2em; text-transform: uppercase; font-weight: 300; }
+        .header-meta { color: #7f8c8d; font-size: 0.9em; margin-top: 5px; }
+        
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 40px; background: #f8f9fa; padding: 25px; border-left: 5px solid #3498db; }
+        .info-item { display: flex; flex-direction: column; }
+        .info-label { font-size: 0.75em; font-weight: bold; color: #7f8c8d; text-transform: uppercase; letter-spacing: 1px; }
+        .info-value { font-size: 1.1em; color: #2c3e50; border-bottom: 1px solid #eee; padding-bottom: 2px; }
+
+        .section { margin-bottom: 40px; }
+        .section-title { font-size: 1.3em; color: #2980b9; border-bottom: 1px solid #3498db; padding-bottom: 10px; margin-bottom: 20px; font-weight: 600; }
+        
+        .clinical-notes { background: #fff; border: 1px solid #e1e8ed; padding: 20px; border-radius: 4px; white-space: pre-wrap; font-size: 1.05em; color: #34495e; }
+        .transcript-content { background: #fdfdfd; border-left: 4px solid #95a5a6; padding: 15px; font-style: italic; font-size: 0.95em; color: #5d6d7e; white-space: pre-wrap; margin-top: 10px; }
+
+        .docs-list { list-style: none; padding: 0; }
+        .docs-list li { padding: 10px 15px; margin-bottom: 8px; background: #fbfcfc; border: 1px solid #ebedef; border-radius: 4px; font-size: 0.9em; color: #5d6d7e; display: flex; align-items: center; }
+        .docs-list li::before { content: "📄"; margin-right: 10px; }
+
+        .footer { margin-top: 60px; text-align: center; font-size: 0.8em; color: #bdc3c7; border-top: 1px solid #f0f3f4; padding-top: 30px; }
+        .footer-tag { background: #3498db; color: white; padding: 2px 8px; border-radius: 10px; font-weight: bold; font-size: 0.8em; }
+    </style>
+</head>
+<body>
+    <div class="document-wrapper">
+        <div class="header">
+            <h1>Медицинская Карта</h1>
+            <div class="header-meta">Клиническая запись • Конфиденциально</div>
+        </div>
+
+        <div class="info-grid">
+            <div class="info-item">
+                <span class="info-label">Пациент</span>
+                <span class="info-value">%s</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">ID Системы</span>
+                <span class="info-value">%s</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Первый визит</span>
+                <span class="info-value">%s</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Всего посещений</span>
+                <span class="info-value">%d</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Последний визит</span>
+                <span class="info-value">%s</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Текущая услуга</span>
+                <span class="info-value">%s</span>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">🩺 Клинические Заметки</div>
+            <div class="clinical-notes">%s</div>
+        </div>
+
+        %s
+
+        <div class="section">
+            <div class="section-title">📂 Прикрепленные файлы</div>
+            <ul class="docs-list">
+                %s
+            </ul>
+        </div>
+
+        <div class="footer">
+            <p>Сгенерировано автоматически <span class="footer-tag">Vera Bot</span> • %s</p>
+            <p>Данный документ является электронной копией медицинской записи.</p>
+        </div>
+    </div>
+</body>
+</html>`,
+		p.Name, p.TelegramID,
+		p.FirstVisit.Format("02.01.2006"),
+		p.TotalVisits,
+		p.LastVisit.Format("02.01.2006"),
+		p.CurrentService,
+		notes,
+		formatTranscriptsSection(transcripts),
+		formatDocsForHTML(docs),
+		time.Now().Format("02.01.2006 15:04"))
+}
+
+func formatTranscriptsSection(transcripts string) string {
+	if transcripts == "" {
+		return ""
+	}
+	return fmt.Sprintf(`
+        <div class="section">
+            <div class="section-title">🎙 Автоматические расшифровки</div>
+            <div class="transcript-content">%s</div>
+        </div>`, transcripts)
+}
+
+func formatDocsForHTML(docs string) string {
+	if docs == "Документов пока нет." {
+		return "<li>Документов пока нет.</li>"
+	}
+	lines := strings.Split(strings.TrimSpace(docs), "\n")
+	var htmlList string
+	for _, line := range lines {
+		if strings.TrimSpace(line) != "" {
+			htmlList += fmt.Sprintf("<li>%s</li>", strings.TrimPrefix(line, "- "))
+		}
+	}
+	return htmlList
+}
+
 func GetPatient(telegramID string) (domain.Patient, error) {
 	jsonPath := filepath.Join(DataDir, "patients", telegramID, "patient.json")
 
@@ -182,16 +290,6 @@ func GetPatient(telegramID string) (domain.Patient, error) {
 	}
 
 	return patient, nil
-}
-
-func GetPatientMarkdownFile(telegramID string) (string, error) {
-	mdPath := filepath.Join(DataDir, "patients", telegramID, "medical_record.md")
-
-	if _, err := os.Stat(mdPath); err != nil {
-		return "", fmt.Errorf("medical record not found: %w", err)
-	}
-
-	return mdPath, nil
 }
 
 // BanUser adds a telegram ID to the blacklist

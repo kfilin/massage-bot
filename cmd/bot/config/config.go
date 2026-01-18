@@ -14,6 +14,10 @@ type Config struct {
 	GoogleCalendarCredentialsPath string
 	GoogleCalendarCredentialsJSON string
 	GoogleCalendarID              string
+	StirlingPDFURL                string
+	StirlingPDFAPIKey             string
+	GroqAPIKey                    string
+	TherapistID                   string
 }
 
 // LoadConfig loads configuration from environment variables.
@@ -63,5 +67,9 @@ func LoadConfig() *Config {
 		GoogleCalendarCredentialsPath: googleCredsPath,
 		GoogleCalendarCredentialsJSON: googleCredsJSON,
 		GoogleCalendarID:              googleCalendarID,
+		StirlingPDFURL:                os.Getenv("STIRLING_PDF_URL"),
+		StirlingPDFAPIKey:             os.Getenv("STIRLING_PDF_API_KEY"),
+		GroqAPIKey:                    os.Getenv("GROQ_API_KEY"),
+		TherapistID:                   os.Getenv("TG_THERAPIST_ID"),
 	}
 }

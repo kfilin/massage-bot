@@ -19,8 +19,8 @@ A professional Telegram bot for scheduling massage appointments, managing medica
 
 Detailed documentation is available for both users and developers:
 
-- **[📖 User Guide](USER_GUIDE.md)**  
-  *For Patients*: How to book, cancel, and access your medical card.
+- **[📖 User Guide (EN)](USER_GUIDE.md)** / **[📖 Руководство (RU)](USER_GUIDE_RU.md)**  
+  *For Patients*: How to book, cancel, and access your medical card. / *Для пациентов*: Как записываться, отменять и получать доступ к мед-карте.
 
 - **[🛠 Developer Guide](DEVELOPER.md)**  
   *For Maintainers*: System architecture, configuration, testing, and deployment instructions.

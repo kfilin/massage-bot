@@ -70,14 +70,15 @@ func init() {
 
 // Patient represents a patient/client record
 type Patient struct {
-	TelegramID     string    `json:"telegram_id"`
-	Name           string    `json:"name"`
-	FirstVisit     time.Time `json:"first_visit"`
-	LastVisit      time.Time `json:"last_visit"`
-	TotalVisits    int       `json:"total_visits"`
-	HealthStatus   string    `json:"health_status"`
-	TherapistNotes string    `json:"therapist_notes,omitempty"`
-	CurrentService string    `json:"current_service,omitempty"`
+	TelegramID       string    `json:"telegram_id"`
+	Name             string    `json:"name"`
+	FirstVisit       time.Time `json:"first_visit"`
+	LastVisit        time.Time `json:"last_visit"`
+	TotalVisits      int       `json:"total_visits"`
+	HealthStatus     string    `json:"health_status"`
+	TherapistNotes   string    `json:"therapist_notes,omitempty"`
+	VoiceTranscripts string    `json:"voice_transcripts,omitempty"`
+	CurrentService   string    `json:"current_service,omitempty"`
 }
 
 // SplitSummary splits a calendar event summary into [Service Name, Customer Name]

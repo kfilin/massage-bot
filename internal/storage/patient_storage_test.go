@@ -1,8 +1,6 @@
 package storage
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -37,12 +35,6 @@ func TestSaveAndGetPatient(t *testing.T) {
 
 	if retrieved.Name != patient.Name {
 		t.Errorf("Expected name %s, got %s", patient.Name, retrieved.Name)
-	}
-
-	// Verify Markdown file was created
-	mdPath := filepath.Join(tmpDir, "patients", "12345", "medical_record.md")
-	if _, err := os.Stat(mdPath); os.IsNotExist(err) {
-		t.Errorf("Markdown record should have been created at %s", mdPath)
 	}
 }
 

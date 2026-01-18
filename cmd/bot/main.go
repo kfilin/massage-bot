@@ -6,6 +6,8 @@ import (
 	"github.com/joho/godotenv" // <-- ДОБАВЛЕН ИМПОРТ godotenv
 	"github.com/kfilin/massage-bot/cmd/bot/config"
 	"github.com/kfilin/massage-bot/internal/adapters/googlecalendar"
+	"github.com/kfilin/massage-bot/internal/adapters/pdf"
+	"github.com/kfilin/massage-bot/internal/adapters/transcription"
 	"github.com/kfilin/massage-bot/internal/delivery/telegram"
 	"github.com/kfilin/massage-bot/internal/services/appointment"
 )
@@ -45,7 +47,12 @@ func main() {
 	sessionStorage := telegram.NewInMemorySessionStorage()
 	log.Println("In-memory session storage initialized.")
 
-	// 6. Start the Telegram Bot
+	// 6. Initialize Advanced Adapters (PDF & Transcription)
+	pdfAdapter := pdf.NewAdapter(cfg.StirlingPDFURL, cfg.StirlingPDFAPIKey)
+	transcriptionAdapter := transcription.NewGroqAdapter(cfg.GroqAPIKey)
+	log.Println("Advanced adapters (PDF & Groq) initialized.")
+
+	// 7. Start the Telegram Bot
 	// Pass all initialized dependencies to the bot's start function
 	log.Println("Starting Telegram bot...")
 	telegram.StartBot(
@@ -54,6 +61,7 @@ func main() {
 		sessionStorage,
 		cfg.AdminTelegramID,
 		cfg.AllowedTelegramIDs,
+		pdfAdapter,
+		transcriptionAdapter,
 	)
-	// StartBot is a blocking call, so code after this will not execute until bot stops.
 }

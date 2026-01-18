@@ -22,6 +22,8 @@ func StartBot(
 	sessionStorage ports.SessionStorage,
 	adminTelegramID string,
 	allowedTelegramIDs []string,
+	pdfGen ports.PDFGenerator,
+	trans ports.TranscriptionService,
 ) {
 	pref := telebot.Settings{
 		Token:  token,
@@ -57,7 +59,7 @@ func StartBot(
 		log.Println("WARNING: TG_THERAPIST_ID not set in environment.")
 	}
 
-	bookingHandler := handlers.NewBookingHandler(appointmentService, sessionStorage, finalAdminIDs, therapistID)
+	bookingHandler := handlers.NewBookingHandler(appointmentService, sessionStorage, finalAdminIDs, therapistID, pdfGen, trans)
 
 	// GLOBAL MIDDLEWARE: Enforce ban check on ALL entry points
 	b.Use(func(next telebot.HandlerFunc) telebot.HandlerFunc {
@@ -89,7 +91,6 @@ func StartBot(
 	b.Handle("/cancel", bookingHandler.HandleCancel)
 	b.Handle("/myrecords", bookingHandler.HandleMyRecords)
 	b.Handle("/myappointments", bookingHandler.HandleMyAppointments)
-	b.Handle("/downloadrecord", bookingHandler.HandleDownloadRecord)
 	b.Handle("/upload", bookingHandler.HandleUploadCommand)
 	b.Handle("/backup", bookingHandler.HandleBackup)
 	b.Handle("/ban", bookingHandler.HandleBan)
