@@ -70,15 +70,24 @@ func init() {
 
 // Patient represents a patient/client record
 type Patient struct {
-	TelegramID       string    `json:"telegram_id"`
-	Name             string    `json:"name"`
-	FirstVisit       time.Time `json:"first_visit"`
-	LastVisit        time.Time `json:"last_visit"`
-	TotalVisits      int       `json:"total_visits"`
-	HealthStatus     string    `json:"health_status"`
-	TherapistNotes   string    `json:"therapist_notes,omitempty"`
-	VoiceTranscripts string    `json:"voice_transcripts,omitempty"`
-	CurrentService   string    `json:"current_service,omitempty"`
+	TelegramID       string    `json:"telegram_id" db:"telegram_id"`
+	Name             string    `json:"name" db:"name"`
+	FirstVisit       time.Time `json:"first_visit" db:"first_visit"`
+	LastVisit        time.Time `json:"last_visit" db:"last_visit"`
+	TotalVisits      int       `json:"total_visits" db:"total_visits"`
+	HealthStatus     string    `json:"health_status" db:"health_status"`
+	TherapistNotes   string    `json:"therapist_notes,omitempty" db:"therapist_notes"`
+	VoiceTranscripts string    `json:"voice_transcripts,omitempty" db:"voice_transcripts"`
+	CurrentService   string    `json:"current_service,omitempty" db:"current_service"`
+}
+
+// AnalyticsEvent represents a tracked user action
+type AnalyticsEvent struct {
+	ID        int                    `json:"id"`
+	PatientID string                 `json:"patient_id"`
+	EventType string                 `json:"event_type"`
+	Details   map[string]interface{} `json:"details"`
+	CreatedAt time.Time              `json:"created_at"`
 }
 
 // SplitSummary splits a calendar event summary into [Service Name, Customer Name]

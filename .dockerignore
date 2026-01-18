@@ -11,3 +11,5 @@ logs/
 .env.local
 *.test
 coverage.txt
+postgres_data/
+data/

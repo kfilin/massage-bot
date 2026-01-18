@@ -1,0 +1,24 @@
+package ports
+
+import (
+	"io"
+
+	"github.com/kfilin/massage-bot/internal/domain"
+)
+
+type Repository interface {
+	SavePatient(patient domain.Patient) error
+	GetPatient(telegramID string) (domain.Patient, error)
+	IsUserBanned(telegramID string, username string) (bool, error)
+	BanUser(telegramID string) error
+	UnbanUser(telegramID string) error
+
+	// Analytics
+	LogEvent(patientID string, eventType string, details map[string]interface{}) error
+
+	// Clinical Records & Documents
+	GenerateHTMLRecord(patient domain.Patient) string
+	SavePatientPDF(telegramID string, pdfBytes []byte) error
+	SavePatientDocumentReader(telegramID string, filename string, r io.Reader) (string, error)
+	CreateBackup() (string, error)
+}

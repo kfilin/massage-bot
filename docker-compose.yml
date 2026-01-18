@@ -1,5 +1,6 @@
 services:
   massage-bot:
+    image: massage-bot:latest
     build:
       context: .
       dockerfile: Dockerfile
@@ -19,6 +20,28 @@ services:
     volumes:
       - ./logs:/app/logs
       - ./data:/app/data
+    networks:
+      - caddy-test-net
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:15-alpine
+    container_name: massage-bot-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-massage_bot}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-massage_bot}"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+      start_period: 2s
     networks:
       - caddy-test-net
     logging:

@@ -9,8 +9,8 @@ import (
 
 	"github.com/kfilin/massage-bot/internal/delivery/telegram/handlers"
 	"github.com/kfilin/massage-bot/internal/domain"
-	"github.com/kfilin/massage-bot/internal/ports"   // Import ports for interfaces
-	"github.com/kfilin/massage-bot/internal/storage" // Import storage pkg for ban check
+	"github.com/kfilin/massage-bot/internal/ports" // Import ports for interfaces
+	// Import storage pkg for ban check
 	"gopkg.in/telebot.v3"
 )
 
@@ -24,6 +24,7 @@ func StartBot(
 	allowedTelegramIDs []string,
 	pdfGen ports.PDFGenerator,
 	trans ports.TranscriptionService,
+	repo ports.Repository,
 ) {
 	pref := telebot.Settings{
 		Token:  token,
@@ -59,7 +60,7 @@ func StartBot(
 		log.Println("WARNING: TG_THERAPIST_ID not set in environment.")
 	}
 
-	bookingHandler := handlers.NewBookingHandler(appointmentService, sessionStorage, finalAdminIDs, therapistID, pdfGen, trans)
+	bookingHandler := handlers.NewBookingHandler(appointmentService, sessionStorage, finalAdminIDs, therapistID, pdfGen, trans, repo)
 
 	// GLOBAL MIDDLEWARE: Enforce ban check on ALL entry points
 	b.Use(func(next telebot.HandlerFunc) telebot.HandlerFunc {
@@ -69,7 +70,7 @@ func StartBot(
 			}
 			telegramID := strconv.FormatInt(c.Sender().ID, 10)
 			username := c.Sender().Username
-			if banned, _ := storage.IsUserBanned(telegramID, username); banned {
+			if banned, _ := repo.IsUserBanned(telegramID, username); banned {
 				log.Printf("BLOCKED (Middleware): Banned user %s (@%s) tried to access bot.", telegramID, username)
 
 				// SHADOW BAN: Polite "No spots available" message

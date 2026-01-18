@@ -13,9 +13,8 @@ import (
 
 	"github.com/kfilin/massage-bot/internal/domain"
 	"github.com/kfilin/massage-bot/internal/monitoring"
-	"github.com/kfilin/massage-bot/internal/ports"   // Alias to avoid conflict with package name "appointment"
-	"github.com/kfilin/massage-bot/internal/storage" // Import storage package
-	"gopkg.in/telebot.v3"                            // Ensure telebot.v3 is correctly imported
+	"github.com/kfilin/massage-bot/internal/ports" // Alias to avoid conflict with package name "appointment"
+	"gopkg.in/telebot.v3"                          // Ensure telebot.v3 is correctly imported
 )
 
 // BookingHandler handles booking-related commands and callbacks.
@@ -26,6 +25,7 @@ type BookingHandler struct {
 	therapistID          string // Added to notify Vera
 	pdfGenerator         ports.PDFGenerator
 	transcriptionService ports.TranscriptionService
+	repository           ports.Repository
 }
 
 // Session keys
@@ -40,7 +40,7 @@ const (
 )
 
 // NewBookingHandler creates a new BookingHandler.
-func NewBookingHandler(appointmentService ports.AppointmentService, sessionStorage ports.SessionStorage, adminIDs []string, therapistID string, pdfGen ports.PDFGenerator, trans ports.TranscriptionService) *BookingHandler {
+func NewBookingHandler(appointmentService ports.AppointmentService, sessionStorage ports.SessionStorage, adminIDs []string, therapistID string, pdfGen ports.PDFGenerator, trans ports.TranscriptionService, repo ports.Repository) *BookingHandler {
 	return &BookingHandler{
 		appointmentService:   appointmentService,
 		sessionStorage:       sessionStorage,
@@ -48,6 +48,7 @@ func NewBookingHandler(appointmentService ports.AppointmentService, sessionStora
 		therapistID:          therapistID,
 		pdfGenerator:         pdfGen,
 		transcriptionService: trans,
+		repository:           repo,
 	}
 }
 
@@ -61,6 +62,8 @@ func (h *BookingHandler) HandleStart(c telebot.Context) error {
 	c.Send("💆 Добро пожаловать!", h.GetMainMenu())
 
 	h.sessionStorage.Set(userID, SessionKeyIsAdminBlock, false)
+
+	h.repository.LogEvent(strconv.FormatInt(userID, 10), "start_bot", nil)
 
 	return h.showCategories(c)
 }
@@ -278,6 +281,11 @@ func (h *BookingHandler) HandleServiceSelection(c telebot.Context) error {
 
 	h.sessionStorage.Set(userID, SessionKeyService, chosenService)
 	log.Printf("DEBUG: Service selected and stored in session for user %d: %s (ID: %s)", userID, chosenService.Name, chosenService.ID)
+
+	h.repository.LogEvent(strconv.FormatInt(userID, 10), "service_selected", map[string]interface{}{
+		"service_id":   chosenService.ID,
+		"service_name": chosenService.Name,
+	})
 
 	// Ask for date
 	return h.askForDate(c, chosenService.Name)
@@ -720,7 +728,7 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 
 	// Update or create patient record
 	var patient domain.Patient
-	existingPatient, err := storage.GetPatient(strconv.FormatInt(userID, 10))
+	existingPatient, err := h.repository.GetPatient(strconv.FormatInt(userID, 10))
 	if err == nil {
 		// Patient exists, update fields
 		patient = existingPatient
@@ -755,11 +763,18 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 		}
 	}
 
-	if err := storage.SavePatient(patient); err != nil {
+	if err := h.repository.SavePatient(patient); err != nil {
 		log.Printf("WARNING: Failed to save patient record for user %d: %v", userID, err)
 		// Don't fail the booking, just log the error
 	} else {
 		log.Printf("Patient record saved for user %d (TotalVisits: %d)", userID, patient.TotalVisits)
+		// Log analytics event
+		h.repository.LogEvent(patient.TelegramID, "booking_confirmed", map[string]interface{}{
+			"service_id":     service.ID,
+			"service_name":   service.Name,
+			"time":           appointmentTime.Format(time.RFC3339),
+			"is_admin_block": isAdminBlock,
+		})
 		// Trigger background PDF update to keep the data folder sync'd
 		h.triggerPDFUpdate(patient)
 	}
@@ -831,7 +846,7 @@ func (h *BookingHandler) HandleMyRecords(c telebot.Context) error {
 	userID := c.Sender().ID
 	telegramID := strconv.FormatInt(userID, 10)
 
-	patient, err := storage.GetPatient(telegramID)
+	patient, err := h.repository.GetPatient(telegramID)
 	if err != nil {
 		return c.Send(`📊 <b>Ваша медицинская карта</b>
 
@@ -871,7 +886,7 @@ func (h *BookingHandler) HandleDownloadRecord(c telebot.Context) error {
 	userID := c.Sender().ID
 	telegramID := strconv.FormatInt(userID, 10)
 
-	patient, err := storage.GetPatient(telegramID)
+	patient, err := h.repository.GetPatient(telegramID)
 	if err != nil {
 		return c.Send(`📭 Файл с вашей медицинской картой не найден.
 
@@ -884,7 +899,7 @@ func (h *BookingHandler) HandleDownloadRecord(c telebot.Context) error {
 
 	statusMsg, _ := c.Bot().Send(c.Recipient(), "⏳ Формирую PDF-версию вашей карты...")
 
-	htmlContent := storage.GenerateHTMLRecord(patient)
+	htmlContent := h.repository.GenerateHTMLRecord(patient)
 	pdfBytes, err := h.pdfGenerator.GeneratePDF(context.Background(), htmlContent)
 
 	if statusMsg != nil {
@@ -897,7 +912,7 @@ func (h *BookingHandler) HandleDownloadRecord(c telebot.Context) error {
 	}
 
 	// Save the generated PDF locally for future reference
-	if err := storage.SavePatientPDF(telegramID, pdfBytes); err != nil {
+	if err := h.repository.SavePatientPDF(telegramID, pdfBytes); err != nil {
 		log.Printf("WARNING: Failed to save PDF locally for user %d: %v", userID, err)
 		// We don't return an error here as the PDF was generated successfully and can still be sent
 	}
@@ -1004,12 +1019,12 @@ func (h *BookingHandler) HandleCancelAppointmentCallback(c telebot.Context) erro
 		}
 
 		// Re-save patient record to refresh Markdown (remove cancelled appt from summary)
-		if patient, err := storage.GetPatient(appt.CustomerTgID); err == nil {
+		if patient, err := h.repository.GetPatient(appt.CustomerTgID); err == nil {
 			// Decrement total visits if we are cancelling
 			if patient.TotalVisits > 0 {
 				patient.TotalVisits--
 			}
-			storage.SavePatient(patient)
+			h.repository.SavePatient(patient)
 			h.triggerPDFUpdate(patient)
 		}
 	}
@@ -1080,7 +1095,7 @@ func (h *BookingHandler) HandleFileMessage(c telebot.Context) error {
 	}
 
 	// Check if patient exists
-	patient, err := storage.GetPatient(telegramID)
+	patient, err := h.repository.GetPatient(telegramID)
 	if err != nil {
 		return c.Send("❌ Сначала запишитесь на прием через /start, чтобы я мог создать вашу карту и сохранить документ.")
 	}
@@ -1100,7 +1115,7 @@ func (h *BookingHandler) HandleFileMessage(c telebot.Context) error {
 	defer fileReader.Close()
 
 	// Save to storage using Reader for efficiency
-	_, err = storage.SavePatientDocumentReader(telegramID, fileName, fileReader)
+	_, err = h.repository.SavePatientDocumentReader(telegramID, fileName, fileReader)
 	if err != nil {
 		log.Printf("ERROR: Failed to save patient document: %v", err)
 		c.Bot().Delete(statusMsg)
@@ -1125,7 +1140,7 @@ func (h *BookingHandler) HandleFileMessage(c telebot.Context) error {
 			// Save transcripts to dedicated field instead of clinical notes
 			prefix := fmt.Sprintf("\n\n[🎙 %s]: ", time.Now().Format("02.01.2006 15:04"))
 			patient.VoiceTranscripts += prefix + transcript
-			storage.SavePatient(patient)
+			h.repository.SavePatient(patient)
 			h.triggerPDFUpdate(patient)
 			c.Send("✅ Аудио расшифровано и сохранено в архиве записей.")
 		} else {
@@ -1169,7 +1184,7 @@ func (h *BookingHandler) HandleBackup(c telebot.Context) error {
 
 	c.Send("📦 Подготавливаю резервную копию данных...")
 
-	zipPath, err := storage.CreateBackup()
+	zipPath, err := h.repository.CreateBackup()
 	if err != nil {
 		log.Printf("ERROR: Failed to create backup: %v", err)
 		return c.Send("❌ Ошибка при создании резервной копии.")
@@ -1204,7 +1219,7 @@ func (h *BookingHandler) HandleBan(c telebot.Context) error {
 	}
 
 	targetID := args[0]
-	if err := storage.BanUser(targetID); err != nil {
+	if err := h.repository.BanUser(targetID); err != nil {
 		return c.Send("❌ Ошибка при блокировке пользователя.")
 	}
 
@@ -1223,7 +1238,7 @@ func (h *BookingHandler) HandleUnban(c telebot.Context) error {
 	}
 
 	targetID := args[0]
-	if err := storage.UnbanUser(targetID); err != nil {
+	if err := h.repository.UnbanUser(targetID); err != nil {
 		return c.Send("❌ Ошибка при разблокировке пользователя.")
 	}
 
@@ -1292,14 +1307,14 @@ func (h *BookingHandler) HandleStatus(c telebot.Context) error {
 func (h *BookingHandler) triggerPDFUpdate(patient domain.Patient) {
 	go func() {
 		log.Printf("DEBUG: Background PDF update triggered for user %s", patient.TelegramID)
-		htmlContent := storage.GenerateHTMLRecord(patient)
+		htmlContent := h.repository.GenerateHTMLRecord(patient)
 		pdfBytes, err := h.pdfGenerator.GeneratePDF(context.Background(), htmlContent)
 		if err != nil {
 			log.Printf("ERROR: Background PDF generation failed for user %s: %v", patient.TelegramID, err)
 			return
 		}
 
-		if err := storage.SavePatientPDF(patient.TelegramID, pdfBytes); err != nil {
+		if err := h.repository.SavePatientPDF(patient.TelegramID, pdfBytes); err != nil {
 			log.Printf("ERROR: Background PDF save failed for user %s: %v", patient.TelegramID, err)
 		}
 	}()
