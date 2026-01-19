@@ -41,6 +41,14 @@ func main() {
 	if err := storage.MigrateJSONToPostgres(patientRepo, os.Getenv("DATA_DIR")); err != nil {
 		log.Printf("ERROR during migration: %v", err)
 	}
+
+	// Start Web App server
+	if cfg.WebAppSecret != "" {
+		go startWebAppServer(cfg.WebAppPort, cfg.WebAppSecret, patientRepo)
+	} else {
+		log.Println("Warning: WEBAPP_SECRET not set, Web App server not started.")
+	}
+
 	// 2. Initialize Google Calendar Client
 	googleCalendarClient, err := googlecalendar.NewGoogleCalendarClient()
 	if err != nil {
@@ -78,5 +86,7 @@ func main() {
 		pdfAdapter,
 		transcriptionAdapter,
 		patientRepo,
+		cfg.WebAppURL,
+		cfg.WebAppSecret,
 	)
 }

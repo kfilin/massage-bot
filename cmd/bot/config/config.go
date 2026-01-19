@@ -18,6 +18,9 @@ type Config struct {
 	StirlingPDFAPIKey             string
 	GroqAPIKey                    string
 	TherapistID                   string
+	WebAppURL                     string
+	WebAppSecret                  string
+	WebAppPort                    string
 }
 
 // LoadConfig loads configuration from environment variables.
@@ -71,5 +74,8 @@ func LoadConfig() *Config {
 		StirlingPDFAPIKey:             os.Getenv("STIRLING_PDF_API_KEY"),
 		GroqAPIKey:                    os.Getenv("GROQ_API_KEY"),
 		TherapistID:                   os.Getenv("TG_THERAPIST_ID"),
+		WebAppURL:                     os.Getenv("WEBAPP_URL"),
+		WebAppSecret:                  os.Getenv("WEBAPP_SECRET"),
+		WebAppPort:                    os.Getenv("WEBAPP_PORT"),
 	}
 }

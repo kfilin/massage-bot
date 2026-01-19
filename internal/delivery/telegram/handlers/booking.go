@@ -3,6 +3,9 @@ package handlers
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"html"
 	"log"
@@ -26,6 +29,8 @@ type BookingHandler struct {
 	pdfGenerator         ports.PDFGenerator
 	transcriptionService ports.TranscriptionService
 	repository           ports.Repository
+	webAppURL            string
+	webAppSecret         string
 }
 
 // Session keys
@@ -40,15 +45,17 @@ const (
 )
 
 // NewBookingHandler creates a new BookingHandler.
-func NewBookingHandler(appointmentService ports.AppointmentService, sessionStorage ports.SessionStorage, adminIDs []string, therapistID string, pdfGen ports.PDFGenerator, trans ports.TranscriptionService, repo ports.Repository) *BookingHandler {
+func NewBookingHandler(as ports.AppointmentService, ss ports.SessionStorage, admins []string, therapistID string, pdf ports.PDFGenerator, trans ports.TranscriptionService, repo ports.Repository, webAppURL string, webAppSecret string) *BookingHandler {
 	return &BookingHandler{
-		appointmentService:   appointmentService,
-		sessionStorage:       sessionStorage,
-		adminIDs:             adminIDs,
+		appointmentService:   as,
+		sessionStorage:       ss,
+		adminIDs:             admins,
 		therapistID:          therapistID,
-		pdfGenerator:         pdfGen,
+		pdfGenerator:         pdf,
 		transcriptionService: trans,
 		repository:           repo,
+		webAppURL:            webAppURL,
+		webAppSecret:         webAppSecret,
 	}
 }
 
@@ -821,9 +828,18 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 	}
 
 	selector := &telebot.ReplyMarkup{}
-	selector.Inline(
-		selector.Row(selector.Data("📄 СКАЧАТЬ МЕД-КАРТУ", "download_record")),
-	)
+	url := h.generateWebAppURL(patient.TelegramID)
+
+	if url != "" {
+		selector.Inline(
+			selector.Row(selector.WebApp("📱 ОТКРЫТЬ МЕД-КАРТУ (LIVE)", &telebot.WebApp{URL: url})),
+			selector.Row(selector.Data("📄 СКАЧАТЬ МЕД-КАРТУ (PDF)", "download_record")),
+		)
+	} else {
+		selector.Inline(
+			selector.Row(selector.Data("📄 СКАЧАТЬ МЕД-КАРТУ", "download_record")),
+		)
+	}
 
 	return c.Send(confirmationMsg, h.GetMainMenu(), selector, telebot.ModeHTML)
 }
@@ -856,27 +872,36 @@ func (h *BookingHandler) HandleMyRecords(c telebot.Context) error {
 	}
 
 	card := fmt.Sprintf(`📋 <b>КАРТА ПАЦИЕНТА #%s</b>
-
+──────────────────
 👤 <b>ФИО:</b> %s
-📅 <b>Первое посещение:</b> %s
-📅 <b>Последний визит:</b> %s
-🔢 <b>Всего визитов:</b> %d
-💆 <b>Текущая услуга:</b> %s
+🔢 <b>ВСЕГО ВИЗИТОВ:</b> %d
+💆 <b>ПРОГРАММА:</b> %s
 
-🩺 <b>Клинические заметки:</b>
-<i>%s</i>`,
+🩺 <b>КЛИНИЧЕСКИЕ ЗАМЕТКИ:</b>
+<i>%s</i>
+──────────────────
+📂 <i>Все файлы и анализы доступны в PDF-версии.</i>`,
 		patient.TelegramID,
 		html.EscapeString(patient.Name),
-		patient.FirstVisit.Format("02.01.2006"),
-		patient.LastVisit.Format("02.01.2006"),
 		patient.TotalVisits,
 		html.EscapeString(patient.CurrentService),
 		html.EscapeString(patient.TherapistNotes))
 
 	// Compact menu for record management
 	selector := &telebot.ReplyMarkup{}
-	btnDownload := selector.Data("📄 СКАЧАТЬ PDF (A4)", "download_record")
-	selector.Inline(selector.Row(btnDownload))
+	url := h.generateWebAppURL(patient.TelegramID)
+
+	if url != "" {
+		btnWebApp := selector.WebApp("📱 ОТКРЫТЬ МЕД-КАРТУ (LIVE)", &telebot.WebApp{URL: url})
+		btnDownload := selector.Data("📄 СКАЧАТЬ PDF (A4)", "download_record")
+		selector.Inline(
+			selector.Row(btnWebApp),
+			selector.Row(btnDownload),
+		)
+	} else {
+		btnDownload := selector.Data("📄 СКАЧАТЬ PDF (A4)", "download_record")
+		selector.Inline(selector.Row(btnDownload))
+	}
 
 	return c.Send(card, telebot.ModeHTML, selector)
 }
@@ -1303,8 +1328,22 @@ func (h *BookingHandler) HandleStatus(c telebot.Context) error {
 	return c.Send(status, telebot.ModeHTML)
 }
 
+// generateWebAppURL creates a signed URL for the Telegram Web App
+func (h *BookingHandler) generateWebAppURL(telegramID string) string {
+	if h.webAppURL == "" || h.webAppSecret == "" {
+		return ""
+	}
+
+	mac := hmac.New(sha256.New, []byte(h.webAppSecret))
+	mac.Write([]byte(telegramID))
+	token := hex.EncodeToString(mac.Sum(nil))
+
+	return fmt.Sprintf("%s/card?id=%s&token=%s", h.webAppURL, telegramID, token)
+}
+
 // triggerPDFUpdate generates and saves the patient's PDF record in the background.
 func (h *BookingHandler) triggerPDFUpdate(patient domain.Patient) {
+	// ...
 	go func() {
 		log.Printf("DEBUG: Background PDF update triggered for user %s", patient.TelegramID)
 		htmlContent := h.repository.GenerateHTMLRecord(patient)

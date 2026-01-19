@@ -3,6 +3,7 @@ package storage
 import (
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"time"
 
 	"archive/zip"
@@ -97,111 +98,69 @@ func (r *PostgresRepository) LogEvent(patientID string, eventType string, detail
 }
 
 func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient) string {
-	docs := r.listDocuments(p.TelegramID)
-	// Replace obsidian links with simple text for PDF
-	docs = strings.ReplaceAll(docs, "[[documents/", "")
-	docs = strings.ReplaceAll(docs, "|", " - ")
-	docs = strings.ReplaceAll(docs, "]]", "")
+	type docItem struct {
+		Name    string
+		IsVoice bool
+	}
+	type templateData struct {
+		Name             string
+		TelegramID       string
+		TotalVisits      int
+		GeneratedAt      string
+		CurrentService   string
+		TherapistNotes   string
+		VoiceTranscripts template.HTML
+		FirstVisit       string
+		LastVisit        string
+		Documents        []docItem
+	}
 
-	// Handle separation of transcripts if new field is empty but they are in notes
-	notes := p.TherapistNotes
-	transcripts := p.VoiceTranscripts
+	// Prepare data
+	data := templateData{
+		Name:           strings.ToUpper(p.Name),
+		TelegramID:     p.TelegramID,
+		TotalVisits:    p.TotalVisits,
+		GeneratedAt:    time.Now().Format("02.01.2006 15:04"),
+		CurrentService: p.CurrentService,
+		TherapistNotes: p.TherapistNotes,
+		// Treat transcripts as pre-formatted HTML (using line breaks if needed)
+		// but since we want to be safe, we'll just use it as a string for now unless we need HTML
+		VoiceTranscripts: template.HTML(strings.ReplaceAll(p.VoiceTranscripts, "\n", "<br>")),
+		FirstVisit:       p.FirstVisit.Format("02.01.2006 15:04"),
+		LastVisit:        p.LastVisit.Format("02.01.2006 15:04"),
+	}
 
-	return fmt.Sprintf(`
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.8; color: #2c3e50; max-width: 900px; margin: 0 auto; padding: 50px; background-color: #fff; }
-        .document-wrapper { border: 1px solid #e1e8ed; padding: 40px; border-radius: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        .header { text-align: left; border-bottom: 3px solid #3498db; padding-bottom: 20px; margin-bottom: 40px; }
-        .header h1 { color: #2980b9; margin: 0; font-size: 2.2em; text-transform: uppercase; font-weight: 300; }
-        .header-meta { color: #7f8c8d; font-size: 0.9em; margin-top: 5px; }
-        
-        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 40px; background: #f8f9fa; padding: 25px; border-left: 5px solid #3498db; }
-        .info-item { display: flex; flex-direction: column; }
-        .info-label { font-size: 0.75em; font-weight: bold; color: #7f8c8d; text-transform: uppercase; letter-spacing: 1px; }
-        .info-value { font-size: 1.1em; color: #2c3e50; border-bottom: 1px solid #eee; padding-bottom: 2px; }
+	// Parse documents
+	docList := r.listDocuments(p.TelegramID)
+	if docList != "Документов пока нет." {
+		lines := strings.Split(strings.TrimSpace(docList), "\n")
+		for _, line := range lines {
+			if strings.TrimSpace(line) == "" {
+				continue
+			}
+			cleanLine := strings.TrimPrefix(line, "- ")
+			// Extract name from Obsidian format [date] [[path|name]]
+			name := cleanLine
+			if strings.Contains(cleanLine, "|") {
+				name = cleanLine[strings.Index(cleanLine, "|")+1 : strings.Index(cleanLine, "]]")]
+			}
 
-        .section { margin-bottom: 40px; }
-        .section-title { font-size: 1.3em; color: #2980b9; border-bottom: 1px solid #3498db; padding-bottom: 10px; margin-bottom: 20px; font-weight: 600; }
-        
-        .clinical-notes { background: #fff; border: 1px solid #e1e8ed; padding: 20px; border-radius: 4px; white-space: pre-wrap; font-size: 1.05em; color: #34495e; }
-        .transcript-content { background: #fdfdfd; border-left: 4px solid #95a5a6; padding: 15px; font-style: italic; font-size: 0.95em; color: #5d6d7e; white-space: pre-wrap; margin-top: 10px; }
+			isVoice := strings.Contains(strings.ToLower(name), ".ogg") || strings.Contains(strings.ToLower(name), ".wav")
+			data.Documents = append(data.Documents, docItem{Name: name, IsVoice: isVoice})
+		}
+	}
 
-        .docs-list { list-style: none; padding: 0; }
-        .docs-list li { padding: 10px 15px; margin-bottom: 8px; background: #fbfcfc; border: 1px solid #ebedef; border-radius: 4px; font-size: 0.9em; color: #5d6d7e; display: flex; align-items: center; }
-        .docs-list li::before { content: "📄"; margin-right: 10px; }
+	tmpl, err := template.New("medical_record").Parse(medicalRecordTemplate)
+	if err != nil {
+		return fmt.Sprintf("Error parsing template: %v", err)
+	}
 
-        .footer { margin-top: 60px; text-align: center; font-size: 0.8em; color: #bdc3c7; border-top: 1px solid #f0f3f4; padding-top: 30px; }
-        .footer-tag { background: #3498db; color: white; padding: 2px 8px; border-radius: 10px; font-weight: bold; font-size: 0.8em; }
-    </style>
-</head>
-<body>
-    <div class="document-wrapper">
-        <div class="header">
-            <h1>Медицинская Карта</h1>
-            <div class="header-meta">Клиническая запись • Конфиденциально</div>
-        </div>
+	var buf strings.Builder
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return fmt.Sprintf("Error executing template: %v", err)
+	}
 
-        <div class="info-grid">
-            <div class="info-item">
-                <span class="info-label">Пациент</span>
-                <span class="info-value">%s</span>
-            </div>
-            <div class="info-item">
-                <span class="info-label">ID Системы</span>
-                <span class="info-value">%s</span>
-            </div>
-            <div class="info-item">
-                <span class="info-label">Первый визит</span>
-                <span class="info-value">%s</span>
-            </div>
-            <div class="info-item">
-                <span class="info-label">Всего посещений</span>
-                <span class="info-value">%d</span>
-            </div>
-            <div class="info-item">
-                <span class="info-label">Последний визит</span>
-                <span class="info-value">%s</span>
-            </div>
-            <div class="info-item">
-                <span class="info-label">Текущая услуга</span>
-                <span class="info-value">%s</span>
-            </div>
-        </div>
-
-        <div class="section">
-            <div class="section-title">🩺 Клинические Заметки</div>
-            <div class="clinical-notes">%s</div>
-        </div>
-
-        %s
-
-        <div class="section">
-            <div class="section-title">📂 Прикрепленные файлы</div>
-            <ul class="docs-list">
-                %s
-            </ul>
-        </div>
-
-        <div class="footer">
-            <p>Сгенерировано автоматически <span class="footer-tag">Vera Bot</span> • %s</p>
-            <p>Данный документ является электронной копией медицинской записи.</p>
-        </div>
-    </div>
-</body>
-</html>`,
-		p.Name, p.TelegramID,
-		p.FirstVisit.Format("02.01.2006"),
-		p.TotalVisits,
-		p.LastVisit.Format("02.01.2006"),
-		p.CurrentService,
-		notes,
-		formatTranscriptsSection(transcripts),
-		r.formatDocsForHTML(docs),
-		time.Now().Format("02.01.2006 15:04"))
+	return buf.String()
 }
 
 func (r *PostgresRepository) listDocuments(telegramID string) string {
@@ -234,20 +193,6 @@ func (r *PostgresRepository) listDocuments(telegramID string) string {
 		list += fmt.Sprintf("- [%s] [[documents/%s|%s]]\n", info.modTime.Format("02.01.2006 15:04"), info.name, info.name)
 	}
 	return list
-}
-
-func (r *PostgresRepository) formatDocsForHTML(docs string) string {
-	if docs == "Документов пока нет." {
-		return "<li>Документов пока нет.</li>"
-	}
-	lines := strings.Split(strings.TrimSpace(docs), "\n")
-	var htmlList string
-	for _, line := range lines {
-		if strings.TrimSpace(line) != "" {
-			htmlList += fmt.Sprintf("<li>%s</li>", strings.TrimPrefix(line, "- "))
-		}
-	}
-	return htmlList
 }
 
 func (r *PostgresRepository) SavePatientPDF(telegramID string, pdfBytes []byte) error {

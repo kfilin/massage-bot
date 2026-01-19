@@ -10,6 +10,7 @@ import (
 	"github.com/kfilin/massage-bot/internal/delivery/telegram/handlers"
 	"github.com/kfilin/massage-bot/internal/domain"
 	"github.com/kfilin/massage-bot/internal/ports" // Import ports for interfaces
+
 	// Import storage pkg for ban check
 	"gopkg.in/telebot.v3"
 )
@@ -25,6 +26,8 @@ func StartBot(
 	pdfGen ports.PDFGenerator,
 	trans ports.TranscriptionService,
 	repo ports.Repository,
+	webAppURL string,
+	webAppSecret string,
 ) {
 	pref := telebot.Settings{
 		Token:  token,
@@ -60,7 +63,7 @@ func StartBot(
 		log.Println("WARNING: TG_THERAPIST_ID not set in environment.")
 	}
 
-	bookingHandler := handlers.NewBookingHandler(appointmentService, sessionStorage, finalAdminIDs, therapistID, pdfGen, trans, repo)
+	bookingHandler := handlers.NewBookingHandler(appointmentService, sessionStorage, finalAdminIDs, therapistID, pdfGen, trans, repo, webAppURL, webAppSecret)
 
 	// GLOBAL MIDDLEWARE: Enforce ban check on ALL entry points
 	b.Use(func(next telebot.HandlerFunc) telebot.HandlerFunc {

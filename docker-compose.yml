@@ -17,6 +17,9 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    ports:
+      - "8082:8082"
+      - "8081:8081"
     volumes:
       - ./logs:/app/logs
       - ./data:/app/data
@@ -52,4 +55,4 @@ services:
 
 networks:
   caddy-test-net:
-    external: true
+    driver: bridge

@@ -1,18 +1,8 @@
-{
-    debug
-    servers {
-        protocol {
-            experimental_http3
-        }
-    }
-}
+# Note: This Caddyfile is no longer used for proxying as of Jan 19, 2026.
+# The project now relies on the Home Server's main Caddy configuration
+# to handle SSL termination and reverse proxying to localhost:8082.
 
-vera-bot.kfilin.icu {
-    log {
-        level DEBUG
-    }
-    tls {
-        protocols tls1.2 tls1.3
-    }
-    reverse_proxy http://massage-bot:8080
-}
+# Example for Home Server Caddyfile:
+ vera-bot.kfilin.icu {
+     reverse_proxy localhost:8082
+ }
