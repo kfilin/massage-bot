@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"regexp"
 	"time"
 
 	"archive/zip"
@@ -115,19 +116,19 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient) string {
 		Documents        []docItem
 	}
 
-	// Prepare data
-	cleanNotes := strings.ReplaceAll(p.TherapistNotes, "🩺 ", "")
-	cleanNotes = strings.ReplaceAll(cleanNotes, "🩺", "")
+	// Strip ALL emojis and special symbols for a clean clinical look
+	re := regexp.MustCompile(`[\x{1F300}-\x{1FAD6}]|[\x{2600}-\x{26FF}]|[\x{2700}-\x{27BF}]|[\x{1F600}-\x{1F64F}]|[\x{1F680}-\x{1F6FF}]|[\x{1F1E6}-\x{1F1FF}]`)
+	cleanNotes := re.ReplaceAllString(p.TherapistNotes, "")
+	cleanTranscripts := re.ReplaceAllString(p.VoiceTranscripts, "")
 
 	data := templateData{
-		Name:           strings.ToUpper(p.Name),
-		TelegramID:     p.TelegramID,
-		TotalVisits:    p.TotalVisits,
-		GeneratedAt:    time.Now().Format("02.01.2006 15:04"),
-		CurrentService: p.CurrentService,
-		TherapistNotes: cleanNotes,
-		// Treat transcripts as pre-formatted HTML (using line breaks if needed)
-		VoiceTranscripts: template.HTML(strings.ReplaceAll(p.VoiceTranscripts, "\n", "<br>")),
+		Name:             strings.ToUpper(p.Name),
+		TelegramID:       p.TelegramID,
+		TotalVisits:      p.TotalVisits,
+		GeneratedAt:      time.Now().Format("02.01.2006 15:04"),
+		CurrentService:   p.CurrentService,
+		TherapistNotes:   cleanNotes,
+		VoiceTranscripts: template.HTML(strings.ReplaceAll(cleanTranscripts, "\n", "<br>")),
 		FirstVisit:       p.FirstVisit.Format("02.01.2006 15:04"),
 		LastVisit:        p.LastVisit.Format("02.01.2006 15:04"),
 	}
