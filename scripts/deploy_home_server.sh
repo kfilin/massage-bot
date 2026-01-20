@@ -17,11 +17,7 @@ echo "🛠 Pulling latest images and recreating containers..."
 docker compose pull
 docker compose up -d --force-recreate
 
-# 3. Cleanup unused images
-echo "🧹 Cleaning up old images..."
-docker image prune -f
-
-# 4. Check status
+# 3. Check status
 echo "📊 Deployment Status:"
 docker compose ps
 
