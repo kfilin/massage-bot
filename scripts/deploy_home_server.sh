@@ -13,8 +13,8 @@ git fetch origin master
 git reset --hard origin/master
 
 # 2. Build and restart containers
-echo "🛠 Building latest images and recreating containers..."
-docker compose build --pull
+echo "🛠 Building latest images (No Cache) and recreating containers..."
+docker compose build --no-cache --pull
 docker compose up -d --force-recreate
 
 # 3. Check status
