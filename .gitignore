@@ -32,3 +32,11 @@ data/
 # Temporary files
 *.bak
 *.backup
+
+# Internal AI & Development Docs
+.agent/
+docs/
+verification-checklist.md
+postgres_data/
+gitlab-kubeconfig-final.yaml
+*.log
