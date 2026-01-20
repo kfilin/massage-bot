@@ -12,9 +12,9 @@ cd $APP_DIR || exit
 git fetch origin master
 git reset --hard origin/master
 
-# 2. Pull and restart containers
-echo "🛠 Pulling latest images and recreating containers..."
-docker compose pull
+# 2. Build and restart containers
+echo "🛠 Building latest images and recreating containers..."
+docker compose build --pull
 docker compose up -d --force-recreate
 
 # 3. Check status
