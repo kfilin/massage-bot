@@ -80,12 +80,7 @@ deploy_staging:
     - echo "$KUBECONFIG_CONTENT" | base64 -d > ~/.kube/config
     - chmod 600 ~/.kube/config
     - echo "🔐 Creating image pull secret..."
-    - kubectl create secret docker-registry gitlab-registry \
-      --docker-server=registry.gitlab.com \
-      --docker-username=$CI_REGISTRY_USER \
-      --docker-password=$CI_REGISTRY_PASSWORD \
-      --docker-email="gitlab-ci@example.com" \
-      --dry-run=client -o yaml | kubectl apply -f -
+    - kubectl create secret docker-registry gitlab-registry --docker-server=registry.gitlab.com --docker-username=$CI_REGISTRY_USER --docker-password=$CI_REGISTRY_PASSWORD --docker-email="gitlab-ci@example.com" --dry-run=client -o yaml | kubectl apply -f -
     - echo "✅ Kubernetes setup complete"
   script:
     - echo "🚀 Deploying massage-bot to Kubernetes..."
@@ -115,13 +110,15 @@ deploy_home_server:
   image: alpine:latest
   before_script:
     - apk add --no-cache openssh-client
-    - eval $(ssh-agent -s)
-    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
     - echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
     - chmod 644 ~/.ssh/known_hosts
+    - eval $(ssh-agent -s)
+    - ssh-add ~/.ssh/id_rsa
   script:
-    - ssh kirill@$HOME_SERVER_IP "cd /opt/vera-bot && bash scripts/deploy_home_server.sh"
+    - ssh -p 2222 kirill@$HOME_SERVER_IP "cd /opt/vera-bot && bash scripts/deploy_home_server.sh"
   only:
     - master
