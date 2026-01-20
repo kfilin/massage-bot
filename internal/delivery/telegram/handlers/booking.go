@@ -752,7 +752,7 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 
 		patient.CurrentService = service.Name
 		// Append new booking info to existing clinical notes
-		bookingInfo := fmt.Sprintf("\n\n🩺 Запись: %s на %s", service.Name, appointmentTime.Format("02.01.2006 15:04"))
+		bookingInfo := fmt.Sprintf("\n\nЗапись: %s на %s", service.Name, appointmentTime.Format("02.01.2006 15:04"))
 		patient.TherapistNotes += bookingInfo
 	} else {
 		// New patient
@@ -877,7 +877,7 @@ func (h *BookingHandler) HandleMyRecords(c telebot.Context) error {
 🔢 <b>ВСЕГО ВИЗИТОВ:</b> %d
 💆 <b>ПРОГРАММА:</b> %s
 
-🩺 <b>КЛИНИЧЕСКИЕ ЗАМЕТКИ:</b>
+<b>КЛИНИЧЕСКИЕ ЗАМЕТКИ:</b>
 <i>%s</i>
 ──────────────────
 📂 <i>Все файлы и анализы доступны в PDF-версии.</i>`,

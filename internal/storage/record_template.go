@@ -11,246 +11,323 @@ const medicalRecordTemplate = `
         window.addEventListener('DOMContentLoaded', (event) => {
             const tg = window.Telegram.WebApp;
             tg.expand();
-            // Matching Telegram theme for Web view
             if (tg.themeParams.bg_color) {
-                document.body.style.backgroundColor = tg.themeParams.bg_color;
+                document.body.style.backgroundColor = tg.themeParams.secondary_bg_color || "#f8fafc";
                 document.body.style.color = tg.themeParams.text_color;
             }
         });
     </script>
     <style>
-        /* General Layout */
-        * { box-sizing: border-box; }
-        body { 
-            background-color: #f1f5f9; 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            margin: 0;
-            padding: 2rem;
-            line-height: 1.5;
-            color: #1e293b;
-            -webkit-print-color-adjust: exact;
+        :root {
+            --primary: #2563eb;
+            --primary-light: #eff6ff;
+            --primary-dark: #1e40af;
+            --slate-50: #f8fafc;
+            --slate-100: #f1f5f9;
+            --slate-200: #e2e8f0;
+            --slate-300: #cbd5e1;
+            --slate-500: #64748b;
+            --slate-700: #334155;
+            --slate-800: #1e293b;
+            --slate-900: #0f172a;
         }
+
+        * { box-sizing: border-box; -webkit-print-color-adjust: exact; }
+        
+        body { 
+            background-color: var(--slate-100); 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            padding: 1rem;
+            line-height: 1.6;
+            color: var(--slate-800);
+        }
+
+        @media (min-width: 768px) {
+            body { padding: 2rem; }
+        }
+
         .page {
-            max-width: 850px;
+            max-width: 900px;
             margin: 0 auto;
             background: white;
-            padding: 40px;
-            border-radius: 8px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
         }
-        
-        /* Header */
+
+        @media (min-width: 768px) {
+            .page { padding: 40px; }
+        }
+
+        /* Header Section */
         .header {
-            border-bottom: 4px solid #2563eb;
-            padding-bottom: 1.5rem;
-            margin-bottom: 2rem;
-            overflow: hidden; /* Clearfix */
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            padding-bottom: 2rem;
+            margin-bottom: 2.5rem;
+            border-bottom: 3px solid var(--primary);
         }
-        .header-left { float: left; width: 70%; }
-        .header-right { float: right; width: 30%; text-align: right; }
-        
+
+        @media (min-width: 600px) {
+            .header {
+                flex-direction: row;
+                justify-content: space-between;
+                align-items: flex-end;
+            }
+        }
+
+        .header-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
         .patient-name {
-            font-size: 2.25rem;
+            font-size: 2.5rem;
             font-weight: 800;
-            color: #0f172a;
-            text-transform: uppercase;
+            color: var(--slate-900);
+            line-height: 1;
             margin: 0;
+            letter-spacing: -0.02em;
         }
+
         .medical-id {
-            font-size: 0.875rem;
-            color: #2563eb;
+            font-size: 0.9rem;
+            color: var(--primary);
             font-weight: 700;
-            margin: 0.5rem 0 0 0;
+            text-transform: uppercase;
             letter-spacing: 0.05em;
         }
-        .system-tag { font-size: 11px; color: #94a3b8; margin: 0.25rem 0 0 0; }
-        
-        .badge {
-            background: #2563eb;
+
+        .system-tag {
+            font-size: 0.75rem;
+            color: var(--slate-500);
+        }
+
+        .header-stats {
+            text-align: right;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .stat-badge {
+            background: var(--primary);
             color: white;
-            padding: 10px 20px;
-            border-radius: 8px;
-            display: inline-block;
+            padding: 12px 24px;
+            border-radius: 10px;
+            text-align: center;
         }
-        .badge-label { font-size: 10px; text-transform: uppercase; font-weight: 700; margin: 0; opacity: 0.9; }
-        .badge-value { font-size: 1.5rem; font-weight: 800; margin: 0; }
-        .generated-at { font-size: 10px; color: #94a3b8; margin-top: 10px; font-weight: 600; text-transform: uppercase; }
 
-        /* Grid */
-        .dashboard-grid { width: 100%; margin-top: 2rem; clear: both; }
-        .sidebar { width: 32%; float: left; }
-        .main-content { width: 64%; float: right; }
-        .dashboard-grid::after { content: ""; display: table; clear: both; }
+        .stat-label { font-size: 0.7rem; text-transform: uppercase; font-weight: 800; opacity: 0.9; margin: 0; }
+        .stat-value { font-size: 1.75rem; font-weight: 900; line-height: 1.1; margin: 0; }
+        .generated-date { font-size: 0.7rem; color: var(--slate-500); font-weight: 600; text-transform: uppercase; }
 
-        .section-label {
-            font-size: 11px;
-            font-weight: 700;
-            color: #64748b;
+        /* Content Grid */
+        .main-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 2.5rem;
+        }
+
+        @media (min-width: 800px) {
+            .main-grid {
+                flex-direction: row;
+            }
+        }
+
+        .col-sidebar {
+            flex: 0 0 300px;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        .col-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 2.5rem;
+        }
+
+        /* Components */
+        .section-title {
+            font-size: 0.75rem;
+            font-weight: 800;
+            color: var(--slate-500);
             text-transform: uppercase;
-            letter-spacing: 0.1em;
-            margin-bottom: 0.75rem;
+            letter-spacing: 0.12em;
+            margin-bottom: 1rem;
             display: block;
         }
-        
-        /* Cards */
-        .info-card {
-            background: #f8fafc;
-            padding: 1.25rem;
-            border-radius: 8px;
-            border: 1px solid #e2e8f0;
-            margin-bottom: 1.5rem;
-        }
-        .program-name { font-size: 1rem; font-weight: 700; color: #1e293b; margin: 0; }
-        .program-sub { font-size: 11px; color: #3b82f6; font-weight: 700; text-transform: uppercase; margin-top: 4px; display: block; }
 
-        .attachment-item {
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            padding: 8px 12px;
-            border-radius: 6px;
-            margin-bottom: 8px;
-            display: block;
-            font-size: 11px;
-            color: #475569;
-        }
-        .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
-        .dot-blue { background: #3b82f6; }
-        .dot-purple { background: #a855f7; }
-
-        /* Clinical Status */
-        .notes-box {
-            background: #eff6ff;
+        .card {
+            background: var(--slate-50);
+            border: 1px solid var(--slate-200);
+            border-radius: 10px;
             padding: 1.5rem;
-            border-radius: 8px;
-            border: 1px solid #bfdbfe;
-            border-left: 6px solid #2563eb;
-            margin-bottom: 2rem;
-            page-break-inside: avoid;
+            transition: all 0.2s ease;
         }
-        .notes-text { font-size: 0.95rem; color: #1e293b; font-style: italic; margin: 0; }
+
+        .service-name { font-size: 1.25rem; font-weight: 700; color: var(--slate-900); margin: 0; }
+        .service-status { font-size: 0.75rem; color: var(--primary); font-weight: 700; text-transform: uppercase; margin-top: 4px; }
+
+        .note-box {
+            background: var(--primary-light);
+            border: 1px solid #bfdbfe;
+            border-left: 5px solid var(--primary);
+            padding: 1.5rem;
+            border-radius: 4px 10px 10px 4px;
+        }
+
+        .note-text { font-size: 1rem; color: var(--slate-800); white-space: pre-wrap; margin: 0; }
 
         .transcript-box {
-            background: #f8fafc;
+            background: var(--slate-50);
+            border-left: 5px solid var(--slate-500);
             padding: 1.5rem;
-            border-radius: 8px;
-            border: 1px solid #e2e8f0;
-            border-left: 6px solid #64748b;
-            margin-bottom: 2rem;
-            page-break-inside: avoid;
+            border-radius: 4px 10px 10px 4px;
         }
-        .transcript-text { font-size: 0.875rem; color: #475569; margin: 0; white-space: pre-wrap; }
 
-        /* Table */
-        .table-container { 
-            border: 1px solid #e2e8f0; 
-            border-radius: 8px; 
-            overflow: hidden; 
-            margin-bottom: 2rem;
+        .transcript-text { font-size: 0.9rem; color: var(--slate-700); font-style: italic; white-space: pre-wrap; margin: 0; }
+
+        /* Document List */
+        .doc-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            background: white;
+            border: 1px solid var(--slate-200);
+            border-radius: 8px;
+            margin-bottom: 10px;
+            font-size: 0.85rem;
+            color: var(--slate-700);
+            text-decoration: none;
         }
-        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.875rem; }
-        th { background: #f8fafc; padding: 12px; font-weight: 700; font-size: 10px; color: #64748b; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; }
-        td { padding: 12px; border-bottom: 1px solid #f1f5f9; }
+
+        .doc-icon { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+        .icon-voice { background: #a855f7; }
+        .icon-file { background: var(--primary); }
+
+        /* Ledger Table */
+        .ledger { width: 100%; display: flex; flex-direction: column; border: 1px solid var(--slate-200); border-radius: 10px; overflow: hidden; }
+        .ledger-row { display: flex; padding: 14px 18px; border-bottom: 1px solid var(--slate-100); }
+        .ledger-row:last-child { border-bottom: none; }
+        .ledger-header { background: var(--slate-100); font-size: 0.7rem; font-weight: 800; color: var(--slate-500); text-transform: uppercase; }
+        
+        .ledger-date { flex: 0 0 160px; font-weight: 600; }
+        .ledger-desc { flex: 1; }
 
         /* Footer */
-        .footer { margin-top: 3rem; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 1.5rem; }
-        .footer-text { font-size: 10px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; }
+        .footer {
+            margin-top: 4rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--slate-100);
+            text-align: center;
+        }
 
-        /* Print Overrides */
+        .footer-text {
+            font-size: 0.7rem;
+            color: var(--slate-500);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        /* Print Settings */
         @media print {
-            body { background: white !important; padding: 0 !important; }
-            .page { box-shadow: none !important; border: none !important; width: 100% !important; max-width: 100% !important; padding: 0 !important; }
-            .badge { background: white !important; color: #2563eb !important; border: 2px solid #2563eb !important; box-shadow: none !important; }
-            .badge-value, .badge-label { color: #2563eb !important; }
+            body { background: white; padding: 0; }
+            .page { box-shadow: none; border: none; max-width: 100%; padding: 0; }
+            .stat-badge { border: 2px solid var(--primary); color: var(--primary) !important; background: transparent !important; }
+            .stat-value, .stat-label { color: var(--primary) !important; }
+            .note-box { background: #f0f7ff !important; }
         }
     </style>
 </head>
 <body>
     <div class="page">
         <header class="header">
-            <div class="header-left">
+            <div class="header-info">
                 <h1 class="patient-name">{{.Name}}</h1>
-                <p class="medical-id">МЕДИЦИНСКАЯ КАРТА ID {{.TelegramID}}</p>
+                <p class="medical-id">Медицинская карта ID {{.TelegramID}}</p>
                 <p class="system-tag">Система: Vera Massage Bot</p>
             </div>
-            <div class="header-right">
-                <div class="badge">
-                    <p class="badge-label">Посещений</p>
-                    <p class="badge-value">{{.TotalVisits}}</p>
+            <div class="header-stats">
+                <div class="stat-badge">
+                    <p class="stat-label">Посещений</p>
+                    <p class="stat-value">{{.TotalVisits}}</p>
                 </div>
-                <p class="generated-at">Сформировано: {{.GeneratedAt}}</p>
+                <p class="generated-date">Сформировано: {{.GeneratedAt}}</p>
             </div>
         </header>
 
-        <div class="dashboard-grid">
-            <div class="sidebar">
+        <div class="main-grid">
+            <div class="col-sidebar">
                 <section>
-                    <span class="section-label">Программа / Услуга</span>
-                    <div class="info-card">
-                        <p class="program-name">{{.CurrentService}}</p>
-                        <span class="program-sub">Текущий курс</span>
+                    <span class="section-title">Программа / Услуга</span>
+                    <div class="card">
+                        <p class="service-name">{{.CurrentService}}</p>
+                        <p class="service-status">Текущий курс</p>
                     </div>
                 </section>
 
                 <section>
-                    <span class="section-label">Документация</span>
-                    <div class="docs-list">
+                    <span class="section-title">Документация</span>
+                    <div class="docs-container">
                         {{range .Documents}}
-                        <div class="attachment-item">
-                            <div class="dot {{if .IsVoice}}dot-purple{{else}}dot-blue{{end}}"></div>
-                            {{.Name}}
+                        <div class="doc-item">
+                            <div class="doc-icon {{if .IsVoice}}icon-voice{{else}}icon-file{{end}}"></div>
+                            <span>{{.Name}}</span>
                         </div>
                         {{else}}
-                        <div style="font-size: 11px; color: #94a3b8; font-style: italic;">Вложения отсутствуют.</div>
+                        <p style="font-size: 0.85rem; color: var(--slate-500); font-style: italic;">Вложения отсутствуют.</p>
                         {{end}}
                     </div>
                 </section>
             </div>
 
-            <div class="main-content">
+            <div class="col-main">
                 <section>
-                    <span class="section-label">Клинический статус и примечания</span>
-                    <div class="notes-box">
-                        <p class="notes-text">"{{.TherapistNotes}}"</p>
+                    <span class="section-title">Клинический статус и примечания</span>
+                    <div class="note-box">
+                        <p class="note-text">{{.TherapistNotes}}</p>
                     </div>
                 </section>
 
                 {{if .VoiceTranscripts}}
                 <section>
-                    <span class="section-label">Автоматические расшифровки</span>
+                    <span class="section-title">Автоматические расшифровки</span>
                     <div class="transcript-box">
-                        <p class="transcript-text">{{.VoiceTranscripts}}</p>
+                        <div class="transcript-text">{{.VoiceTranscripts}}</div>
                     </div>
                 </section>
                 {{end}}
 
                 <section>
-                    <span class="section-label">История посещений</span>
-                    <div class="table-container">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Дата и время</th>
-                                    <th>Тип записи</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td>{{.LastVisit}}</td>
-                                    <td>{{.CurrentService}} (Последняя запись)</td>
-                                </tr>
-                                <tr>
-                                    <td>{{.FirstVisit}}</td>
-                                    <td>{{.CurrentService}} (Первая запись)</td>
-                                </tr>
-                            </tbody>
-                        </table>
+                    <span class="section-title">История посещений</span>
+                    <div class="ledger">
+                        <div class="ledger-row ledger-header">
+                            <div class="ledger-date">Дата и время</div>
+                            <div class="ledger-desc">Описание услуги</div>
+                        </div>
+                        <div class="ledger-row">
+                            <div class="ledger-date">{{.LastVisit}}</div>
+                            <div class="ledger-desc">{{.CurrentService}} (Последний визит)</div>
+                        </div>
+                        <div class="ledger-row">
+                            <div class="ledger-date">{{.FirstVisit}}</div>
+                            <div class="ledger-desc">{{.CurrentService}} (Первый визит)</div>
+                        </div>
                     </div>
                 </section>
             </div>
         </div>
 
         <footer class="footer">
-            <p class="footer-text">Официальный электронный медицинский документ Vera Massage Bot</p>
+            <p class="footer-text">Официальный медицинский документ Vera Massage Bot</p>
         </footer>
     </div>
 </body>

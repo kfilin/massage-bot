@@ -116,15 +116,17 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient) string {
 	}
 
 	// Prepare data
+	cleanNotes := strings.ReplaceAll(p.TherapistNotes, "🩺 ", "")
+	cleanNotes = strings.ReplaceAll(cleanNotes, "🩺", "")
+
 	data := templateData{
 		Name:           strings.ToUpper(p.Name),
 		TelegramID:     p.TelegramID,
 		TotalVisits:    p.TotalVisits,
 		GeneratedAt:    time.Now().Format("02.01.2006 15:04"),
 		CurrentService: p.CurrentService,
-		TherapistNotes: p.TherapistNotes,
+		TherapistNotes: cleanNotes,
 		// Treat transcripts as pre-formatted HTML (using line breaks if needed)
-		// but since we want to be safe, we'll just use it as a string for now unless we need HTML
 		VoiceTranscripts: template.HTML(strings.ReplaceAll(p.VoiceTranscripts, "\n", "<br>")),
 		FirstVisit:       p.FirstVisit.Format("02.01.2006 15:04"),
 		LastVisit:        p.LastVisit.Format("02.01.2006 15:04"),
