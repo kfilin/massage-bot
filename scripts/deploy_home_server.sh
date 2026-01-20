@@ -12,10 +12,10 @@ cd $APP_DIR || exit
 git fetch origin master
 git reset --hard origin/master
 
-# 2. Build and restart containers
-echo "🛠 Building and recreating containers..."
-# Using --build to ensure local source changes are compiled
-docker compose up -d --build --force-recreate
+# 2. Pull and restart containers
+echo "🛠 Pulling latest images and recreating containers..."
+docker compose pull
+docker compose up -d --force-recreate
 
 # 3. Cleanup unused images
 echo "🧹 Cleaning up old images..."
