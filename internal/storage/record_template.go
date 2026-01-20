@@ -5,6 +5,7 @@ const medicalRecordTemplate = `
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Медицинская карта - {{.Name}}</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>
@@ -14,204 +15,393 @@ const medicalRecordTemplate = `
                 if (tg && tg.expand) {
                     tg.expand();
                     if (tg.themeParams && tg.themeParams.secondary_bg_color) {
+                        // Theming logic for TWA integration
                         document.body.style.backgroundColor = tg.themeParams.secondary_bg_color;
-                        document.body.style.color = tg.themeParams.text_color;
                     }
                 }
             });
-        } catch (e) { console.error('TWA script error:', e); }
+        } catch (e) { console.error('TWA init failed:', e); }
+
+        function printToPDF() {
+            window.print();
+        }
     </script>
     <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --bg-page: #f8fafc;
+            --bg-card: #ffffff;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --accent-soft: #eff6ff;
+            --accent-indigo: #4f46e5;
+        }
+
         * { box-sizing: border-box; -webkit-print-color-adjust: exact; }
-        
-        body { 
-            background-color: #f1f5f9; 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+        body {
+            background-color: var(--bg-page);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             margin: 0;
-            padding: 15px;
-            line-height: 1.6;
-            color: #1e293b;
+            padding: 12px;
+            color: var(--text-main);
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
         }
 
-        @media (min-width: 768px) {
-            body { padding: 40px; }
-        }
-
-        .page {
-            max-width: 900px;
+        .container {
+            max-width: 850px;
             margin: 0 auto;
-            background: white;
-            padding: 25px;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            background: var(--bg-card);
+            border-radius: 16px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+            border: 1px solid var(--border);
         }
 
-        @media (min-width: 768px) {
-            .page { padding: 50px; }
+        /* ACTIONS BAR - Non-printable */
+        .actions-bar {
+            display: flex;
+            justify-content: flex-end;
+            padding: 12px 20px;
+            background: #ffffff;
+            border-bottom: 1px solid var(--border);
         }
+        .btn-print {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 13px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.2s;
+        }
+        .btn-print:hover { background: var(--primary-dark); }
 
-        /* Header Layout */
+        /* HEADER */
         .header {
-            border-bottom: 4px solid #2563eb;
-            padding-bottom: 25px;
-            margin-bottom: 40px;
+            padding: 30px;
+            background: linear-gradient(to right, #ffffff, #f1f5f9);
+            border-bottom: 3px solid var(--primary);
             display: flex;
             flex-wrap: wrap;
-            justify-content: space-between;
-            align-items: flex-end;
-            gap: 20px;
+            gap: 24px;
+            align-items: flex-start;
         }
 
-        .header-info { flex: 1; min-width: 250px; }
-        .patient-name { font-size: 36px; font-weight: 800; color: #0f172a; margin: 0; letter-spacing: -1px; }
-        .medical-id { font-size: 14px; color: #2563eb; font-weight: 700; margin: 5px 0; text-transform: uppercase; }
-        .system-tag { font-size: 11px; color: #64748b; }
-
-        .header-stats { text-align: right; }
-        .stat-badge { background: #2563eb; color: white; padding: 15px 30px; border-radius: 12px; display: inline-block; text-align: center; }
-        .stat-label { font-size: 11px; text-transform: uppercase; font-weight: 800; margin: 0; opacity: 0.9; }
-        .stat-value { font-size: 28px; font-weight: 900; margin: 0; line-height: 1; }
-        .generated-date { font-size: 11px; color: #64748b; margin-top: 10px; font-weight: 600; text-transform: uppercase; }
-
-        /* General Sections */
-        .section { margin-bottom: 45px; }
-        .section-title { font-size: 12px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 15px; display: block; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px; }
-
-        /* Simple flex columns for main content */
-        .content-layout { display: flex; flex-wrap: wrap; gap: 40px; }
-        .sidebar { flex: 0 0 280px; }
-        .main { flex: 1; min-width: 300px; }
-
-        /* Components */
-        .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px; }
-        .service-name { font-size: 18px; font-weight: 700; color: #0f172a; margin: 0; }
-        .service-status { font-size: 12px; color: #2563eb; font-weight: 700; text-transform: uppercase; margin-top: 4px; }
-
-        .note-container { 
-            background: #eff6ff; 
-            border: 1px solid #bfdbfe; 
-            border-left: 6px solid #2563eb; 
-            padding: 25px; 
-            border-radius: 4px 12px 12px 4px; 
-            font-size: 15px;
-            color: #1e293b;
+        .patient-identity { flex: 1; min-width: 280px; }
+        .patient-name { 
+            font-size: 32px; 
+            font-weight: 800; 
+            letter-spacing: -0.025em; 
+            margin: 0 0 4px 0;
+            color: #000;
         }
-        .note-text { margin: 0; white-space: pre-wrap; }
+        .patient-meta {
+            font-size: 13px;
+            color: var(--text-muted);
+            font-weight: 500;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        .id-badge {
+            background: var(--accent-soft);
+            color: var(--primary);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 700;
+            font-family: monospace;
+        }
 
-        .transcript-container { 
-            background: #f8fafc; 
-            border: 1px solid #e2e8f0; 
-            border-left: 6px solid #64748b; 
-            padding: 20px; 
-            border-radius: 4px 12px 12px 4px; 
+        .header-stats {
+            display: flex;
+            gap: 12px;
+        }
+        .stat-item {
+            background: white;
+            border: 1px solid var(--border);
+            padding: 12px 20px;
+            border-radius: 12px;
+            text-align: center;
+            min-width: 110px;
+        }
+        .stat-label { font-size: 10px; text-transform: uppercase; font-weight: 700; color: var(--text-muted); margin-bottom: 2px; }
+        .stat-value { font-size: 24px; font-weight: 800; color: var(--primary); line-height: 1; }
+
+        /* MAIN LAYOUT */
+        .content {
+            padding: 30px;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 30px;
+        }
+
+        @media (min-width: 768px) {
+            .content { grid-template-columns: 1fr 280px; }
+        }
+
+        .main-section { display: flex; flex-direction: column; gap: 32px; }
+        
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+        .section-title {
             font-size: 14px;
-            color: #475569;
-            font-style: italic;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
         }
 
-        /* Lists */
-        .doc-item { display: flex; align-items: center; gap: 12px; padding: 12px; background: white; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 10px; font-size: 13px; }
-        .doc-dot { width: 10px; height: 10px; border-radius: 50%; }
+        /* CARDS / NOTES */
+        .note-card {
+            background: var(--accent-soft);
+            border-left: 4px solid var(--primary);
+            padding: 24px;
+            border-radius: 8px;
+        }
+        .note-content {
+            white-space: pre-wrap;
+            font-size: 16px;
+            color: #1e293b;
+            margin: 0;
+            line-height: 1.6;
+        }
 
-        /* Table/Ledger */
-        .ledger { border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
-        .ledger-row { display: flex; border-bottom: 1px solid #f1f5f9; padding: 15px 20px; }
-        .ledger-row:last-child { border-bottom: none; }
-        .ledger-header { background: #f8fafc; font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; }
-        .l-date { flex: 0 0 160px; font-weight: 600; }
-        .l-service { flex: 1; }
+        .transcript-box {
+            background: #fdfdfd;
+            border: 1px solid var(--border);
+            padding: 20px;
+            border-radius: 12px;
+            font-style: italic;
+            color: #475569;
+            font-size: 14px;
+        }
 
-        /* Footer */
-        .footer { margin-top: 60px; padding-top: 30px; border-top: 1px solid #f1f5f9; text-align: center; }
-        .footer-text { font-size: 11px; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+        /* HISTORY TABLE */
+        .history-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        .history-row {
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .history-row:last-child { border-bottom: none; }
+        .history-cell { padding: 12px 0; }
+        .h-date { color: var(--text-muted); width: 140px; font-weight: 500; }
+        .h-service { font-weight: 600; color: var(--text-main); flex: 1; }
+        .h-action { text-align: right; }
+
+        .cal-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            background: var(--accent-soft);
+            color: var(--primary);
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+        .cal-badge:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        /* SIDEBAR COMPONENTS */
+        .sidebar { display: flex; flex-direction: column; gap: 24px; }
+        
+        .program-card {
+            background: #1e293b;
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            position: relative;
+            overflow: hidden;
+        }
+        .program-label { font-size: 10px; text-transform: uppercase; opacity: 0.7; font-weight: 700; margin-bottom: 4px; }
+        .program-name { font-size: 18px; font-weight: 700; position: relative; z-index: 1; }
+        .program-card::after {
+            content: "";
+            position: absolute;
+            top: -20px; right: -20px;
+            width: 80px; height: 80px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 50%;
+        }
+
+        .doc-list { list-style: none; padding: 0; margin: 0; }
+        .doc-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        .doc-icon {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--primary);
+        }
+
+        /* FOOTER */
+        .footer {
+            padding: 24px;
+            text-align: center;
+            border-top: 1px solid var(--border);
+            background: #fafafa;
+        }
+        .copyright { font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.1em; }
 
         @media print {
             body { background: white; padding: 0; }
-            .page { box-shadow: none; border: none; padding: 0; width: 100%; max-width: 100%; }
-            .stat-badge { border: 2px solid #2563eb; color: #2563eb !important; background: transparent !important; }
-            .stat-value, .stat-label { color: #2563eb !important; }
+            .container { border: none; box-shadow: none; width: 100%; max-width: 100%; }
+            .actions-bar { display: none; }
+            .note-card { background: white; border: 1px solid #eee; border-left: 4px solid #000; }
+            .stat-item { border: 2px solid #000; }
+            .btn-print, .cal-badge { display: none; }
         }
     </style>
 </head>
 <body>
-    <div class="page">
+    <div class="container">
+        <!-- Action bar is only visible in browser/TWA -->
+        <div class="actions-bar">
+            <button class="btn-print" onclick="printToPDF()">
+                <span>📄 Сохранить PDF</span>
+            </button>
+        </div>
+
         <header class="header">
-            <div class="header-info">
+            <div class="patient-identity">
                 <h1 class="patient-name">{{.Name}}</h1>
-                <p class="medical-id">Медицинская карта ID {{.TelegramID}}</p>
-                <p class="system-tag">Система: Vera Massage Bot v.2.1</p>
+                <div class="patient-meta">
+                    <span>ID: <span class="id-badge">{{.TelegramID}}</span></span>
+                    <span>•</span>
+                    <span>Vera Bot v.3.1.4</span>
+                </div>
             </div>
             <div class="header-stats">
-                <div class="stat-badge">
-                    <p class="stat-label">Всего визитов</p>
-                    <p class="stat-value">{{.TotalVisits}}</p>
+                <div class="stat-item">
+                    <div class="stat-label">Визиты</div>
+                    <div class="stat-value">{{.TotalVisits}}</div>
                 </div>
-                <p class="generated-date">Дата: {{.GeneratedAt}}</p>
             </div>
         </header>
 
-        <div class="content-layout">
-            <div class="sidebar">
-                <div class="section">
-                    <span class="section-title">Текущий курс</span>
-                    <div class="card">
-                        <p class="service-name">{{.CurrentService}}</p>
-                        <p class="service-status">Активная программа</p>
+        <div class="content">
+            <div class="main-section">
+                <!-- CLINICAL NOTES -->
+                <section>
+                    <div class="section-header">
+                        <span class="section-title">Анамнез и заметки терапевта</span>
                     </div>
-                </div>
-
-                <div class="section">
-                    <span class="section-title">Документация</span>
-                    {{range .Documents}}
-                    <div class="doc-item">
-                        <div class="doc-dot" style="background: {{if .IsVoice}}#a855f7{{else}}#2563eb{{end}}"></div>
-                        {{.Name}}
+                    <div class="note-card">
+                        <p class="note-content">{{.TherapistNotes}}</p>
                     </div>
-                    {{else}}
-                    <p style="font-size: 13px; color: #94a3b8; font-style: italic;">Документы не загружены.</p>
-                    {{end}}
-                </div>
-            </div>
+                </section>
 
-            <div class="main">
-                <div class="section">
-                    <span class="section-title">Клинические заметки</span>
-                    <div class="note-container">
-                        <p class="note-text">{{.TherapistNotes}}</p>
-                    </div>
-                </div>
-
+                <!-- TRANSCRIPTS IF ANY -->
                 {{if .VoiceTranscripts}}
-                <div class="section">
-                    <span class="section-title">Расшифровки голос. сообщений</span>
-                    <div class="transcript-container">
-                        <p class="note-text">{{.VoiceTranscripts}}</p>
+                <section>
+                    <div class="section-header">
+                        <span class="section-title">Расшифровки консультаций</span>
                     </div>
-                </div>
+                    <div class="transcript-box">
+                        <p class="note-content">{{.VoiceTranscripts}}</p>
+                    </div>
+                </section>
                 {{end}}
 
-                <div class="section">
-                    <span class="section-title">История визитов</span>
-                    <div class="ledger">
-                        <div class="ledger-row ledger-header">
-                            <div class="l-date">Дата и время</div>
-                            <div class="l-service">Услуга</div>
-                        </div>
-                        <div class="ledger-row">
-                            <div class="l-date">{{.LastVisit}}</div>
-                            <div class="l-service">{{.CurrentService}} (Последнее посещение)</div>
-                        </div>
-                        <div class="ledger-row">
-                            <div class="l-date">{{.FirstVisit}}</div>
-                            <div class="l-service">{{.CurrentService}} (Первое посещение)</div>
-                        </div>
+                <!-- VISIT HISTORY -->
+                <section>
+                    <div class="section-header">
+                        <span class="section-title">История посещений</span>
                     </div>
-                </div>
+                    <table class="history-table">
+                        <tr class="history-row">
+                            <td class="history-cell h-date">{{.LastVisit}}</td>
+                            <td class="history-cell h-service">{{.CurrentService}} (Последний визит)</td>
+                            <td class="history-cell h-action">
+                                <a href="{{.LastVisitLink}}" target="_blank" class="cal-badge">
+                                    <span>📅</span> Календарь
+                                </a>
+                            </td>
+                        </tr>
+                        <tr class="history-row">
+                            <td class="history-cell h-date">{{.FirstVisit}}</td>
+                            <td class="history-cell h-service">{{.CurrentService}} (Первый визит)</td>
+                            <td class="history-cell h-action">
+                                <a href="{{.FirstVisitLink}}" target="_blank" class="cal-badge">
+                                    <span>📅</span> Календарь
+                                </a>
+                            </td>
+                        </tr>
+                    </table>
+                </section>
             </div>
+
+            <!-- SIDEBAR -->
+            <aside class="sidebar">
+                <section>
+                    <div class="section-header">
+                        <span class="section-title">Программа</span>
+                    </div>
+                    <div class="program-card">
+                        <div class="program-label">Текущий курс</div>
+                        <div class="program-name">{{.CurrentService}}</div>
+                    </div>
+                </section>
+
+                <section>
+                    <div class="section-header">
+                        <span class="section-title">Документация</span>
+                    </div>
+                    <ul class="doc-list">
+                        {{range .Documents}}
+                        <li class="doc-item">
+                            <div class="doc-icon" style="background: {{if .IsVoice}}#a855f7{{else}}#2563eb{{end}}"></div>
+                            {{.Name}}
+                        </li>
+                        {{else}}
+                        <p style="font-size: 13px; color: #94a3b8; font-style: italic;">Список пуст</p>
+                        {{end}}
+                    </ul>
+                </section>
+
+                <section style="margin-top: auto; padding-top: 20px;">
+                    <div style="font-size: 11px; color: var(--text-muted); border-top: 1px solid var(--border); padding-top: 10px;">
+                        <strong>Сгенерировано:</strong><br>
+                        {{.GeneratedAt}}
+                    </div>
+                </section>
+            </aside>
         </div>
 
         <footer class="footer">
-            <p class="footer-text">Электронный медицинский документ • Vera Bot v.2.1</p>
+            <div class="copyright">Vera Massage Bot • Professional Medical Records</div>
         </footer>
     </div>
 </body>

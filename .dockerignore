@@ -8,8 +8,10 @@ vendor/
 tmp/
 logs/
 *.log
+.env
 .env.local
 *.test
 coverage.txt
 postgres_data/
+postgres_data_dev/
 data/

@@ -38,5 +38,6 @@ data/
 docs/
 verification-checklist.md
 postgres_data/
+postgres_data_dev/
 gitlab-kubeconfig-final.yaml
 *.log

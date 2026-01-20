@@ -113,7 +113,23 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient) string {
 		VoiceTranscripts template.HTML
 		FirstVisit       string
 		LastVisit        string
+		FirstVisitLink   string
+		LastVisitLink    string
 		Documents        []docItem
+	}
+
+	// Helper to generate Google Calendar Link
+	getCalLink := func(t time.Time, service string) string {
+		start := t.Format("20060102T150405")
+		end := t.Add(time.Hour).Format("20060102T150405")
+		title := "Massage: " + service
+		details := "Scheduled via Vera Massage Bot"
+		return fmt.Sprintf(
+			"https://www.google.com/calendar/render?action=TEMPLATE&text=%s&dates=%s/%s&details=%s",
+			strings.ReplaceAll(title, " ", "+"),
+			start, end,
+			strings.ReplaceAll(details, " ", "+"),
+		)
 	}
 
 	// Strip ALL emojis and special symbols for a clean clinical look
@@ -131,6 +147,8 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient) string {
 		VoiceTranscripts: template.HTML(strings.ReplaceAll(cleanTranscripts, "\n", "<br>")),
 		FirstVisit:       p.FirstVisit.Format("02.01.2006 15:04"),
 		LastVisit:        p.LastVisit.Format("02.01.2006 15:04"),
+		FirstVisitLink:   getCalLink(p.FirstVisit, p.CurrentService),
+		LastVisitLink:    getCalLink(p.LastVisit, p.CurrentService),
 	}
 
 	// Parse documents
