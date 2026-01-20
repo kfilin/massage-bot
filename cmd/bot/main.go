@@ -25,7 +25,7 @@ func main() {
 	// 1. Load Configuration
 	cfg := config.LoadConfig()
 	log.Println("Configuration loaded.")
-	log.Println("Bot version: v3.1.1-cicd-test")
+	log.Println("Bot version: v3.1.2-cicd-test")
 
 	// Start health server
 	go startHealthServer()
