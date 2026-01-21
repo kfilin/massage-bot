@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kfilin/massage-bot/internal/domain"
 	"github.com/kfilin/massage-bot/internal/ports"
 )
 
@@ -153,13 +154,18 @@ func startWebAppServer(port string, secret string, botToken string, repo ports.R
 
 		patient, err := repo.GetPatient(finalID)
 		if err != nil {
-			log.Printf("Error fetching patient %s: %v", id, err)
-			http.Error(w, "Patient not found", http.StatusNotFound)
-			return
+			log.Printf("Patient %s not found in DB, attempting self-heal from GCal...", finalID)
+			// Self-heal: Create a basic record and we will populate it below via GCal sync
+			patient = domain.Patient{
+				TelegramID:     finalID,
+				Name:           "Пациент",
+				HealthStatus:   "initial",
+				TherapistNotes: fmt.Sprintf("Зарегистрирован через TWA: %s", time.Now().Format("02.01.2006")),
+			}
 		}
 
 		// Sync logic: Fetch actual appointments from GCal to ensure Medical Card is up-to-date
-		appts, err := apptService.GetCustomerAppointments(r.Context(), id)
+		appts, err := apptService.GetCustomerAppointments(r.Context(), finalID)
 		if err == nil {
 			// Update visit stats even if zero
 			var lastVisit, firstVisit time.Time

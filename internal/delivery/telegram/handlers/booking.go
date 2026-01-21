@@ -805,11 +805,16 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 	return c.Send(confirmationMsg, h.GetMainMenu(), selector, telebot.ModeHTML)
 }
 
-// syncPatientStats fetches full appointment history and updates patient's visit metrics.
 func (h *BookingHandler) syncPatientStats(ctx context.Context, telegramID string) (domain.Patient, error) {
 	patient, err := h.repository.GetPatient(telegramID)
 	if err != nil {
-		return domain.Patient{}, err
+		// If patient not found, initialize a new one
+		patient = domain.Patient{
+			TelegramID:     telegramID,
+			Name:           "Пациент", // Default name, will be updated if we find info
+			HealthStatus:   "initial",
+			TherapistNotes: fmt.Sprintf("Зарегистрирован: %s", time.Now().Format("02.01.2006")),
+		}
 	}
 
 	// Fetch ALL history from GCal
