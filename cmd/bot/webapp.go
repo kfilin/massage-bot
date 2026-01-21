@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -71,23 +72,11 @@ func startWebAppServer(port string, secret string, repo ports.Repository, apptSe
 			}
 			patient.TotalVisits = len(appts)
 
-			// CLEANUP LEGACY AUDIT LOGS FROM NOTES
-			lines := strings.Split(patient.TherapistNotes, "\n")
-			var cleaned []string
-			for _, line := range lines {
-				trimmed := strings.TrimSpace(line)
-				if trimmed == "" {
-					continue
-				}
-				// Remove automated prefixes
-				if strings.HasPrefix(trimmed, "Запись:") ||
-					strings.HasPrefix(trimmed, "Первая запись:") ||
-					strings.HasPrefix(trimmed, "Зарегистрирован:") {
-					continue
-				}
-				cleaned = append(cleaned, line)
-			}
-			patient.TherapistNotes = strings.Join(cleaned, "\n")
+			// CLEANUP LEGACY AUDIT LOGS FROM NOTES (Aggressive regex scrubbing)
+			// Matches lines starting with (optional symbols) followed by Запись:, Первая запись:, or Зарегистрирован:
+			scrubRegex := regexp.MustCompile(`(?m)^.*(Запись:|Первая запись:|Зарегистрирован:).*$\n?`)
+			patient.TherapistNotes = scrubRegex.ReplaceAllString(patient.TherapistNotes, "")
+			patient.TherapistNotes = strings.TrimSpace(patient.TherapistNotes)
 
 			// Save back to repo to persist the sync
 			repo.SavePatient(patient)
