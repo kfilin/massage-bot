@@ -19,6 +19,7 @@ services:
       dockerfile: Dockerfile
     container_name: massage-bot
     environment:
+      - TZ=Europe/Istanbul
       - TELEGRAM_BOT_TOKEN=${TG_BOT_TOKEN}  # ← Change to TG_BOT_TOKEN
       - ALLOWED_TELEGRAM_IDS=${ALLOWED_TELEGRAM_IDS}  # ← Consistent!
       - GOOGLE_CREDENTIALS_FILE=credentials.json

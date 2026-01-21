@@ -4,6 +4,7 @@ services:
     container_name: massage-bot-dev
     restart: unless-stopped
     environment:
+      - TZ=Europe/Istanbul
       - HEALTH_PORT=8081
       - DB_HOST=db-dev
       - WEBAPP_URL=https://localhost:8443
