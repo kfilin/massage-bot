@@ -42,13 +42,6 @@ func main() {
 		log.Printf("ERROR during migration: %v", err)
 	}
 
-	// Start Web App server
-	if cfg.WebAppSecret != "" {
-		go startWebAppServer(cfg.WebAppPort, cfg.WebAppSecret, patientRepo)
-	} else {
-		log.Println("Warning: WEBAPP_SECRET not set, Web App server not started.")
-	}
-
 	// 2. Initialize Google Calendar Client
 	googleCalendarClient, err := googlecalendar.NewGoogleCalendarClient()
 	if err != nil {
@@ -72,6 +65,13 @@ func main() {
 	// 6. Initialize Advanced Adapters (Transcription)
 	transcriptionAdapter := transcription.NewGroqAdapter(cfg.GroqAPIKey)
 	log.Println("Advanced adapters (Groq) initialized.")
+
+	// 6b. Start Web App server (now with apptService for sync)
+	if cfg.WebAppSecret != "" {
+		go startWebAppServer(cfg.WebAppPort, cfg.WebAppSecret, patientRepo, appointmentService)
+	} else {
+		log.Println("Warning: WEBAPP_SECRET not set, Web App server not started.")
+	}
 
 	// 7. Start the Telegram Bot
 	// Pass all initialized dependencies to the bot's start function

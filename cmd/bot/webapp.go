@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/kfilin/massage-bot/internal/ports"
 )
@@ -22,7 +23,7 @@ func validateHMAC(id string, token string, secret string) bool {
 	return hmac.Equal([]byte(token), []byte(expected))
 }
 
-func startWebAppServer(port string, secret string, repo ports.Repository) {
+func startWebAppServer(port string, secret string, repo ports.Repository, apptService ports.AppointmentService) {
 	if port == "" {
 		port = "8082"
 	}
@@ -48,6 +49,26 @@ func startWebAppServer(port string, secret string, repo ports.Repository) {
 			log.Printf("Error fetching patient %s: %v", id, err)
 			http.Error(w, "Patient not found", http.StatusNotFound)
 			return
+		}
+
+		// Sync logic: Fetch actual appointments from GCal to ensure Medical Card is up-to-date
+		appts, err := apptService.GetCustomerAppointments(r.Context(), id)
+		if err == nil && len(appts) > 0 {
+			// Find most recent and total count
+			var lastVisit, firstVisit time.Time
+			for _, a := range appts {
+				if firstVisit.IsZero() || a.StartTime.Before(firstVisit) {
+					firstVisit = a.StartTime
+				}
+				if lastVisit.IsZero() || a.StartTime.After(lastVisit) {
+					lastVisit = a.StartTime
+				}
+			}
+			patient.FirstVisit = firstVisit
+			patient.LastVisit = lastVisit
+			patient.TotalVisits = len(appts)
+			// Optionally save back to repo to keep it healthy
+			repo.SavePatient(patient)
 		}
 
 		html := repo.GenerateHTMLRecord(patient)

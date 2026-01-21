@@ -746,7 +746,7 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 		patient = existingPatient
 		patient.LastVisit = appointmentTime // FIXED: Use appointmentTime, not time.Now()
 
-		// Self-healing logic:
+		// Self-healing logic handled by dynamic sync in TWA, but we update here for bot consistency
 		if actualCount > patient.TotalVisits {
 			patient.TotalVisits = actualCount
 		} else {
@@ -754,22 +754,17 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 		}
 
 		patient.CurrentService = service.Name
-		// Append new booking info to existing clinical notes
-		bookingInfo := fmt.Sprintf("\n\nЗапись: %s на %s", service.Name, appointmentTime.Format("02.01.2006 15:04"))
-		patient.TherapistNotes += bookingInfo
 	} else {
 		// New patient
 		patient = domain.Patient{
 			TelegramID:     strconv.FormatInt(userID, 10),
 			Name:           name,
-			FirstVisit:     appointmentTime, // FIXED: Use appointmentTime, not time.Now()
-			LastVisit:      appointmentTime, // FIXED: Use appointmentTime, not time.Now()
+			FirstVisit:     appointmentTime,
+			LastVisit:      appointmentTime,
 			TotalVisits:    actualCount,
 			HealthStatus:   "initial",
 			CurrentService: service.Name,
-			TherapistNotes: fmt.Sprintf("Первая запись: %s на %s",
-				service.Name,
-				appointmentTime.Format("02.01.2006 15:04")),
+			TherapistNotes: fmt.Sprintf("Зарегистрирован: %s", time.Now().Format("02.01.2006")),
 		}
 	}
 
