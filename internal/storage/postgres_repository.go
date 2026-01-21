@@ -104,18 +104,20 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient) string {
 		IsVoice bool
 	}
 	type templateData struct {
-		Name             string
-		TelegramID       string
-		TotalVisits      int
-		GeneratedAt      string
-		CurrentService   string
-		TherapistNotes   string
-		VoiceTranscripts template.HTML
-		FirstVisit       string
-		LastVisit        string
-		FirstVisitLink   string
-		LastVisitLink    string
-		Documents        []docItem
+		Name               string
+		TelegramID         string
+		TotalVisits        int
+		GeneratedAt        string
+		CurrentService     string
+		TherapistNotes     string
+		VoiceTranscripts   template.HTML
+		FirstVisit         string
+		LastVisit          string
+		FirstVisitLink     string
+		LastVisitLink      string
+		ShowFirstVisitLink bool
+		ShowLastVisitLink  bool
+		Documents          []docItem
 	}
 
 	// Helper to generate Google Calendar Link
@@ -138,17 +140,19 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient) string {
 	cleanTranscripts := re.ReplaceAllString(p.VoiceTranscripts, "")
 
 	data := templateData{
-		Name:             strings.ToUpper(p.Name),
-		TelegramID:       p.TelegramID,
-		TotalVisits:      p.TotalVisits,
-		GeneratedAt:      time.Now().Format("02.01.2006 15:04"),
-		CurrentService:   p.CurrentService,
-		TherapistNotes:   cleanNotes,
-		VoiceTranscripts: template.HTML(strings.ReplaceAll(cleanTranscripts, "\n", "<br>")),
-		FirstVisit:       p.FirstVisit.Format("02.01.2006 15:04"),
-		LastVisit:        p.LastVisit.Format("02.01.2006 15:04"),
-		FirstVisitLink:   getCalLink(p.FirstVisit, p.CurrentService),
-		LastVisitLink:    getCalLink(p.LastVisit, p.CurrentService),
+		Name:               strings.ToUpper(p.Name),
+		TelegramID:         p.TelegramID,
+		TotalVisits:        p.TotalVisits,
+		GeneratedAt:        time.Now().Format("02.01.2006 15:04"),
+		CurrentService:     p.CurrentService,
+		TherapistNotes:     cleanNotes,
+		VoiceTranscripts:   template.HTML(strings.ReplaceAll(cleanTranscripts, "\n", "<br>")),
+		FirstVisit:         p.FirstVisit.Format("02.01.2006 15:04"),
+		LastVisit:          p.LastVisit.Format("02.01.2006 15:04"),
+		FirstVisitLink:     getCalLink(p.FirstVisit, p.CurrentService),
+		LastVisitLink:      getCalLink(p.LastVisit, p.CurrentService),
+		ShowFirstVisitLink: p.FirstVisit.After(time.Now()),
+		ShowLastVisitLink:  p.LastVisit.After(time.Now()),
 	}
 
 	// Parse documents

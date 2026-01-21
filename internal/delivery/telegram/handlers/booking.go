@@ -744,11 +744,9 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 	if err == nil {
 		// Patient exists, update fields
 		patient = existingPatient
-		patient.LastVisit = time.Now()
+		patient.LastVisit = appointmentTime // FIXED: Use appointmentTime, not time.Now()
 
 		// Self-healing logic:
-		// If the actual count from calendar is greater than our stored count, prefer the calendar count.
-		// This handles the case where users booked slots before we started tracking properly.
 		if actualCount > patient.TotalVisits {
 			patient.TotalVisits = actualCount
 		} else {
@@ -764,8 +762,8 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 		patient = domain.Patient{
 			TelegramID:     strconv.FormatInt(userID, 10),
 			Name:           name,
-			FirstVisit:     time.Now(),
-			LastVisit:      time.Now(),
+			FirstVisit:     appointmentTime, // FIXED: Use appointmentTime, not time.Now()
+			LastVisit:      appointmentTime, // FIXED: Use appointmentTime, not time.Now()
 			TotalVisits:    actualCount,
 			HealthStatus:   "initial",
 			CurrentService: service.Name,

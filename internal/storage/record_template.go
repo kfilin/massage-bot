@@ -345,18 +345,22 @@ const medicalRecordTemplate = `
                             <td class="history-cell h-date">{{.LastVisit}}</td>
                             <td class="history-cell h-service">{{.CurrentService}} (Последний визит)</td>
                             <td class="history-cell h-action">
+                                {{if .ShowLastVisitLink}}
                                 <a href="{{.LastVisitLink}}" target="_blank" class="cal-badge">
                                     <span>📅</span> Календарь
                                 </a>
+                                {{end}}
                             </td>
                         </tr>
                         <tr class="history-row">
                             <td class="history-cell h-date">{{.FirstVisit}}</td>
                             <td class="history-cell h-service">{{.CurrentService}} (Первый визит)</td>
                             <td class="history-cell h-action">
+                                {{if .ShowFirstVisitLink}}
                                 <a href="{{.FirstVisitLink}}" target="_blank" class="cal-badge">
                                     <span>📅</span> Календарь
                                 </a>
+                                {{end}}
                             </td>
                         </tr>
                     </table>
