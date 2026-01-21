@@ -730,7 +730,11 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 			service.Name), telebot.ModeHTML)
 	}
 	// Update or create patient record using robust sync
-	patient, errSync := h.syncPatientStats(context.Background(), strconv.FormatInt(userID, 10))
+	var nameInSync string
+	if n, ok := session[SessionKeyName].(string); ok {
+		nameInSync = n
+	}
+	patient, errSync := h.syncPatientStats(context.Background(), strconv.FormatInt(userID, 10), nameInSync)
 	if errSync != nil {
 		log.Printf("WARNING: Failed to sync patient record for user %d: %v", userID, errSync)
 		// Fallback to minimal update if sync fails
@@ -805,13 +809,16 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 	return c.Send(confirmationMsg, h.GetMainMenu(), selector, telebot.ModeHTML)
 }
 
-func (h *BookingHandler) syncPatientStats(ctx context.Context, telegramID string) (domain.Patient, error) {
+func (h *BookingHandler) syncPatientStats(ctx context.Context, telegramID string, name string) (domain.Patient, error) {
 	patient, err := h.repository.GetPatient(telegramID)
 	if err != nil {
 		// If patient not found, initialize a new one
+		if name == "" {
+			name = "Пациент"
+		}
 		patient = domain.Patient{
 			TelegramID:     telegramID,
-			Name:           "Пациент", // Default name, will be updated if we find info
+			Name:           name,
 			HealthStatus:   "initial",
 			TherapistNotes: fmt.Sprintf("Зарегистрирован: %s", time.Now().Format("02.01.2006")),
 		}
@@ -999,7 +1006,7 @@ func (h *BookingHandler) HandleCancelAppointmentCallback(c telebot.Context) erro
 		}
 
 		// Robust sync after cancellation
-		h.syncPatientStats(context.Background(), appt.CustomerTgID)
+		h.syncPatientStats(context.Background(), appt.CustomerTgID, appt.CustomerName)
 	}
 
 	c.Respond(&telebot.CallbackResponse{Text: "Запись успешно отменена!"})

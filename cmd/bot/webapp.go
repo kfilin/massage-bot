@@ -30,15 +30,15 @@ func validateHMAC(id string, token string, secret string) bool {
 }
 
 // validateInitData validates Telegram WebApp initData
-func validateInitData(initData string, botToken string) (string, error) {
+func validateInitData(initData string, botToken string) (string, string, error) {
 	values, err := url.ParseQuery(initData)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	hash := values.Get("hash")
 	if hash == "" {
-		return "", fmt.Errorf("missing hash")
+		return "", "", fmt.Errorf("missing hash")
 	}
 	values.Del("hash")
 
@@ -68,23 +68,30 @@ func validateInitData(initData string, botToken string) (string, error) {
 	expectedHash := hex.EncodeToString(h2.Sum(nil))
 
 	if expectedHash != hash {
-		return "", fmt.Errorf("hash mismatch")
+		return "", "", fmt.Errorf("hash mismatch")
 	}
 
-	// Extract user ID
+	// Extract user data
 	userJSON := values.Get("user")
 	if userJSON == "" {
-		return "", fmt.Errorf("missing user data")
+		return "", "", fmt.Errorf("missing user data")
 	}
 
 	var user struct {
-		ID int64 `json:"id"`
+		ID        int64  `json:"id"`
+		FirstName string `json:"first_name"`
+		LastName  string `json:"last_name"`
 	}
 	if err := json.Unmarshal([]byte(userJSON), &user); err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	return fmt.Sprintf("%d", user.ID), nil
+	fullName := strings.TrimSpace(user.FirstName + " " + user.LastName)
+	if fullName == "" {
+		fullName = "Пациент"
+	}
+
+	return fmt.Sprintf("%d", user.ID), fullName, nil
 }
 
 func startWebAppServer(port string, secret string, botToken string, repo ports.Repository, apptService ports.AppointmentService) {
@@ -100,6 +107,7 @@ func startWebAppServer(port string, secret string, botToken string, repo ports.R
 		initData := r.URL.Query().Get("initData") // Fallback for Menu Button
 
 		var finalID string
+		var telegramName string
 
 		if id != "" && token != "" {
 			if !validateHMAC(id, token, secret) {
@@ -109,7 +117,7 @@ func startWebAppServer(port string, secret string, botToken string, repo ports.R
 			finalID = id
 		} else if initData != "" {
 			var err error
-			finalID, err = validateInitData(initData, botToken)
+			finalID, telegramName, err = validateInitData(initData, botToken)
 			if err != nil {
 				log.Printf("InitData validation failed: %v", err)
 				http.Error(w, "Authentication failed", http.StatusUnauthorized)
@@ -155,10 +163,16 @@ func startWebAppServer(port string, secret string, botToken string, repo ports.R
 		patient, err := repo.GetPatient(finalID)
 		if err != nil {
 			log.Printf("Patient %s not found in DB, attempting self-heal from GCal...", finalID)
+
+			name := telegramName
+			if name == "" {
+				name = "Пациент"
+			}
+
 			// Self-heal: Create a basic record and we will populate it below via GCal sync
 			patient = domain.Patient{
 				TelegramID:     finalID,
-				Name:           "Пациент",
+				Name:           name,
 				HealthStatus:   "initial",
 				TherapistNotes: fmt.Sprintf("Зарегистрирован через TWA: %s", time.Now().Format("02.01.2006")),
 			}
