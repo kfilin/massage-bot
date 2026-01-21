@@ -35,6 +35,7 @@ func main() {
 		log.Fatalf("Error initializing database: %v", err)
 	}
 	patientRepo := storage.NewPostgresRepository(db, os.Getenv("DATA_DIR"))
+	patientRepo.BotVersion = "v3.1.8"
 	log.Println("Database initialized.")
 
 	// 1c. Run Migration (Idempotent)

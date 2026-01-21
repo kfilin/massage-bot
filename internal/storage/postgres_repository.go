@@ -23,8 +23,9 @@ import (
 var _ ports.Repository = (*PostgresRepository)(nil)
 
 type PostgresRepository struct {
-	db      *sqlx.DB
-	dataDir string
+	db         *sqlx.DB
+	dataDir    string
+	BotVersion string
 }
 
 func NewPostgresRepository(db *sqlx.DB, dataDir string) *PostgresRepository {
@@ -109,6 +110,7 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient) string {
 		TotalVisits        int
 		GeneratedAt        string
 		CurrentService     string
+		BotVersion         string
 		TherapistNotes     string
 		VoiceTranscripts   template.HTML
 		FirstVisit         string
@@ -145,6 +147,7 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient) string {
 		TotalVisits:        p.TotalVisits,
 		GeneratedAt:        time.Now().Format("02.01.2006 15:04"),
 		CurrentService:     p.CurrentService,
+		BotVersion:         r.BotVersion,
 		TherapistNotes:     cleanNotes,
 		VoiceTranscripts:   template.HTML(strings.ReplaceAll(cleanTranscripts, "\n", "<br>")),
 		FirstVisit:         p.FirstVisit.Format("02.01.2006 15:04"),

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/kfilin/massage-bot/internal/ports"
@@ -53,21 +54,42 @@ func startWebAppServer(port string, secret string, repo ports.Repository, apptSe
 
 		// Sync logic: Fetch actual appointments from GCal to ensure Medical Card is up-to-date
 		appts, err := apptService.GetCustomerAppointments(r.Context(), id)
-		if err == nil && len(appts) > 0 {
-			// Find most recent and total count
+		if err == nil {
+			// Update visit stats even if zero
 			var lastVisit, firstVisit time.Time
-			for _, a := range appts {
-				if firstVisit.IsZero() || a.StartTime.Before(firstVisit) {
-					firstVisit = a.StartTime
+			if len(appts) > 0 {
+				for _, a := range appts {
+					if firstVisit.IsZero() || a.StartTime.Before(firstVisit) {
+						firstVisit = a.StartTime
+					}
+					if lastVisit.IsZero() || a.StartTime.After(lastVisit) {
+						lastVisit = a.StartTime
+					}
 				}
-				if lastVisit.IsZero() || a.StartTime.After(lastVisit) {
-					lastVisit = a.StartTime
-				}
+				patient.FirstVisit = firstVisit
+				patient.LastVisit = lastVisit
 			}
-			patient.FirstVisit = firstVisit
-			patient.LastVisit = lastVisit
 			patient.TotalVisits = len(appts)
-			// Optionally save back to repo to keep it healthy
+
+			// CLEANUP LEGACY AUDIT LOGS FROM NOTES
+			lines := strings.Split(patient.TherapistNotes, "\n")
+			var cleaned []string
+			for _, line := range lines {
+				trimmed := strings.TrimSpace(line)
+				if trimmed == "" {
+					continue
+				}
+				// Remove automated prefixes
+				if strings.HasPrefix(trimmed, "Запись:") ||
+					strings.HasPrefix(trimmed, "Первая запись:") ||
+					strings.HasPrefix(trimmed, "Зарегистрирован:") {
+					continue
+				}
+				cleaned = append(cleaned, line)
+			}
+			patient.TherapistNotes = strings.Join(cleaned, "\n")
+
+			// Save back to repo to persist the sync
 			repo.SavePatient(patient)
 		}
 

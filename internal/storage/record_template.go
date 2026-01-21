@@ -300,7 +300,7 @@ const medicalRecordTemplate = `
                 <div class="patient-meta">
                     <span>ID: <span class="id-badge">{{.TelegramID}}</span></span>
                     <span>•</span>
-                    <span>Vera Bot v.3.1.4</span>
+                    <span>Vera Bot {{.BotVersion}}</span>
                 </div>
             </div>
             <div class="header-stats">
