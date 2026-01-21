@@ -13,8 +13,8 @@
    - Reordered sections: Visit History (1st), Medical History (2nd), Documentation (Last).
    - Renamed "Clinical Notes" to "История болезни".
    - Removed "Программа / Услуга" block and sidebar for a cleaner, full-width clinical aesthetic.
-3. **Timezone Fidelity**: Forced `Europe/Istanbul` timezone for all date displays in the Medical Card HTML to ensure "clean" timing.
-4. **Code Quality**: Fixed unused variable lints and updated repository interfaces/mocks to support custom time ranges.
+3. **TWA Auto-Authentication (v3.1.13)**: Implemented `initData` validation and a JS gateway to handle "Menu Button" entry points. This fixes the "Missing id or token" error for users opening the app via static links.
+4. **User Guides Corrected**: Updated `@vera_massage_bot` handle and described new dashboard features in both EN and RU guides.
 
 ## 🚧 Current Blockers & Risks
 

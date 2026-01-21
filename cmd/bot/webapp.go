@@ -4,10 +4,13 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -25,7 +28,65 @@ func validateHMAC(id string, token string, secret string) bool {
 	return hmac.Equal([]byte(token), []byte(expected))
 }
 
-func startWebAppServer(port string, secret string, repo ports.Repository, apptService ports.AppointmentService) {
+// validateInitData validates Telegram WebApp initData
+func validateInitData(initData string, botToken string) (string, error) {
+	values, err := url.ParseQuery(initData)
+	if err != nil {
+		return "", err
+	}
+
+	hash := values.Get("hash")
+	if hash == "" {
+		return "", fmt.Errorf("missing hash")
+	}
+	values.Del("hash")
+
+	// Sort keys
+	var keys []string
+	for k := range values {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	// Build data check string
+	var dataCheckArr []string
+	for _, k := range keys {
+		dataCheckArr = append(dataCheckArr, fmt.Sprintf("%s=%s", k, values.Get(k)))
+	}
+	dataCheckString := strings.Join(dataCheckArr, "\n")
+
+	// Calculate HMAC
+	// Step 1: secret_key = HMAC_SHA256("WebAppData", botToken)
+	h1 := hmac.New(sha256.New, []byte("WebAppData"))
+	h1.Write([]byte(botToken))
+	secretKey := h1.Sum(nil)
+
+	// Step 2: result = HMAC_SHA256(secret_key, dataCheckString)
+	h2 := hmac.New(sha256.New, secretKey)
+	h2.Write([]byte(dataCheckString))
+	expectedHash := hex.EncodeToString(h2.Sum(nil))
+
+	if expectedHash != hash {
+		return "", fmt.Errorf("hash mismatch")
+	}
+
+	// Extract user ID
+	userJSON := values.Get("user")
+	if userJSON == "" {
+		return "", fmt.Errorf("missing user data")
+	}
+
+	var user struct {
+		ID int64 `json:"id"`
+	}
+	if err := json.Unmarshal([]byte(userJSON), &user); err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%d", user.ID), nil
+}
+
+func startWebAppServer(port string, secret string, botToken string, repo ports.Repository, apptService ports.AppointmentService) {
 	if port == "" {
 		port = "8082"
 	}
@@ -35,18 +96,62 @@ func startWebAppServer(port string, secret string, repo ports.Repository, apptSe
 	mux.HandleFunc("/card", func(w http.ResponseWriter, r *http.Request) {
 		id := r.URL.Query().Get("id")
 		token := r.URL.Query().Get("token")
+		initData := r.URL.Query().Get("initData") // Fallback for Menu Button
 
-		if id == "" || token == "" {
-			http.Error(w, "Missing id or token", http.StatusBadRequest)
+		var finalID string
+
+		if id != "" && token != "" {
+			if !validateHMAC(id, token, secret) {
+				http.Error(w, "Invalid token", http.StatusUnauthorized)
+				return
+			}
+			finalID = id
+		} else if initData != "" {
+			var err error
+			finalID, err = validateInitData(initData, botToken)
+			if err != nil {
+				log.Printf("InitData validation failed: %v", err)
+				http.Error(w, "Authentication failed", http.StatusUnauthorized)
+				return
+			}
+		} else {
+			// If both missing, we might still have it in the hash (fragment)
+			// But Go can't see the fragment. We need a JS gateway or just show a nice error.
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprint(w, `
+				<!DOCTYPE html>
+				<html>
+				<head>
+					<meta charset="UTF-8">
+					<meta name="viewport" content="width=device-width, initial-scale=1.0">
+					<script src="https://telegram.org/js/telegram-web-app.js"></script>
+					<title>Авторизация...</title>
+					<style>
+						body { font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f0f2f5; }
+						.loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 30px; height: 30px; animation: spin 2s linear infinite; }
+						@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+					</style>
+				</head>
+				<body>
+					<div id="status">⏳ Авторизация...</div>
+					<script>
+						const tg = window.Telegram.WebApp;
+						if (tg.initData) {
+							const currentUrl = new URL(window.location.href);
+							currentUrl.searchParams.set('initData', tg.initData);
+							window.location.href = currentUrl.toString();
+						} else {
+							document.getElementById('status').innerHTML = "❌ Ошибка: Некорректная ссылка.<br><br>Пожалуйста, откройте карту через кнопку в чате @vera_massage_bot";
+						}
+					</script>
+				</body>
+				</html>
+			`)
 			return
 		}
 
-		if !validateHMAC(id, token, secret) {
-			http.Error(w, "Invalid token", http.StatusUnauthorized)
-			return
-		}
-
-		patient, err := repo.GetPatient(id)
+		patient, err := repo.GetPatient(finalID)
 		if err != nil {
 			log.Printf("Error fetching patient %s: %v", id, err)
 			http.Error(w, "Patient not found", http.StatusNotFound)
