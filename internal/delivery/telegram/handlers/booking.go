@@ -539,6 +539,14 @@ func (h *BookingHandler) HandleTimeSelection(c telebot.Context) error {
 		}
 	}
 
+	// Check for returning patient
+	patient, errRepo := h.repository.GetPatient(strconv.FormatInt(userID, 10))
+	if errRepo == nil && patient.Name != "" {
+		h.sessionStorage.Set(userID, SessionKeyName, patient.Name)
+		log.Printf("DEBUG: Returning patient %d detected (Name: %s), skipping name input", userID, patient.Name)
+		return h.askForConfirmation(c)
+	}
+
 	// Теперь переходим к запросу имени.
 	// Используем c.Send для отправки нового сообщения и удаления ReplyKeyboard
 	return c.Send("Пожалуйста, введите ваше имя и фамилию для записи (например, Иван Иванов).")
@@ -971,6 +979,7 @@ func (h *BookingHandler) HandleMyAppointments(c telebot.Context) error {
 	var message string = "📋 *Ваши текущие записи:*\n\n"
 	selector := &telebot.ReplyMarkup{}
 	var rows []telebot.Row
+	hasLateAppts := false
 
 	for _, appt := range appts {
 		apptTime := appt.StartTime.In(domain.ApptTimeZone)
@@ -980,7 +989,6 @@ func (h *BookingHandler) HandleMyAppointments(c telebot.Context) error {
 			appt.Service.Name)
 
 		// Smart Cancellation Logic: Only show Cancel button if more than 72 hours (3 days) remain
-		// Compare with current time in the same location
 		now := time.Now().In(domain.ApptTimeZone)
 		timeRemaining := appt.StartTime.Sub(now)
 
@@ -989,11 +997,14 @@ func (h *BookingHandler) HandleMyAppointments(c telebot.Context) error {
 			rows = append(rows, selector.Row(btn))
 		} else {
 			message += "⚠️ _Отмена только через терапевта_\n"
-			// Fixed: Removed the lady placeholder. Link to be updated with correct username.
-			btnContact := selector.URL("💬 Написать терапевту", "https://t.me/VeraFethiye")
-			rows = append(rows, selector.Row(btnContact))
+			hasLateAppts = true
 		}
 		message += "\n"
+	}
+
+	if hasLateAppts {
+		btnContact := selector.URL("💬 Написать терапевту", "https://t.me/VeraFethiye")
+		rows = append(rows, selector.Row(btnContact))
 	}
 
 	selector.Inline(rows...)
