@@ -24,7 +24,7 @@ func main() {
 	// 1. Load Configuration
 	cfg := config.LoadConfig()
 	log.Println("Configuration loaded.")
-	log.Println("Bot version: v3.1.9")
+	log.Println("Bot version: v3.1.10")
 
 	// Start health server
 	go startHealthServer()
@@ -35,7 +35,7 @@ func main() {
 		log.Fatalf("Error initializing database: %v", err)
 	}
 	patientRepo := storage.NewPostgresRepository(db, os.Getenv("DATA_DIR"))
-	patientRepo.BotVersion = "v3.1.9"
+	patientRepo.BotVersion = "v3.1.10"
 	log.Println("Database initialized.")
 
 	// 1c. Run Migration (Idempotent)
