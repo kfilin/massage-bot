@@ -729,50 +729,20 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 			appointmentTime.Format("15:04"),
 			service.Name), telebot.ModeHTML)
 	}
-
-	// Sync TotalVisits with actual appointments in repository
-	// This ensures that even if previous counts were off, we correct them based on actual data
-	activeAppointments, err := h.appointmentService.GetCustomerAppointments(context.Background(), strconv.FormatInt(userID, 10))
-	actualCount := 1 // Start with 1 for the current new booking (if not yet in repo visibility, but it is created above)
-	if err == nil {
-		actualCount = len(activeAppointments)
-	}
-
-	// Update or create patient record
-	var patient domain.Patient
-	existingPatient, err := h.repository.GetPatient(strconv.FormatInt(userID, 10))
-	if err == nil {
-		// Patient exists, update fields
-		patient = existingPatient
-		patient.LastVisit = appointmentTime // FIXED: Use appointmentTime, not time.Now()
-
-		// Self-healing logic handled by dynamic sync in TWA, but we update here for bot consistency
-		if actualCount > patient.TotalVisits {
-			patient.TotalVisits = actualCount
-		} else {
+	// Update or create patient record using robust sync
+	patient, errSync := h.syncPatientStats(context.Background(), strconv.FormatInt(userID, 10))
+	if errSync != nil {
+		log.Printf("WARNING: Failed to sync patient record for user %d: %v", userID, errSync)
+		// Fallback to minimal update if sync fails
+		existingPatient, errRepo := h.repository.GetPatient(strconv.FormatInt(userID, 10))
+		if errRepo == nil {
+			patient = existingPatient
+			patient.LastVisit = appointmentTime
 			patient.TotalVisits++
+			h.repository.SavePatient(patient)
 		}
-
-		patient.CurrentService = service.Name
 	} else {
-		// New patient
-		patient = domain.Patient{
-			TelegramID:     strconv.FormatInt(userID, 10),
-			Name:           name,
-			FirstVisit:     appointmentTime,
-			LastVisit:      appointmentTime,
-			TotalVisits:    actualCount,
-			HealthStatus:   "initial",
-			CurrentService: service.Name,
-			TherapistNotes: fmt.Sprintf("Зарегистрирован: %s", time.Now().Format("02.01.2006")),
-		}
-	}
-
-	if err := h.repository.SavePatient(patient); err != nil {
-		log.Printf("WARNING: Failed to save patient record for user %d: %v", userID, err)
-		// Don't fail the booking, just log the error
-	} else {
-		log.Printf("Patient record saved for user %d (TotalVisits: %d)", userID, patient.TotalVisits)
+		log.Printf("Patient record synced for user %d (TotalVisits: %d)", userID, patient.TotalVisits)
 		// Log analytics event
 		h.repository.LogEvent(patient.TelegramID, "booking_confirmed", map[string]interface{}{
 			"service_id":     service.ID,
@@ -833,6 +803,42 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 	}
 
 	return c.Send(confirmationMsg, h.GetMainMenu(), selector, telebot.ModeHTML)
+}
+
+// syncPatientStats fetches full appointment history and updates patient's visit metrics.
+func (h *BookingHandler) syncPatientStats(ctx context.Context, telegramID string) (domain.Patient, error) {
+	patient, err := h.repository.GetPatient(telegramID)
+	if err != nil {
+		return domain.Patient{}, err
+	}
+
+	// Fetch ALL history from GCal
+	appts, err := h.appointmentService.GetCustomerHistory(ctx, telegramID)
+	if err != nil {
+		return patient, err
+	}
+
+	var lastVisit, firstVisit time.Time
+	if len(appts) > 0 {
+		for _, a := range appts {
+			if firstVisit.IsZero() || a.StartTime.Before(firstVisit) {
+				firstVisit = a.StartTime
+			}
+			if lastVisit.IsZero() || a.StartTime.After(lastVisit) {
+				lastVisit = a.StartTime
+			}
+		}
+		patient.FirstVisit = firstVisit
+		patient.LastVisit = lastVisit
+	}
+	patient.TotalVisits = len(appts)
+
+	// Save back to repository
+	if err := h.repository.SavePatient(patient); err != nil {
+		return patient, err
+	}
+
+	return patient, nil
 }
 
 // HandleCancel handles the "Отменить запись" (Cancel booking) button
@@ -987,14 +993,8 @@ func (h *BookingHandler) HandleCancelAppointmentCallback(c telebot.Context) erro
 				appt.StartTime.In(domain.ApptTimeZone).Format("15:04")))
 		}
 
-		// Re-save patient record to refresh Markdown (remove cancelled appt from summary)
-		if patient, err := h.repository.GetPatient(appt.CustomerTgID); err == nil {
-			// Decrement total visits if we are cancelling
-			if patient.TotalVisits > 0 {
-				patient.TotalVisits--
-			}
-			h.repository.SavePatient(patient)
-		}
+		// Robust sync after cancellation
+		h.syncPatientStats(context.Background(), appt.CustomerTgID)
 	}
 
 	c.Respond(&telebot.CallbackResponse{Text: "Запись успешно отменена!"})

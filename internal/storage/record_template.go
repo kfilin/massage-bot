@@ -312,11 +312,51 @@ const medicalRecordTemplate = `
         </header>
 
         <div class="content">
-            <div class="main-section">
-                <!-- CLINICAL NOTES -->
+            <div class="main-section" style="grid-column: 1 / -1;">
+                <!-- VISIT HISTORY -->
                 <section>
                     <div class="section-header">
-                        <span class="section-title">Анамнез и заметки терапевта</span>
+                        <span class="section-title">История посещений</span>
+                    </div>
+                    <table class="history-table">
+                        <thead>
+                            <tr class="history-row" style="border-bottom: 2px solid var(--border);">
+                                <th class="history-cell h-date" style="text-align: left; font-size: 10px; text-transform: uppercase;">Дата и время</th>
+                                <th class="history-cell h-service" style="text-align: left; font-size: 10px; text-transform: uppercase;">Услуга</th>
+                                <th class="history-cell h-action"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="history-row">
+                                <td class="history-cell h-date">{{.LastVisit}}</td>
+                                <td class="history-cell h-service">{{.CurrentService}} (Последний визит)</td>
+                                <td class="history-cell h-action">
+                                    {{if .ShowLastVisitLink}}
+                                    <a href="{{.LastVisitLink}}" target="_blank" class="cal-badge">
+                                        <span>📅</span> Календарь
+                                    </a>
+                                    {{end}}
+                                </td>
+                            </tr>
+                            <tr class="history-row">
+                                <td class="history-cell h-date">{{.FirstVisit}}</td>
+                                <td class="history-cell h-service">{{.CurrentService}} (Первый визит)</td>
+                                <td class="history-cell h-action">
+                                    {{if .ShowFirstVisitLink}}
+                                    <a href="{{.FirstVisitLink}}" target="_blank" class="cal-badge">
+                                        <span>📅</span> Календарь
+                                    </a>
+                                    {{end}}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </section>
+
+                <!-- MEDICAL HISTORY (Formerly Clinical Notes) -->
+                <section>
+                    <div class="section-header">
+                        <span class="section-title">История болезни</span>
                     </div>
                     <div class="note-card">
                         <p class="note-content">{{.TherapistNotes}}</p>
@@ -335,73 +375,30 @@ const medicalRecordTemplate = `
                 </section>
                 {{end}}
 
-                <!-- VISIT HISTORY -->
-                <section>
-                    <div class="section-header">
-                        <span class="section-title">История посещений</span>
-                    </div>
-                    <table class="history-table">
-                        <tr class="history-row">
-                            <td class="history-cell h-date">{{.LastVisit}}</td>
-                            <td class="history-cell h-service">{{.CurrentService}} (Последний визит)</td>
-                            <td class="history-cell h-action">
-                                {{if .ShowLastVisitLink}}
-                                <a href="{{.LastVisitLink}}" target="_blank" class="cal-badge">
-                                    <span>📅</span> Календарь
-                                </a>
-                                {{end}}
-                            </td>
-                        </tr>
-                        <tr class="history-row">
-                            <td class="history-cell h-date">{{.FirstVisit}}</td>
-                            <td class="history-cell h-service">{{.CurrentService}} (Первый визит)</td>
-                            <td class="history-cell h-action">
-                                {{if .ShowFirstVisitLink}}
-                                <a href="{{.FirstVisitLink}}" target="_blank" class="cal-badge">
-                                    <span>📅</span> Календарь
-                                </a>
-                                {{end}}
-                            </td>
-                        </tr>
-                    </table>
-                </section>
-            </div>
-
-            <!-- SIDEBAR -->
-            <aside class="sidebar">
-                <section>
-                    <div class="section-header">
-                        <span class="section-title">Программа</span>
-                    </div>
-                    <div class="program-card">
-                        <div class="program-label">Текущий курс</div>
-                        <div class="program-name">{{.CurrentService}}</div>
-                    </div>
-                </section>
-
+                <!-- DOCUMENTATION -->
                 <section>
                     <div class="section-header">
                         <span class="section-title">Документация</span>
                     </div>
-                    <ul class="doc-list">
+                    <div class="doc-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;">
                         {{range .Documents}}
-                        <li class="doc-item">
+                        <div class="doc-item" style="margin-bottom: 0;">
                             <div class="doc-icon" style="background: {{if .IsVoice}}#a855f7{{else}}#2563eb{{end}}"></div>
                             {{.Name}}
-                        </li>
+                        </div>
                         {{else}}
                         <p style="font-size: 13px; color: #94a3b8; font-style: italic;">Список пуст</p>
                         {{end}}
-                    </ul>
-                </section>
-
-                <section style="margin-top: auto; padding-top: 20px;">
-                    <div style="font-size: 11px; color: var(--text-muted); border-top: 1px solid var(--border); padding-top: 10px;">
-                        <strong>Сгенерировано:</strong><br>
-                        {{.GeneratedAt}}
                     </div>
                 </section>
-            </aside>
+
+                <!-- GENERATED AT -->
+                <section style="margin-top: 20px; text-align: right;">
+                    <div style="font-size: 11px; color: var(--text-muted); border-top: 1px solid var(--border); padding-top: 10px;">
+                        <strong>Сгенерировано:</strong> {{.GeneratedAt}}
+                    </div>
+                </section>
+            </div>
         </div>
 
         <footer class="footer">

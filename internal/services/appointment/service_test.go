@@ -21,6 +21,10 @@ func (m *mockRepo) FindByID(ctx context.Context, id string) (*domain.Appointment
 func (m *mockRepo) FindAll(ctx context.Context) ([]domain.Appointment, error) {
 	return m.appointments, nil
 }
+func (m *mockRepo) FindEvents(ctx context.Context, timeMin, timeMax *time.Time) ([]domain.Appointment, error) {
+	// Simple mock implementation: ignore filters for now
+	return m.appointments, nil
+}
 func (m *mockRepo) Delete(ctx context.Context, id string) error {
 	return nil
 }

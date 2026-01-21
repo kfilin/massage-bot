@@ -303,7 +303,7 @@ func (s *Service) FindByID(ctx context.Context, id string) (*domain.Appointment,
 	return appt, nil
 }
 
-// GetCustomerAppointments returns all upcoming appointments for a specific customer.
+// GetCustomerAppointments returns all upcoming appointments (from -24h) for a specific customer.
 func (s *Service) GetCustomerAppointments(ctx context.Context, customerTgID string) ([]domain.Appointment, error) {
 	log.Printf("DEBUG: GetCustomerAppointments called for customer TGID: %s", customerTgID)
 	if customerTgID == "" {
@@ -326,6 +326,33 @@ func (s *Service) GetCustomerAppointments(ctx context.Context, customerTgID stri
 	}
 
 	log.Printf("DEBUG: Found %d appointments for customer %s", len(customerAppts), customerTgID)
+	return customerAppts, nil
+}
+
+// GetCustomerHistory returns ALL appointments (past and future) for a specific customer.
+func (s *Service) GetCustomerHistory(ctx context.Context, customerTgID string) ([]domain.Appointment, error) {
+	log.Printf("DEBUG: GetCustomerHistory called for customer TGID: %s", customerTgID)
+	if customerTgID == "" {
+		return nil, domain.ErrInvalidID
+	}
+
+	// Fetch without time limits (nil, nil)
+	allAppts, err := s.repo.FindEvents(ctx, nil, nil)
+	if err != nil {
+		if errors.Is(err, domain.ErrAppointmentNotFound) {
+			return []domain.Appointment{}, nil
+		}
+		return nil, fmt.Errorf("failed to fetch history for customer: %w", err)
+	}
+
+	var customerAppts []domain.Appointment
+	for _, appt := range allAppts {
+		if appt.CustomerTgID == customerTgID {
+			customerAppts = append(customerAppts, appt)
+		}
+	}
+
+	log.Printf("DEBUG: Found %d history events for customer %s", len(customerAppts), customerTgID)
 	return customerAppts, nil
 }
 

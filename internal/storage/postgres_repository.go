@@ -141,17 +141,23 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient) string {
 	cleanNotes := re.ReplaceAllString(p.TherapistNotes, "")
 	cleanTranscripts := re.ReplaceAllString(p.VoiceTranscripts, "")
 
+	// Use the application's timezone for consistent display
+	loc := domain.ApptTimeZone
+	if loc == nil {
+		loc = time.Local
+	}
+
 	data := templateData{
 		Name:               strings.ToUpper(p.Name),
 		TelegramID:         p.TelegramID,
 		TotalVisits:        p.TotalVisits,
-		GeneratedAt:        time.Now().Format("02.01.2006 15:04"),
+		GeneratedAt:        time.Now().In(loc).Format("02.01.2006 15:04"),
 		CurrentService:     p.CurrentService,
 		BotVersion:         r.BotVersion,
 		TherapistNotes:     cleanNotes,
 		VoiceTranscripts:   template.HTML(strings.ReplaceAll(cleanTranscripts, "\n", "<br>")),
-		FirstVisit:         p.FirstVisit.Format("02.01.2006 15:04"),
-		LastVisit:          p.LastVisit.Format("02.01.2006 15:04"),
+		FirstVisit:         p.FirstVisit.In(loc).Format("02.01.2006 15:04"),
+		LastVisit:          p.LastVisit.In(loc).Format("02.01.2006 15:04"),
 		FirstVisitLink:     getCalLink(p.FirstVisit, p.CurrentService),
 		LastVisitLink:      getCalLink(p.LastVisit, p.CurrentService),
 		ShowFirstVisitLink: p.FirstVisit.After(time.Now()),
