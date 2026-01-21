@@ -7,7 +7,6 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/kfilin/massage-bot/cmd/bot/config"
 	"github.com/kfilin/massage-bot/internal/adapters/googlecalendar"
-	"github.com/kfilin/massage-bot/internal/adapters/pdf"
 	"github.com/kfilin/massage-bot/internal/adapters/transcription"
 	"github.com/kfilin/massage-bot/internal/delivery/telegram"
 	"github.com/kfilin/massage-bot/internal/services/appointment"
@@ -25,7 +24,7 @@ func main() {
 	// 1. Load Configuration
 	cfg := config.LoadConfig()
 	log.Println("Configuration loaded.")
-	log.Println("Bot version: v3.1.5")
+	log.Println("Bot version: v3.1.6")
 
 	// Start health server
 	go startHealthServer()
@@ -70,10 +69,9 @@ func main() {
 	sessionStorage := storage.NewPostgresSessionStorage(db)
 	log.Println("Postgres session storage initialized.")
 
-	// 6. Initialize Advanced Adapters (PDF & Transcription)
-	pdfAdapter := pdf.NewAdapter(cfg.StirlingPDFURL, cfg.StirlingPDFAPIKey)
+	// 6. Initialize Advanced Adapters (Transcription)
 	transcriptionAdapter := transcription.NewGroqAdapter(cfg.GroqAPIKey)
-	log.Println("Advanced adapters (PDF & Groq) initialized.")
+	log.Println("Advanced adapters (Groq) initialized.")
 
 	// 7. Start the Telegram Bot
 	// Pass all initialized dependencies to the bot's start function
@@ -84,7 +82,6 @@ func main() {
 		sessionStorage,
 		cfg.AdminTelegramID,
 		cfg.AllowedTelegramIDs,
-		pdfAdapter,
 		transcriptionAdapter,
 		patientRepo,
 		cfg.WebAppURL,

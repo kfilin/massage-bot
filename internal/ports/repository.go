@@ -18,7 +18,6 @@ type Repository interface {
 
 	// Clinical Records & Documents
 	GenerateHTMLRecord(patient domain.Patient) string
-	SavePatientPDF(telegramID string, pdfBytes []byte) error
 	SavePatientDocumentReader(telegramID string, filename string, r io.Reader) (string, error)
 	CreateBackup() (string, error)
 }

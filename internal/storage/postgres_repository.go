@@ -216,16 +216,6 @@ func (r *PostgresRepository) listDocuments(telegramID string) string {
 	return list
 }
 
-func (r *PostgresRepository) SavePatientPDF(telegramID string, pdfBytes []byte) error {
-	patientDir := filepath.Join(r.dataDir, "patients", telegramID)
-	if err := os.MkdirAll(patientDir, 0755); err != nil {
-		return fmt.Errorf("failed to create patient directory: %w", err)
-	}
-
-	pdfPath := filepath.Join(patientDir, "medical_record.pdf")
-	return os.WriteFile(pdfPath, pdfBytes, 0644)
-}
-
 func (r *PostgresRepository) SavePatientDocumentReader(telegramID string, filename string, reader io.Reader) (string, error) {
 	docDir := filepath.Join(r.dataDir, "patients", telegramID, "documents")
 	if err := os.MkdirAll(docDir, 0755); err != nil {

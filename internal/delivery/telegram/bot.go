@@ -23,7 +23,6 @@ func StartBot(
 	sessionStorage ports.SessionStorage,
 	adminTelegramID string,
 	allowedTelegramIDs []string,
-	pdfGen ports.PDFGenerator,
 	trans ports.TranscriptionService,
 	repo ports.Repository,
 	webAppURL string,
@@ -63,7 +62,7 @@ func StartBot(
 		log.Println("WARNING: TG_THERAPIST_ID not set in environment.")
 	}
 
-	bookingHandler := handlers.NewBookingHandler(appointmentService, sessionStorage, finalAdminIDs, therapistID, pdfGen, trans, repo, webAppURL, webAppSecret)
+	bookingHandler := handlers.NewBookingHandler(appointmentService, sessionStorage, finalAdminIDs, therapistID, trans, repo, webAppURL, webAppSecret)
 
 	// GLOBAL MIDDLEWARE: Enforce ban check on ALL entry points
 	b.Use(func(next telebot.HandlerFunc) telebot.HandlerFunc {
@@ -144,9 +143,6 @@ func StartBot(
 		} else if strings.HasPrefix(trimmedData, "cancel_appt|") {
 			log.Printf("DEBUG: OnCallback: Matched 'cancel_appt' prefix.")
 			return bookingHandler.HandleCancelAppointmentCallback(c)
-		} else if trimmedData == "download_record" {
-			log.Printf("DEBUG: OnCallback: Matched 'download_record' data.")
-			return bookingHandler.HandleDownloadRecord(c)
 		} else if trimmedData == "ignore" {
 			log.Printf("DEBUG: OnCallback: Matched 'ignore' data.")
 			return nil // Просто игнорируем кнопки-заглушки

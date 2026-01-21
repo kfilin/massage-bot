@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -26,7 +25,6 @@ type BookingHandler struct {
 	sessionStorage       ports.SessionStorage
 	adminIDs             []string
 	therapistID          string // Added to notify Vera
-	pdfGenerator         ports.PDFGenerator
 	transcriptionService ports.TranscriptionService
 	repository           ports.Repository
 	webAppURL            string
@@ -45,13 +43,12 @@ const (
 )
 
 // NewBookingHandler creates a new BookingHandler.
-func NewBookingHandler(as ports.AppointmentService, ss ports.SessionStorage, admins []string, therapistID string, pdf ports.PDFGenerator, trans ports.TranscriptionService, repo ports.Repository, webAppURL string, webAppSecret string) *BookingHandler {
+func NewBookingHandler(as ports.AppointmentService, ss ports.SessionStorage, admins []string, therapistID string, trans ports.TranscriptionService, repo ports.Repository, webAppURL string, webAppSecret string) *BookingHandler {
 	return &BookingHandler{
 		appointmentService:   as,
 		sessionStorage:       ss,
 		adminIDs:             admins,
 		therapistID:          therapistID,
-		pdfGenerator:         pdf,
 		transcriptionService: trans,
 		repository:           repo,
 		webAppURL:            webAppURL,
@@ -790,8 +787,6 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 			"time":           appointmentTime.Format(time.RFC3339),
 			"is_admin_block": isAdminBlock,
 		})
-		// Trigger background PDF update to keep the data folder sync'd
-		h.triggerPDFUpdate(patient)
 	}
 
 	// 1. Notify Admin(s)
@@ -841,11 +836,6 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 	if url != "" {
 		selector.Inline(
 			selector.Row(selector.WebApp("📱 ОТКРЫТЬ МЕД-КАРТУ (LIVE)", &telebot.WebApp{URL: url})),
-			selector.Row(selector.Data("📄 СКАЧАТЬ МЕД-КАРТУ (PDF)", "download_record")),
-		)
-	} else {
-		selector.Inline(
-			selector.Row(selector.Data("📄 СКАЧАТЬ МЕД-КАРТУ", "download_record")),
 		)
 	}
 
@@ -888,7 +878,7 @@ func (h *BookingHandler) HandleMyRecords(c telebot.Context) error {
 <b>КЛИНИЧЕСКИЕ ЗАМЕТКИ:</b>
 <i>%s</i>
 ──────────────────
-📂 <i>Все файлы и анализы доступны в PDF-версии.</i>`,
+📂 <i>Все файлы и анализы доступны в онлайн мед-карте.</i>`,
 		patient.TelegramID,
 		html.EscapeString(patient.Name),
 		patient.TotalVisits,
@@ -901,62 +891,12 @@ func (h *BookingHandler) HandleMyRecords(c telebot.Context) error {
 
 	if url != "" {
 		btnWebApp := selector.WebApp("📱 ОТКРЫТЬ МЕД-КАРТУ (LIVE)", &telebot.WebApp{URL: url})
-		btnDownload := selector.Data("📄 СКАЧАТЬ PDF (A4)", "download_record")
 		selector.Inline(
 			selector.Row(btnWebApp),
-			selector.Row(btnDownload),
 		)
-	} else {
-		btnDownload := selector.Data("📄 СКАЧАТЬ PDF (A4)", "download_record")
-		selector.Inline(selector.Row(btnDownload))
 	}
 
 	return c.Send(card, telebot.ModeHTML, selector)
-}
-
-// HandleDownloadRecord sends the PDF medical card
-func (h *BookingHandler) HandleDownloadRecord(c telebot.Context) error {
-	userID := c.Sender().ID
-	telegramID := strconv.FormatInt(userID, 10)
-
-	patient, err := h.repository.GetPatient(telegramID)
-	if err != nil {
-		return c.Send(`📭 Файл с вашей медицинской картой не найден.
-
-Возможные причины:
-1. Вы еще не записывались на массаж
-2. Ваша карта была создана недавно
-
-Запишитесь через /start чтобы создать вашу карту!`)
-	}
-
-	statusMsg, _ := c.Bot().Send(c.Recipient(), "⏳ Формирую PDF-версию вашей карты...")
-
-	htmlContent := h.repository.GenerateHTMLRecord(patient)
-	pdfBytes, err := h.pdfGenerator.GeneratePDF(context.Background(), htmlContent)
-
-	if statusMsg != nil {
-		c.Bot().Delete(statusMsg)
-	}
-
-	if err != nil {
-		log.Printf("ERROR: Failed to generate PDF for user %d: %v", userID, err)
-		return c.Send("❌ Ошибка при генерации PDF. Пожалуйста, попробуйте позже.")
-	}
-
-	// Save the generated PDF locally for future reference
-	if err := h.repository.SavePatientPDF(telegramID, pdfBytes); err != nil {
-		log.Printf("WARNING: Failed to save PDF locally for user %d: %v", userID, err)
-		// We don't return an error here as the PDF was generated successfully and can still be sent
-	}
-
-	doc := &telebot.Document{
-		File:     telebot.FromReader(bytes.NewReader(pdfBytes)),
-		FileName: fmt.Sprintf("medical_record_%s.pdf", patient.Name),
-		Caption:  "📄 Ваша медицинская карта в формате PDF.",
-	}
-
-	return c.Send(doc)
 }
 
 // HandleMyAppointments lists user's upcoming appointments
@@ -1061,7 +1001,6 @@ func (h *BookingHandler) HandleCancelAppointmentCallback(c telebot.Context) erro
 				patient.TotalVisits--
 			}
 			h.repository.SavePatient(patient)
-			h.triggerPDFUpdate(patient)
 		}
 	}
 
@@ -1177,14 +1116,12 @@ func (h *BookingHandler) HandleFileMessage(c telebot.Context) error {
 			prefix := fmt.Sprintf("\n\n[🎙 %s]: ", time.Now().Format("02.01.2006 15:04"))
 			patient.VoiceTranscripts += prefix + transcript
 			h.repository.SavePatient(patient)
-			h.triggerPDFUpdate(patient)
 			c.Send("✅ Аудио расшифровано и сохранено в архиве записей.")
 		} else {
 			log.Printf("ERROR: Transcription failed for user %d: %v", userID, err)
 			c.Send("⚠️ Аудио сохранено, но не удалось его расшифровать.")
 		}
 	} else {
-		h.triggerPDFUpdate(patient)
 		c.Send(fmt.Sprintf("✅ Файл '%s' успешно сохранен в вашу медицинскую карту!", fileName))
 	}
 
@@ -1350,22 +1287,4 @@ func (h *BookingHandler) generateWebAppURL(telegramID string) string {
 	token := hex.EncodeToString(mac.Sum(nil))
 
 	return fmt.Sprintf("%s/card?id=%s&token=%s", h.webAppURL, telegramID, token)
-}
-
-// triggerPDFUpdate generates and saves the patient's PDF record in the background.
-func (h *BookingHandler) triggerPDFUpdate(patient domain.Patient) {
-	// ...
-	go func() {
-		log.Printf("DEBUG: Background PDF update triggered for user %s", patient.TelegramID)
-		htmlContent := h.repository.GenerateHTMLRecord(patient)
-		pdfBytes, err := h.pdfGenerator.GeneratePDF(context.Background(), htmlContent)
-		if err != nil {
-			log.Printf("ERROR: Background PDF generation failed for user %s: %v", patient.TelegramID, err)
-			return
-		}
-
-		if err := h.repository.SavePatientPDF(patient.TelegramID, pdfBytes); err != nil {
-			log.Printf("ERROR: Background PDF save failed for user %s: %v", patient.TelegramID, err)
-		}
-	}()
 }
