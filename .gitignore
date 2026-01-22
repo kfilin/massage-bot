@@ -34,8 +34,7 @@ data/
 *.backup
 
 # Internal AI & Development Docs
-.agent/
-docs/
+# .agent/ and docs/ are now tracked for "Documentation as Acceleration"
 verification-checklist.md
 postgres_data/
 postgres_data_dev/

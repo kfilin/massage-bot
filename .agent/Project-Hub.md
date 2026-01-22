@@ -2,40 +2,46 @@
 
 ## 📍 Project Vision
 
-A Telegram Bot for booking massage services, integrated with Google Calendar, PostgreSQL, and a TWA Medical Card dashboard.
+A professional clinical ecosystem for massage therapists. Features interactive booking, automated medical records, and cross-device synchronization via Obsidian/WebDAV.
 
 ---
 
 ## 🏗️ Technical Foundation
 
-- **Language**: Go 1.23
-- **Database**: PostgreSQL (Session Storage & Patient Records)
-- **External Integrations**: Google Calendar API, Groq (Transcription).
-- **Infrastructure**: Docker Compose on Home Server, GitHub -> GitLab Mirroring.
+- **Version**: v4.1.0 (Clinical Edition)
+- **Language**: **Go 1.24** (Alpine-based)
+- **Database**: PostgreSQL 15 (Metadata & Sync Status)
+- **Clinical Storage**: **Markdown-mirrored Filesystem** (Clinical Storage 2.0)
+- **Integrations**: Google Calendar API, Groq (Whisper Transcription).
+- **Protocols**: **WebDAV** (for Obsidian Mobile sync).
+- **Infrastructure**: Docker Compose on Home Server with CPU/RAM guards.
 
-- **Caddy**: Connected via `caddy-test-net` bridge.
+---
 
-## 🏗️ Development Strategy: Sandbox vs. Home Server
+## 🏗️ Development Strategy
 
-- **Status**: The USER prefers to minimize Sandbox usage.
-- **Home Server (Primary)**: The target for all verified changes. Deployment is triggered via Git push (GitLab CI).
-- **Local Sandbox (Fallback)**: Used ONLY for:
-  - Rapid CSS/UI iterations on the Medical Card.
-  - Testing destructive logic (database migrations, mass record deletes).
-  - Bypassing Home Server networking/SSL conflicts during development.
-- **Rule**: If a feature can be tested safely on the Home Server, do so. Do not default to the sandbox unless necessary.
+- **Home Server (Primary)**: The target for all verified changes. Deployment via `scripts/deploy_home_server.sh`.
+- **Clinical Storage 2.0**: Bi-directional sync between DB and `.md` files in `data/patients/`.
+- **Sync Rule**: ID suffix tracking `(TelegramID)` allows therapist to rename patient folders in Obsidian without breaking the bot.
+
+---
 
 ## 🔄 Git Workflow
 
 - **Master Branch**: Primary source of truth.
-- **Remotes**: `github` (dev), `gitlab` (CI/CD / Registry).
-- **Rule**: Always push to both remotes to keep the pipeline alive.
+- **Rule**: All restoration work from the "PDF experiment" has been consolidated into the `master` branch on the stable `v3.15` backbone.
+
+---
 
 ## 🚧 Current Development Status
 
-- **Last Stable Build**: `6d126dd` (v3.1.3).
-- **Major Blocker**: SSL/Port conflict on local server (Home Server Caddy vs Docker Caddy) - *Resolved by using Home Server's internal host ports.*
-- **Next Feature**: Verification of Visit Syncing and UI reordering.
+- **Status**: **Stable & Production Ready**.
+- **Core Features**:
+  - [x] WebDAV / Obsidian Mobile Sync.
+  - [x] Premium "PDF-free" TWA Dashboard.
+  - [x] Automated 2h Visit Reminders.
+  - [x] Hierarchical Storage (scans/images/messages).
+  - [x] DB Resilience (5x retry loop).
 
 ---
 
@@ -43,16 +49,12 @@ A Telegram Bot for booking massage services, integrated with Google Calendar, Po
 
 - `.agent/Collaboration-Blueprint.md`: The "Operating System" for how we work.
 - `.agent/last_session.md`: The continuity bridge for AI agents.
+- `.agent/handoff.md`: Direct instructions for the next session.
 - `scripts/deploy_home_server.sh`: The source of truth for deployments.
-- `docs/session_3a.md`: Detailed history of the Medical Card refactor.
 
 ---
 
 ## 🔧 Maintenance: Google OAuth Token Renewal
 
 - **Next Renewal Due**: ~2026-07-09 (Check logs for `invalid_grant`)
-- **Procedure**:
-  1. Generate URL: `https://accounts.google.com/o/oauth2/auth?client_id=451987724111-3p6vs3dvk96sh42gaeuplcp26t9t3998.apps.googleusercontent.com&redirect_uri=http://localhost&response_type=code&scope=https://www.googleapis.com/auth/calendar&access_type=offline&prompt=consent`
-  2. Get `code` from redirect URL.
-  3. Exchange: `curl -d "client_id=451987724111-3p6vs3dvk96sh42gaeuplcp26t9t3998.apps.googleusercontent.com&client_secret=${CLIENT_SECRET}&code=${CODE}&redirect_uri=http://localhost&grant_type=authorization_code" https://oauth2.googleapis.com/token`
-  4. Update `GOOGLE_TOKEN_JSON` in server `.env` and restart.
+- **Procedure**: See detailed logs in `scripts/renew_token.sh`.
