@@ -3,7 +3,9 @@ module github.com/kfilin/massage-bot
 go 1.23.0
 
 require (
+	github.com/jmoiron/sqlx v1.4.0
 	github.com/joho/godotenv v1.5.1
+	github.com/lib/pq v1.10.9
 	github.com/prometheus/client_golang v1.23.2
 	golang.org/x/oauth2 v0.30.0
 	google.golang.org/api v0.154.0
@@ -23,8 +25,6 @@ require (
 	github.com/google/uuid v1.4.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.2 // indirect
 	github.com/googleapis/gax-go/v2 v2.12.0 // indirect
-	github.com/jmoiron/sqlx v1.4.0 // indirect
-	github.com/lib/pq v1.10.9 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.66.1 // indirect

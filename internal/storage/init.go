@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
@@ -22,9 +23,22 @@ func InitDB() (*sqlx.DB, error) {
 		os.Getenv("DB_SSL_MODE"),
 	)
 
-	db, err := sqlx.Connect("postgres", connStr)
+	var db *sqlx.DB
+	var err error
+
+	// Retry connection loop (5 attempts)
+	for i := 1; i <= 5; i++ {
+		log.Printf("Attempting to connect to database (attempt %d/5)...", i)
+		db, err = sqlx.Connect("postgres", connStr)
+		if err == nil {
+			break
+		}
+		log.Printf("Failed to connect to database: %v. Retrying in 5 seconds...", err)
+		time.Sleep(5 * time.Second)
+	}
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to database: %w", err)
+		return nil, fmt.Errorf("failed to connect to database after 5 attempts: %w", err)
 	}
 
 	// Initialize schema

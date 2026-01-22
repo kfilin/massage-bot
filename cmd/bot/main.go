@@ -4,16 +4,21 @@ import (
 	"log"
 	"os"
 
+	"time"
+
 	"github.com/joho/godotenv"
 	"github.com/kfilin/massage-bot/cmd/bot/config"
 	"github.com/kfilin/massage-bot/internal/adapters/googlecalendar"
 	"github.com/kfilin/massage-bot/internal/adapters/transcription"
 	"github.com/kfilin/massage-bot/internal/delivery/telegram"
+	"github.com/kfilin/massage-bot/internal/domain"
 	"github.com/kfilin/massage-bot/internal/services/appointment"
 	"github.com/kfilin/massage-bot/internal/storage"
 )
 
 func main() {
+	// Force application timezone to Europe/Istanbul
+	time.Local = domain.ApptTimeZone
 	// Загружаем переменные окружения из файла .env
 	// Это должно быть самой первой операцией в main(), чтобы другие части могли получить доступ к env vars.
 	if err := godotenv.Load(); err != nil {

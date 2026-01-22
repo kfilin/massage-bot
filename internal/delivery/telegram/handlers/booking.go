@@ -1094,8 +1094,19 @@ func (h *BookingHandler) HandleFileMessage(c telebot.Context) error {
 	}
 	defer fileReader.Close()
 
+	// Determine category based on extension/type
+	ext := strings.ToLower(filepath.Ext(fileName))
+	category := "documents"
+	if msg.Voice != nil || msg.Audio != nil {
+		category = "messages"
+	} else if msg.Photo != nil {
+		category = "images"
+	} else if ext == ".pdf" || ext == ".doc" || ext == ".docx" {
+		category = "scans"
+	}
+
 	// Save to storage using Reader for efficiency
-	_, err = h.repository.SavePatientDocumentReader(telegramID, fileName, fileReader)
+	_, err = h.repository.SavePatientDocumentReader(telegramID, fileName, category, fileReader)
 	if err != nil {
 		log.Printf("ERROR: Failed to save patient document: %v", err)
 		c.Bot().Delete(statusMsg)
