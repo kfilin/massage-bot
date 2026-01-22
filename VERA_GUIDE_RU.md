@@ -32,9 +32,9 @@
 Теперь введи эти секретные данные в настройки плагина **Remotely Save**:
 
 1. Найди пункт **Remote Service** и выбери **WebDAV**.
-2. **Server Address (Адрес сервера):** `https://vera-bot.kfilin.icu/webdav/`
-3. **Username (Имя пользователя):** `vera`
-4. **Password (Пароль):** `6114aa43fe2c63f4030af536`
+2. **Server Address (Адрес сервера):** `https://your-domain.com/webdav/`
+3. **Username (Имя пользователя):** `vera` (или ваш ID)
+4. **Password (Пароль):** `ваш_секретный_токен`
 5. Нажми кнопку **Check Connectivity** (Проверить связь). Если всё правильно, появится зеленая надпись.
 
 ## Шаг 5: Как этим пользоваться

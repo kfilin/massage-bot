@@ -1,115 +1,83 @@
-# 🛠 Vera Massage Bot - Developer Guide
+# 🛠 Vera Massage Bot - Developer Guide (v4.1.0)
 
-Technical documentation for maintainers and developers.
+Technical documentation for maintainers and developers. This project has been rebuilt on the stable **v3.x backbone** to eliminate PDF-complexity while retaining advanced clinical features.
 
-## 🏗 Architecture
-- **Language**: Go 1.22+
-- **Framework**: `gopkg.in/telebot.v3` for Telegram API interaction.
-- **Calendar**: Google Calendar API v3 for appointment scheduling.
-- **Storage**: Filesystem-based JSON database (NoSQL-lite).
-    - `data/patients/{id}/patient.json`: User profile.
-    - `data/patients/{id}/documents/`: Medical files.
-    - `data/blacklist.txt`: Banned user list.
+## 🏗 Architecture Overview
 
-## 🔧 Prerequisites
-1. **Go**: Install Go (1.22 or newer).
-2. **Google Cloud Project**:
-    - Enable Google Calendar API.
-    - Download `credentials.json` (OAuth2 Client ID).
-3. **Telegram Bot**:
-    - Create a bot via @BotFather.
-    -Get the `TG_BOT_TOKEN`.
+- **Language**: **Go 1.24** (Alpine-based build)
+- **Framework**: `telebot v3`
+- **Primary Data**: **PostgreSQL 15** for transactional metadata, stats, and auth.
+- **Clinical Files**: **Markdown (.md)** mirrored filesystem storage for Obsidian compatibility.
+- **Interfaces**:
+  - **Telegram Bot**: Main interaction layer.
+  - **TWA (Telegram Web App)**: Premium Clinical UI (Auth via HMAC-SHA256).
+  - **WebDAV**: Clinical data sync server (CORS-enabled).
 
-## ⚙️ Configuration
-The application uses environment variables or a `.env` file for configuration.
+## 📁 Storage Structure (Clinical Storage 2.0)
 
-| Variable | Description | Example |
-| :--- | :--- | :--- |
-| `TG_BOT_TOKEN` | Telegram Bot Token | `12345:ABCdef...` |
-| `TG_ADMIN_ID` | Primary Admin ID | `304528450` |
-| `ALLOWED_TELEGRAM_IDS` | Comma-separated Admin IDs | `304528450,5331880756` |
-| `GOOGLE_CALENDAR_ID` | Calendar ID to write to | `primary` |
-| `DATA_DIR` | Custom data directory | `/app/data` |
+The bot manages data in `/app/data/patients/` using a mirrored approach:
 
-## 🚀 Running Locally
-
-1. **Clone the repo**:
-   ```bash
-   git clone <repo-url>
-   cd massage-bot
-   ```
-
-2. **Setup Env**:
-   Create a `.env` file in the root directory with the variables above.
-
-3. **Run**:
-   ```bash
-   make run
-   # Or directly: go run ./cmd/bot
-   ```
-
-## 🧪 Testing
-The project includes a suite of unit and integration tests.
-
-```bash
-make test
+```text
+data/patients/
+└── Name (TelegramID)/          # Flexible folder name (suffix-tracked)
+    ├── TelegramID.md           # Mirrored Medical Card (Markdown)
+    ├── scans/                  # Categorized clinical documents
+    │   └── DD.MM.YY/*.pdf
+    ├── images/                 # MRI/X-Ray photos
+    └── messages/               # Voice recordings (.ogg)
 ```
 
-## Deployment (Docker Compose)
+## ⚙️ Configuration (Environment Variables)
 
-The project includes a `docker-compose.yml` file for easy deployment.
-
-### 1. Prerequisites
-- Docker & Docker Compose installed.
-- `.env` file populated with production credentials.
-- `google_credentials.json` (if using file-based auth) or JSON content in `.env`.
-
-### 2. Build & Run
-```bash
-# Build the image (if not pulling from registry)
-docker build -t registry.gitlab.com/kfilin/massage-bot:latest .
-
-# Start the service
-docker-compose up -d
-```
-
-### 3. Verify
-Check the logs to ensure the bot started and connected to Google Calendar:
-```bash
-docker-compose logs -f vera-bot
-```
-
-### 4. Updating
-```bash
-docker-compose pull
-docker-compose up -d --force-recreate
-```
-
-> [!IMPORTANT]
-> The `docker-compose.yml` mounts `./data` and `./logs` to ensure patient records and logs persist across restarts.
-
-## 📁 Project Structure
-- `cmd/bot/`: Entry point (`main.go`).
-- `internal/`: Core application code.
-    - `delivery/telegram/`: Bot logic and handlers.
-    - `services/appointment/`: Business logic (scheduling, validation).
-    - `adapters/googlecalendar/`: Google API integration.
-    - `storage/`: File-based persistence.
-    - `domain/`: Data models and interfaces.
-
-## 🔐 Admin Commands
-
-| Command | Description |
+| Variable | Description |
 | :--- | :--- |
-| `/backup` | Download complete patient data as ZIP |
-| `/block` | Block time slots for personal matters (gym, lunch, etc.) |
-| `/ban {id}` | Shadow ban a user |
-| `/unban {id}` | Remove user from blacklist |
-| `/status` | Check bot health and metrics |
+| `DB_URL` | PostgreSQL connection string |
+| `WEBAPP_SECRET` | Used for both TWA HMAC validation and WebDAV password |
+| `TZ` | System timezone (Default: `Europe/Istanbul`) |
+| `DATA_DIR` | Directory for clinical Markdown files |
+| `GOOGLE_CALENDAR_ID` | Targeted GCal ID |
 
-### Using `/block`
-1. Send `/block` to the bot
-2. Select duration (30min, 1h, 1.5h, 2h, or all day)
-3. Pick date from calendar
-4. Select time slot
-5. Confirm - creates "⛔ Blocked" event in Google Calendar
+## 🚀 Development Workflow
+
+### 1. External Dependencies
+
+- **PostgreSQL**: Required for metadata.
+- **Google Cloud Console**: Enable 'Google Calendar API', configure OAuth2, and place `credentials.json` in root.
+
+### 2. Local Setup
+
+```bash
+# Install dependencies
+go mod download
+
+# Build check
+docker-compose build massage-bot
+```
+
+### 3. Database Resilience
+
+The system includes a **DB Retry Loop**. When the backend starts, it will attempt to connect to PostgreSQL 5 times with exponential backoff. This is crucial for home-server deployments where the DB container might start slower than the app.
+
+## 💉 WebDAV & TWA Integration
+
+- **WebDAV**: Mounted at `/webdav/`. Uses **Basic Auth** (Username: TelegramID, Password: `WEBAPP_SECRET` based HMAC).
+- **TWA**: Hosted on port `8082`. Uses **HMAC-SHA256** validation of `initData` provided by Telegram.
+
+## 📦 Deployment (Docker)
+
+The production image is a multi-stage `Dockerfile` (Builder -> Runtime) resulting in a minimal footprint (<50MB).
+
+```bash
+# Deploy to home server
+./scripts/deploy_home_server.sh
+```
+
+### Resource Guards
+
+`docker-compose.yml` includes specific limits to prevent host thrashing:
+
+- `cpus: 0.5`
+- `memory: 256M`
+
+---
+*Created by AntiGravity AI. Build Version: 4.1.0-clinical.*
