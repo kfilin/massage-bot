@@ -29,7 +29,7 @@ func main() {
 	// 1. Load Configuration
 	cfg := config.LoadConfig()
 	log.Println("Configuration loaded.")
-	log.Println("Bot version: v3.1.11")
+	log.Println("Bot version: v4.1.0 Clinical Edition")
 
 	// Start health server
 	go startHealthServer()
@@ -40,8 +40,16 @@ func main() {
 		log.Fatalf("Error initializing database: %v", err)
 	}
 	patientRepo := storage.NewPostgresRepository(db, os.Getenv("DATA_DIR"))
-	patientRepo.BotVersion = "v3.1.11"
+	patientRepo.BotVersion = "v4.1.0"
 	log.Println("Database initialized.")
+
+	// Ensure Folders are in sync with Clinical Storage 2.0 logic
+	if err := patientRepo.MigrateFolderNames(); err != nil {
+		log.Printf("Warning: Failed to migrate folder names: %v", err)
+	}
+	if err := patientRepo.SyncAll(); err != nil {
+		log.Printf("Warning: Failed to sync all patients: %v", err)
+	}
 
 	// 1c. Run Migration (Idempotent)
 	if err := storage.MigrateJSONToPostgres(patientRepo, os.Getenv("DATA_DIR")); err != nil {
