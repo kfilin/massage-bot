@@ -72,16 +72,16 @@ This project uses a dual-remote setup with automated mirroring to maintain sync 
 
 ---
 
-## � Last Known Stable Commit
+## 💎 Gold Standard Checkpoint
 
-- **Commit**: `fdf114f9c1f4baa87161fe7b7e1579aa07a87d23`
+- **Commit**: `f7b055643f4ffda7fe1e7b5add64be28ab9dfa82`
 - **Date**: 2026-01-23
-- **Status**: **Best State Ever**. Confirmed stable after PDF rollback. Contains Clinical Storage 2.0 and v4.1.0 logic.
-- **Rollback Command**: `git reset --hard fdf114f`
+- **Status**: **The Gold Standard**. WebDAV fixed, documentation updated, mirroring refined, and CI/CD verified.
+- **Rollback Command**: `git reset --hard f7b0556`
 
 ---
 
-## �🔧 Maintenance: Google OAuth Token Renewal
+## 🔧 Maintenance: Google OAuth Token Renewal
 
 - **Next Renewal Due**: ~2026-07-09 (Check logs for `invalid_grant`)
 - **Procedure**: See detailed logs in `scripts/renew_token.sh`.

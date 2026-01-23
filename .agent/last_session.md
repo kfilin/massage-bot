@@ -13,13 +13,9 @@
     - Implemented Markdown mirroring for Obsidian sync.
     - Added categorized folders (`scans/`, `images/`, `messages/`).
     - Implemented `MigrateFolderNames` to support therapist-friendly folder renaming.
-3. **WebDAV Deployment**: Configured a CORS/OPTIONS-enabled WebDAV server within the bot to allow **Obsidian Mobile** on iPhone to connect directly to the patient archive.
-4. **Premium TWA UI**:
-    - Deployed a clean, clinical white theme.
-    - Removed all legacy PDF/Print logic to ensure a pure 100% live card experience.
-    - Integrated auth self-healing for "Menu Button" entry points.
-5. **Automated Notifications**: Implementation of a background worker that notifies patients **exactly 2 hours** before their visit.
-6. **Infrastructure Resilience**: Upgraded to Go 1.24 and implemented a 5-attempt DB retry loop.
+3. **WebDAV Restoration**: Restored the missing WebDAV server in `cmd/bot/webapp.go`. Verified bi-directional sync with Obsidian Mobile.
+4. **CI/CD Mirroring Robustness**: Fixed the GitHub-to-GitLab mirroring workflow (`mirror.yml`) using `ssh-agent` and explicit `HEAD:master` pushing.
+5. **Documentation**: Formalized the deployment workflow and established the "Gold Standard" checkpoint (`f7b0556`) in `Project-Hub.md`.
 
 ## 🚧 Current Blockers & Risks
 
