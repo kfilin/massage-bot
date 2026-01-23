@@ -289,7 +289,7 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient) string {
 		CurrentService:     p.CurrentService,
 		BotVersion:         r.BotVersion,
 		TherapistNotes:     cleanNotes,
-		VoiceTranscripts:   template.HTML(strings.ReplaceAll(cleanTranscripts, "\n", "<br>")),
+		VoiceTranscripts:   template.HTML(strings.ReplaceAll(template.HTMLEscapeString(cleanTranscripts), "\n", "<br>")),
 		FirstVisit:         p.FirstVisit.Format("02.01.2006 15:04"),
 		LastVisit:          p.LastVisit.Format("02.01.2006 15:04"),
 		FirstVisitLink:     getCalLink(p.FirstVisit, p.CurrentService),

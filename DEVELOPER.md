@@ -59,6 +59,22 @@ docker-compose build massage-bot
 
 The system includes a **DB Retry Loop**. When the backend starts, it will attempt to connect to PostgreSQL 5 times with exponential backoff. This is crucial for home-server deployments where the DB container might start slower than the app.
 
+## 🛡️ Security & Performance Enhancements (v4.1.0)
+
+### 1. Concurrency Locking
+
+The `AppointmentService` uses a `sync.Mutex` to wrap the `CreateAppointment` critical section. This prevents race conditions where two users might attempt to book the same slot simultaneously.
+
+### 2. Available Slots Caching
+
+To reduce load on the Google Calendar API and improve TWA responsiveness, available slots are cached with a **2-minute TTL**.
+
+- **Invalidation**: The cache is automatically cleared whenever a new appointment is created, ensuring high data integrity.
+
+### 3. HTML Sanitization
+
+All voice transcripts rendered in the TWA are passed through `template.HTMLEscapeString`. This prevents XSS (Cross-Site Scripting) attacks while preserving readability by converting newlines to `<br>` tags.
+
 ## 💉 WebDAV & TWA Integration
 
 - **WebDAV**: Mounted at `/webdav/`. Uses **Basic Auth** (Username: TelegramID, Password: `WEBAPP_SECRET` based HMAC).

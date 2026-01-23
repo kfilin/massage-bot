@@ -7,6 +7,8 @@ import (
 	"log"
 	"time"
 
+	"sync"
+
 	"github.com/kfilin/massage-bot/internal/domain" // Import domain package to access its structs and errors
 	"github.com/kfilin/massage-bot/internal/ports"
 )
@@ -39,7 +41,15 @@ type Service struct {
 	repo ports.AppointmentRepository
 	// NowFunc allows injecting a function to get the current time for testing
 	NowFunc func() time.Time
+	mu      sync.Mutex
+
+	// Cache for FindAll results
+	cacheMu      sync.RWMutex
+	cachedEvents []domain.Appointment
+	cacheExpires time.Time
 }
+
+const cacheTTL = 2 * time.Minute
 
 // NewService creates a new appointment service
 func NewService(repo ports.AppointmentRepository) *Service {
@@ -119,18 +129,34 @@ func (s *Service) GetAvailableTimeSlots(ctx context.Context, date time.Time, dur
 	currentSlotStart := time.Date(dateInApptTimezone.Year(), dateInApptTimezone.Month(), dateInApptTimezone.Day(), WorkDayStartHour, 0, 0, 0, ApptTimeZone)
 	workDayEnd := time.Date(dateInApptTimezone.Year(), dateInApptTimezone.Month(), dateInApptTimezone.Day(), WorkDayEndHour, 0, 0, 0, ApptTimeZone)
 
-	// Fetch all existing appointments for the given date
-	// This assumes FindAll can filter by date, or you fetch all and filter in-memory.
-	// For simplicity, let's assume FindAll returns all events and we filter them.
-	// In a real app, you'd want a more efficient query to the repository.
-	existingAppointments, err := s.repo.FindAll(ctx) // Fetch all events
-	if err != nil {
-		log.Printf("ERROR: Failed to fetch existing appointments: %v", err)
-		// If it's a "not found" error, treat it as no existing appointments.
-		if !errors.Is(err, domain.ErrAppointmentNotFound) {
-			return nil, fmt.Errorf("failed to fetch existing appointments: %w", err)
+	// Try cache first
+	s.cacheMu.RLock()
+	var existingAppointments []domain.Appointment
+	cacheValid := s.NowFunc().Before(s.cacheExpires)
+	if cacheValid {
+		existingAppointments = s.cachedEvents
+	}
+	s.cacheMu.RUnlock()
+
+	if !cacheValid {
+		log.Printf("DEBUG: Cache expired or empty, fetching from repo...")
+		var err error
+		existingAppointments, err = s.repo.FindAll(ctx)
+		if err != nil {
+			log.Printf("ERROR: Failed to fetch existing appointments: %v", err)
+			if !errors.Is(err, domain.ErrAppointmentNotFound) {
+				return nil, fmt.Errorf("failed to fetch existing appointments: %w", err)
+			}
+			existingAppointments = []domain.Appointment{}
 		}
-		existingAppointments = []domain.Appointment{} // Initialize as empty slice if not found
+
+		// Update cache
+		s.cacheMu.Lock()
+		s.cachedEvents = existingAppointments
+		s.cacheExpires = s.NowFunc().Add(cacheTTL)
+		s.cacheMu.Unlock()
+	} else {
+		log.Printf("DEBUG: Using cached appointments (expires in %v)", s.cacheExpires.Sub(s.NowFunc()))
 	}
 
 	// Filter existing appointments for the specific date
@@ -188,6 +214,9 @@ func (s *Service) GetAvailableTimeSlots(ctx context.Context, date time.Time, dur
 
 // CreateAppointment handles the creation of a new appointment.
 func (s *Service) CreateAppointment(ctx context.Context, appt *domain.Appointment) (*domain.Appointment, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	log.Printf("DEBUG: CreateAppointment called for service '%s' at %s", appt.Service.Name, appt.StartTime.Format("2006-01-02 15:04"))
 
 	if appt == nil || appt.Service.ID == "" || appt.StartTime.IsZero() || appt.Duration <= 0 || appt.CustomerName == "" {
@@ -260,6 +289,11 @@ func (s *Service) CreateAppointment(ctx context.Context, appt *domain.Appointmen
 		return nil, fmt.Errorf("failed to create appointment in repository: %w", err)
 	}
 	log.Printf("DEBUG: Appointment successfully created in repository with ID: %s", createdAppt.ID)
+
+	// Invalidate cache
+	s.cacheMu.Lock()
+	s.cacheExpires = time.Time{} // Force expire
+	s.cacheMu.Unlock()
 
 	return createdAppt, nil
 }
