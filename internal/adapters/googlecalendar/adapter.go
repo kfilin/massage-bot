@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/kfilin/massage-bot/internal/domain" // Импортируем domain
+	"github.com/kfilin/massage-bot/internal/monitoring"
 	"github.com/kfilin/massage-bot/internal/ports"
 	"google.golang.org/api/calendar/v3"
 	"google.golang.org/api/googleapi"
@@ -68,10 +69,20 @@ func (a *adapter) Create(ctx context.Context, appt *domain.Appointment) (*domain
 		}
 	}
 
+	start := time.Now()
 	createdEvent, err := a.client.Events.Insert(a.calendarID, event).
 		ConferenceDataVersion(1). // Required for conference generation
 		Context(ctx).
 		Do()
+	duration := time.Since(start).Seconds()
+
+	status := "success"
+	if err != nil {
+		status = "error"
+	}
+	monitoring.ApiRequestsTotal.WithLabelValues("google", "insert_event", status).Inc()
+	monitoring.ApiLatency.WithLabelValues("google", "insert_event").Observe(duration)
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to create calendar event (Check if GOOGLE_CALENDAR_ID '%s' is correct): %w", a.calendarID, err)
 	}
@@ -130,6 +141,7 @@ func (a *adapter) GetAvailableSlots(ctx context.Context, date time.Time, duratio
 	timeMin := date.Format(time.RFC3339)
 	timeMax := date.Add(24 * time.Hour).Format(time.RFC3339)
 
+	start := time.Now()
 	events, err := a.client.Events.List(a.calendarID).
 		ShowDeleted(false).
 		SingleEvents(true).
@@ -137,6 +149,15 @@ func (a *adapter) GetAvailableSlots(ctx context.Context, date time.Time, duratio
 		TimeMax(timeMax).
 		OrderBy("startTime").
 		Do()
+	duration := time.Since(start).Seconds()
+
+	status := "success"
+	if err != nil {
+		status = "error"
+	}
+	monitoring.ApiRequestsTotal.WithLabelValues("google", "list_events", status).Inc()
+	monitoring.ApiLatency.WithLabelValues("google", "list_events").Observe(duration)
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to list calendar events: %w", err)
 	}
@@ -201,7 +222,17 @@ func (a *adapter) FindEvents(ctx context.Context, timeMin, timeMax *time.Time) (
 		call = call.TimeMax(timeMax.Format(time.RFC3339))
 	}
 
+	start := time.Now()
 	events, err := call.Context(ctx).Do()
+	duration := time.Since(start).Seconds()
+
+	status := "success"
+	if err != nil {
+		status = "error"
+	}
+	monitoring.ApiRequestsTotal.WithLabelValues("google", "list_events_full", status).Inc()
+	monitoring.ApiLatency.WithLabelValues("google", "list_events_full").Observe(duration)
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to list calendar events from '%s': %w", a.calendarID, err)
 	}
@@ -227,7 +258,17 @@ func (a *adapter) FindEvents(ctx context.Context, timeMin, timeMax *time.Time) (
 
 // FindByID retrieves an event from Google Calendar by its ID.
 func (a *adapter) FindByID(ctx context.Context, id string) (*domain.Appointment, error) {
+	start := time.Now()
 	event, err := a.client.Events.Get(a.calendarID, id).Context(ctx).Do()
+	duration := time.Since(start).Seconds()
+
+	status := "success"
+	if err != nil && !isNotFound(err) {
+		status = "error"
+	}
+	monitoring.ApiRequestsTotal.WithLabelValues("google", "get_event", status).Inc()
+	monitoring.ApiLatency.WithLabelValues("google", "get_event").Observe(duration)
+
 	if err != nil {
 		if isNotFound(err) {
 			return nil, domain.ErrAppointmentNotFound
@@ -244,7 +285,17 @@ func (a *adapter) FindByID(ctx context.Context, id string) (*domain.Appointment,
 
 // Delete deletes an event from Google Calendar by its ID.
 func (a *adapter) Delete(ctx context.Context, id string) error {
+	start := time.Now()
 	err := a.client.Events.Delete(a.calendarID, id).Context(ctx).Do()
+	duration := time.Since(start).Seconds()
+
+	status := "success"
+	if err != nil && !isNotFound(err) {
+		status = "error"
+	}
+	monitoring.ApiRequestsTotal.WithLabelValues("google", "delete_event", status).Inc()
+	monitoring.ApiLatency.WithLabelValues("google", "delete_event").Observe(duration)
+
 	if err != nil {
 		if isNotFound(err) {
 			return domain.ErrAppointmentNotFound

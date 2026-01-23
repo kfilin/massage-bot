@@ -747,12 +747,20 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 		}
 	} else {
 		log.Printf("Patient record synced for user %d (TotalVisits: %d)", userID, patient.TotalVisits)
+		// Record patient loyalty metric
+		if patient.TotalVisits <= 1 {
+			monitoring.AppointmentTypeTotal.WithLabelValues("first_visit").Inc()
+		} else {
+			monitoring.AppointmentTypeTotal.WithLabelValues("returning").Inc()
+		}
+
 		// Log analytics event
 		h.repository.LogEvent(patient.TelegramID, "booking_confirmed", map[string]interface{}{
 			"service_id":     service.ID,
 			"service_name":   service.Name,
 			"time":           appointmentTime.Format(time.RFC3339),
 			"is_admin_block": isAdminBlock,
+			"visit_count":    patient.TotalVisits,
 		})
 	}
 

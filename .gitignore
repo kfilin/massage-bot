@@ -43,9 +43,10 @@ gitlab-kubeconfig-final.yaml
 *.log
 
 # Infrastructure & Secrets (Use .example files)
-k8s/
-docker-compose*.yml
-!docker-compose.example.yml
-Caddyfile*
-!Caddyfile.example
+deploy/k8s/
+deploy/docker-compose*.yml
+deploy/Caddyfile*
+!configs/config.example.yml
+!deploy/docker-compose.example.yml
+!deploy/Caddyfile.example
 VERA_GUIDE.md

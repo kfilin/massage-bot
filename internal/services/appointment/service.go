@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/kfilin/massage-bot/internal/domain" // Import domain package to access its structs and errors
+	"github.com/kfilin/massage-bot/internal/monitoring"
 	"github.com/kfilin/massage-bot/internal/ports"
 )
 
@@ -290,10 +291,14 @@ func (s *Service) CreateAppointment(ctx context.Context, appt *domain.Appointmen
 	}
 	log.Printf("DEBUG: Appointment successfully created in repository with ID: %s", createdAppt.ID)
 
-	// Invalidate cache
-	s.cacheMu.Lock()
-	s.cacheExpires = time.Time{} // Force expire
-	s.cacheMu.Unlock()
+	// Record metrics
+	leadTimeDays := time.Until(createdAppt.StartTime).Hours() / 24
+	if leadTimeDays < 0 {
+		leadTimeDays = 0
+	}
+	monitoring.BookingLeadTimeDays.Observe(leadTimeDays)
+	monitoring.ServiceBookingsTotal.WithLabelValues(createdAppt.Service.Name).Inc()
+	monitoring.BookingCreationHour.WithLabelValues(fmt.Sprintf("%02d", time.Now().Hour())).Inc()
 
 	return createdAppt, nil
 }
@@ -315,6 +320,11 @@ func (s *Service) CancelAppointment(ctx context.Context, appointmentID string) e
 		return fmt.Errorf("failed to delete appointment in repository: %w", err)
 	}
 	log.Printf("DEBUG: Appointment %s successfully cancelled.", appointmentID)
+
+	// Record cancellation metric if we can find the appt info (even from cache/repo)
+	// For simplicity, we just increment without service name if we can't find it easily
+	monitoring.CancellationsTotal.WithLabelValues("unknown").Inc()
+
 	return nil
 }
 

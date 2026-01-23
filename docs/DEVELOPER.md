@@ -89,7 +89,15 @@ The production image is a multi-stage `Dockerfile` (Builder -> Runtime) resultin
 ./scripts/deploy_home_server.sh
 ```
 
-### Resource Guards
+### Infrastructure Files Explained
+
+| File | Purpose | Use Case |
+| :--- | :--- | :--- |
+| `docker-compose.yml` | **Primary config**. The source of truth for Docker. | Used by `docker compose up`. |
+| `deploy/docker-compose.prod.yml` | **Production**. Optimized for home server deployments. | Used in production environments. |
+| `deploy/docker-compose.dev.yml` | **Development**. Tailored for local coding. | Used during development. |
+| `deploy/Caddyfile` | **Proxy Config**. Defines SSL and routing rules. | Used by host-level Caddy. |
+| `deploy/k8s/` | **Kubernetes**. Advanced orchestration manifests. | Used for K8s deployments. |
 
 `docker-compose.yml` includes specific limits to prevent host thrashing:
 

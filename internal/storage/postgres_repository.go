@@ -15,8 +15,8 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/kfilin/massage-bot/internal/domain"
+	"github.com/kfilin/massage-bot/internal/monitoring"
 	"github.com/kfilin/massage-bot/internal/ports"
-	_ "github.com/lib/pq"
 )
 
 var _ ports.Repository = (*PostgresRepository)(nil)
@@ -60,8 +60,13 @@ func (r *PostgresRepository) SavePatient(p domain.Patient) error {
 	`
 	_, err := r.db.NamedExec(query, p)
 	if err != nil {
+		monitoring.DbErrorsTotal.WithLabelValues("save_patient").Inc()
 		return err
 	}
+
+	// Update clinical note length metric
+	noteLen := len(p.TherapistNotes)
+	monitoring.ClinicalNoteLength.Set(float64(noteLen))
 
 	// Mirror to Markdown file
 	return r.saveToMarkdown(p)

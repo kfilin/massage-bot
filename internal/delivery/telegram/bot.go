@@ -9,6 +9,7 @@ import (
 
 	"github.com/kfilin/massage-bot/internal/delivery/telegram/handlers"
 	"github.com/kfilin/massage-bot/internal/domain"
+	"github.com/kfilin/massage-bot/internal/monitoring"
 	"github.com/kfilin/massage-bot/internal/ports" // Import ports for interfaces
 
 	// Import storage pkg for ban check
@@ -85,6 +86,24 @@ func StartBot(
 					})
 				}
 				return c.Send(shadowBanMsg, telebot.RemoveKeyboard)
+			}
+			return next(c)
+		}
+	})
+
+	// GLOBAL MIDDLEWARE: Record metrics for command/callback usage
+	b.Use(func(next telebot.HandlerFunc) telebot.HandlerFunc {
+		return func(c telebot.Context) error {
+			if c.Message() != nil {
+				text := c.Message().Text
+				if strings.HasPrefix(text, "/") {
+					command := strings.Split(text, " ")[0]
+					monitoring.BotCommandsTotal.WithLabelValues(command).Inc()
+				} else {
+					monitoring.BotCommandsTotal.WithLabelValues("text_message").Inc()
+				}
+			} else if c.Callback() != nil {
+				monitoring.BotCommandsTotal.WithLabelValues("callback").Inc()
 			}
 			return next(c)
 		}

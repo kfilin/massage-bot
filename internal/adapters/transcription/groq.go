@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/kfilin/massage-bot/internal/monitoring"
 	"github.com/kfilin/massage-bot/internal/ports"
 )
 
@@ -64,7 +65,20 @@ func (a *groqAdapter) Transcribe(ctx context.Context, audio io.Reader, filename 
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", a.apiKey))
 
+	start := time.Now()
 	resp, err := a.client.Do(req)
+	duration := time.Since(start).Seconds()
+
+	status := "success"
+	if err != nil {
+		status = "error"
+	} else if resp.StatusCode != http.StatusOK {
+		status = "error_api"
+	}
+
+	monitoring.ApiRequestsTotal.WithLabelValues("groq", "transcribe", status).Inc()
+	monitoring.ApiLatency.WithLabelValues("groq", "transcribe").Observe(duration)
+
 	if err != nil {
 		return "", fmt.Errorf("failed to call groq api: %w", err)
 	}

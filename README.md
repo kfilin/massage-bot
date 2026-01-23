@@ -20,7 +20,7 @@ The centerpiece of the v4 reconstruction. It moves away from scattered JSONs to 
 
 ### 📱 Premium TWA Interface (v4)
 
-A high-end Telegram Web App experience replacing legacy PDF generation:
+A high-end Telegram Web App experience for clinical management:
 
 - **Clinical White Theme**: Modern, minimalist UI optimized for medical professionals.
 - **Live GCal Stats**: Visit counts, first/last dates, and upcoming appointments synced directly from Google Calendar APIs.
@@ -68,13 +68,4 @@ Create a `.env` file from `.env.example`.
 docker-compose up -d --build
 ```
 
----
-
-## 📚 Documentation & Guides
-
-- **[📖 Инструкция для Веры (RU)](VERA_GUIDE_RU.md)** — Администрирование и Obsidian.
-- **[📖 User Guide (RU)](USER_GUIDE_RU.md)** — Инструкции для пациентов.
-- **[🛠 Developer Guide](DEVELOPER.md)** — Архитектура и обслуживание.
-
----
 *Created by Kirill Filin with Gemini Assistance. Checkpoint: v4.1.0-clinical (2026-01-23).*
