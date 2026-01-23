@@ -37,9 +37,9 @@ A professional clinical ecosystem for massage therapists. Features interactive b
 
 This project uses a dual-remote setup with automated mirroring to maintain sync and trigger builds.
 
-1. **Push to GitHub (`origin`)**: This is the primary entry point for all changes.
-2. **Automated Mirror**: GitHub Actions (see `.github/workflows/mirror.yml`) automatically force-pushes the `master` branch to GitLab.
-3. **GitLab Pipeline**: GitLab receives the push and triggers the CI/CD pipeline (`.gitlab-ci.yml`), which:
+1. **Push to GitHub (`origin`)**: Primary source for code and metrics.
+2. **Push to GitLab (`gitlab`)**: **Manual step**. Pushing to GitLab triggers the CI/CD pipeline (`.gitlab-ci.yml`) for production deployment.
+3. **GitLab Pipeline**: Builds the Docker image, pushes to registry, and deploys to the home server.
     - Runs tests (Go 1.24).
     - Builds the Docker image and pushes it to the GitLab Registry.
     - Triggers the `deploy_home_server.sh` script on the target server.
@@ -74,10 +74,10 @@ This project uses a dual-remote setup with automated mirroring to maintain sync 
 
 ## 💎 Gold Standard Checkpoint
 
-- **Commit**: `e3aefad4fc9ab6ad7741e4f5601eadd9c5fcc1c7`
-- **Date**: 2026-01-23
-- **Status**: **The Gold Standard**. Security locking, slot caching, and HTML sanitization implemented and verified.
-- **Rollback Command**: `git reset --hard e3aefad`
+- **Commit**: `32f4709`
+- **Date**: 2026-01-24
+- **Status**: **Clinical Metrics & Health Fixed**. Business analytics, lead time tracking, and port conflict (8081->8083) resolved.
+- **Rollback Command**: `git reset --hard 32f4709`
 
 ---
 
