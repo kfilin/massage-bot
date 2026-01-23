@@ -16,8 +16,9 @@ jobs:
           SSH_PRIVATE_KEY: ${{ secrets.GITLAB_SSH_PRIVATE_KEY }}
         run: |
           mkdir -p ~/.ssh
-          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
+          chmod 700 ~/.ssh
+          eval $(ssh-agent -s)
+          echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
           ssh-keyscan gitlab.com >> ~/.ssh/known_hosts
           git remote add gitlab git@gitlab.com:kfilin/massage-bot.git
-          git push --force gitlab master
+          git push --force gitlab HEAD:master
