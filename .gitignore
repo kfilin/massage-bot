@@ -48,5 +48,4 @@ docker-compose*.yml
 !docker-compose.example.yml
 Caddyfile*
 !Caddyfile.example
-.github/workflows/mirror.yml
 VERA_GUIDE.md
