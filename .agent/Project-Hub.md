@@ -20,7 +20,7 @@ A professional clinical ecosystem for massage therapists. Features interactive b
 
 ## 🏗️ Development Strategy
 
-- **Home Server (Primary)**: The target for all verified changes. Deployment via `scripts/deploy_home_server.sh`. Access via `ssh server`.
+- **Home Server (Primary)**: The target for all verified changes. Deployment is triggered by pushing to **GitHub**, which mirrors to GitLab. Access via `ssh server`.
 - **Clinical Storage 2.0**: Bi-directional sync between DB and `.md` files in `data/patients/`.
 - **Sync Rule**: ID suffix tracking `(TelegramID)` allows therapist to rename patient folders in Obsidian without breaking the bot.
 
@@ -30,6 +30,24 @@ A professional clinical ecosystem for massage therapists. Features interactive b
 
 - **Master Branch**: Primary source of truth.
 - **Rule**: All restoration work from the "PDF experiment" has been consolidated into the `master` branch on the stable `v3.15` backbone.
+
+---
+
+## 🚀 Deployment & CI/CD Workflow
+
+This project uses a dual-remote setup with automated mirroring to maintain sync and trigger builds.
+
+1. **Push to GitHub (`origin`)**: This is the primary entry point for all changes.
+2. **Automated Mirror**: GitHub Actions (see `.github/workflows/mirror.yml`) automatically force-pushes the `master` branch to GitLab.
+3. **GitLab Pipeline**: GitLab receives the push and triggers the CI/CD pipeline (`.gitlab-ci.yml`), which:
+    - Runs tests (Go 1.24).
+    - Builds the Docker image and pushes it to the GitLab Registry.
+    - Triggers the `deploy_home_server.sh` script on the target server.
+
+> [!IMPORTANT]
+> Always push to **GitHub** first to ensure both repositories are in sync. Pushing directly to GitLab should only be done for debugging the pipeline itself, as it leaves GitHub outdated.
+
+---
 
 ---
 
