@@ -77,4 +77,4 @@ docker-compose up -d --build
 - **[🛠 Developer Guide](DEVELOPER.md)** — Архитектура и обслуживание.
 
 ---
-*Created by Kirill Filin with Gemini Assistance. Based on the v3.15 Stable Backbone.*
+*Created by Kirill Filin with Gemini Assistance. Checkpoint: v4.1.0-clinical (2026-01-23).*
