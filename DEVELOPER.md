@@ -43,6 +43,7 @@ data/patients/
 
 - **PostgreSQL**: Required for metadata.
 - **Google Cloud Console**: Enable 'Google Calendar API', configure OAuth2, and place `credentials.json` in root.
+- **Groq Cloud (Optional)**: Used for high-speed Whisper transcription of patient voice notes. Configure `GROQ_API_KEY` in `.env`.
 
 ### 2. Local Setup
 
@@ -80,4 +81,4 @@ The production image is a multi-stage `Dockerfile` (Builder -> Runtime) resultin
 - `memory: 256M`
 
 ---
-*Created by AntiGravity AI. Build Version: 4.1.0-clinical.*
+*Created by Kirill Filin with Gemini Assistance. Build Version: 4.1.0-clinical.*

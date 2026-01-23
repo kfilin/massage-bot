@@ -1,8 +1,0 @@
-# Note: This Caddyfile is no longer used for proxying as of Jan 19, 2026.
-# The project now relies on the Home Server's main Caddy configuration
-# to handle SSL termination and reverse proxying to localhost:8082.
-
-# Example for Home Server Caddyfile:
- vera-bot.kfilin.icu {
-     reverse_proxy localhost:8082
- }

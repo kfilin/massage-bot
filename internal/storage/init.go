@@ -26,19 +26,20 @@ func InitDB() (*sqlx.DB, error) {
 	var db *sqlx.DB
 	var err error
 
-	// Retry connection loop (5 attempts)
-	for i := 1; i <= 5; i++ {
-		log.Printf("Attempting to connect to database (attempt %d/5)...", i)
+	// Attempt to connect to the database.
+	// We use a basic retry logic for safety, but primary orchestration
+	// should be handled via Docker healthchecks and depends_on.
+	for i := 1; i <= 3; i++ {
 		db, err = sqlx.Connect("postgres", connStr)
 		if err == nil {
 			break
 		}
-		log.Printf("Failed to connect to database: %v. Retrying in 5 seconds...", err)
-		time.Sleep(5 * time.Second)
+		log.Printf("Waiting for database connection (attempt %d/3)...", i)
+		time.Sleep(2 * time.Second)
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to database after 5 attempts: %w", err)
+		return nil, fmt.Errorf("database connection failed: %w. Please ensure the DB container is healthy.", err)
 	}
 
 	// Initialize schema

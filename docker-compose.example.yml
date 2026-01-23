@@ -1,0 +1,41 @@
+services:
+  massage-bot:
+    image: massage-bot:latest
+    container_name: massage-bot
+    restart: unless-stopped
+    environment:
+      - TZ=Europe/Istanbul
+    env_file:
+      - .env
+    ports:
+      - "8082:8082"
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+    networks:
+      - bot-network
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:15-alpine
+    container_name: massage-bot-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: massage_bot
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: your_secure_password
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d massage_bot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bot-network
+
+networks:
+  bot-network:
+    driver: bridge

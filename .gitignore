@@ -34,9 +34,19 @@ data/
 *.backup
 
 # Internal AI & Development Docs
-# .agent/ and docs/ are now tracked for "Documentation as Acceleration"
+.agent/
+.gemini/
 verification-checklist.md
 postgres_data/
 postgres_data_dev/
 gitlab-kubeconfig-final.yaml
 *.log
+
+# Infrastructure & Secrets (Use .example files)
+k8s/
+docker-compose*.yml
+!docker-compose.example.yml
+Caddyfile*
+!Caddyfile.example
+.github/workflows/mirror.yml
+VERA_GUIDE.md

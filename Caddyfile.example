@@ -1,0 +1,4 @@
+# Example Caddy configuration for reverse proxying to the bot
+your-domain.com {
+    reverse_proxy localhost:8082
+}

@@ -1,7 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: massage-bot-config
-data:
-  GOOGLE_CALENDAR_ID: "primary"
-  USE_MOCK_CALENDAR: "false"

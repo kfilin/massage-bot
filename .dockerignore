@@ -1,6 +1,8 @@
 # Docker ignore file
 .git
 .gitignore
+.agent/
+.gemini/
 README.md
 Dockerfile
 .dockerignore
