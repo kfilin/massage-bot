@@ -78,3 +78,6 @@
 
 **Мои данные в безопасности?**
 Да. Ваши документы хранятся приватно на защищенном сервере и доступны только вам и Вере.
+
+---
+*Created by Kirill Filin with Gemini Assistance. Based on the v3.15 Stable Backbone.*

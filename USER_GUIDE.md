@@ -76,3 +76,6 @@ A: This message may appear if the booking system is temporarily restricted. Plea
 
 **Q: Is my data safe?**
 A: Yes. Your documents are stored privately on a secure server and are only accessible by you and the therapist.
+
+---
+*Created by Kirill Filin with Gemini Assistance. Based on the v3.15 Stable Backbone.*
