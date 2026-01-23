@@ -82,7 +82,7 @@ func main() {
 
 	// 6b. Start Web App server (now with apptService for sync)
 	if cfg.WebAppSecret != "" {
-		go startWebAppServer(cfg.WebAppPort, cfg.WebAppSecret, cfg.TgBotToken, patientRepo, appointmentService)
+		go startWebAppServer(cfg.WebAppPort, cfg.WebAppSecret, cfg.TgBotToken, patientRepo, appointmentService, os.Getenv("DATA_DIR"))
 	} else {
 		log.Println("Warning: WEBAPP_SECRET not set, Web App server not started.")
 	}

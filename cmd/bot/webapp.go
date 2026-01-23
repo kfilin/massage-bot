@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/kfilin/massage-bot/internal/domain"
 	"github.com/kfilin/massage-bot/internal/ports"
+	"golang.org/x/net/webdav"
 )
 
 func generateHMAC(id string, secret string) string {
@@ -94,9 +96,13 @@ func validateInitData(initData string, botToken string) (string, string, error) 
 	return fmt.Sprintf("%d", user.ID), fullName, nil
 }
 
-func startWebAppServer(port string, secret string, botToken string, repo ports.Repository, apptService ports.AppointmentService) {
+func startWebAppServer(port string, secret string, botToken string, repo ports.Repository, apptService ports.AppointmentService, dataDir string) {
 	if port == "" {
 		port = "8082"
+	}
+
+	if dataDir == "" {
+		dataDir = "data"
 	}
 
 	mux := http.NewServeMux()
@@ -211,6 +217,93 @@ func startWebAppServer(port string, secret string, botToken string, repo ports.R
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		fmt.Fprint(w, html)
 	})
+
+	// WebDAV Handler for Obsidian Sync
+	davUser := os.Getenv("WEBDAV_USER")
+	davPass := os.Getenv("WEBDAV_PASSWORD")
+
+	if davUser != "" && davPass != "" {
+		davHandler := &webdav.Handler{
+			Prefix:     "/webdav/",
+			FileSystem: webdav.Dir(dataDir),
+			LockSystem: webdav.NewMemLS(),
+			Logger: func(r *http.Request, err error) {
+				if err != nil {
+					log.Printf("WebDAV [Err] %s %s: %v", r.Method, r.URL.Path, err)
+				}
+			},
+		}
+
+		webdavAuthHandler := func(w http.ResponseWriter, r *http.Request) {
+			// Add CORS headers for Obsidian/Browser compatibility
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PROPFIND, PROPPATCH, MKCOL, COPY, MOVE, LOCK, UNLOCK")
+			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Depth, Destination, If-Modified-Since, Overwrite, User-Agent, X-Expected-Entity-Length")
+			w.Header().Set("Access-Control-Expose-Headers", "DAV, content-length, Allow")
+
+			if r.Method == "OPTIONS" {
+				// Let WebDAV handler provide the DAV: 1, 2 headers required for client discovery
+				davHandler.ServeHTTP(w, r)
+				return
+			}
+
+			user, pass, ok := r.BasicAuth()
+			if !ok || user != davUser || pass != davPass {
+				if !ok {
+					log.Printf("WebDAV [Auth Missing] %s %s from %s", r.Method, r.URL.Path, r.RemoteAddr)
+				} else {
+					log.Printf("WebDAV [Auth Denied] user=%s from %s", user, r.RemoteAddr)
+				}
+				w.Header().Set("WWW-Authenticate", `Basic realm="Vera Bot Medical Records"`)
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+
+			// Browser-friendly landing page if accessing /webdav/ directly via GET
+			if r.Method == "GET" && r.URL.Path == "/webdav/" && !(strings.Contains(r.Header.Get("User-Agent"), "Obsidian") || strings.Contains(r.Header.Get("User-Agent"), "DAV")) {
+				w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+				// Diagnostic check of the storage directory
+				info, err := os.Stat(dataDir)
+				storageStatus := "✅ Доступно"
+				if err != nil {
+					storageStatus = fmt.Sprintf("❌ Ошибка доступа: %v", err)
+				} else if !info.IsDir() {
+					storageStatus = "❌ Ошибка: Путь не является папкой"
+				}
+
+				fmt.Fprintf(w, `
+					<html>
+					<head><style>body{font-family:sans-serif;padding:20px;line-height:1.6}code{background:#eee;padding:2px 5px}</style></head>
+					<body>
+						<h1>✅ WebDAV Сервер Активен</h1>
+						<p>Пользователь: <b>%s</b></p>
+						<p>Статус хранилища: %s</p>
+						<hr>
+						<p><b>Для настройки в Obsidian:</b></p>
+						<ul>
+							<li>Remote Service: <code>WebDAV</code></li>
+							<li>Server Address: <code>https://%s/webdav/</code></li>
+						</ul>
+					</body>
+					</html>
+				`, davUser, storageStatus, r.Host)
+				return
+			}
+
+			log.Printf("WebDAV [%s] %s (User: %s)", r.Method, r.URL.Path, user)
+			davHandler.ServeHTTP(w, r)
+		}
+
+		// Use a single handler for /webdav/ and redirect /webdav (no slash)
+		mux.HandleFunc("/webdav", func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "/webdav/", http.StatusMovedPermanently)
+		})
+		mux.HandleFunc("/webdav/", webdavAuthHandler)
+		log.Printf("WebDAV server enabled at /webdav/ (User: %s)", davUser)
+	} else {
+		log.Println("Warning: WEBDAV_USER or WEBDAV_PASSWORD not set. WebDAV disabled.")
+	}
 
 	log.Printf("Starting Web App server on :%s", port)
 	server := &http.Server{

@@ -20,7 +20,7 @@ A professional clinical ecosystem for massage therapists. Features interactive b
 
 ## 🏗️ Development Strategy
 
-- **Home Server (Primary)**: The target for all verified changes. Deployment via `scripts/deploy_home_server.sh`.
+- **Home Server (Primary)**: The target for all verified changes. Deployment via `scripts/deploy_home_server.sh`. Access via `ssh server`.
 - **Clinical Storage 2.0**: Bi-directional sync between DB and `.md` files in `data/patients/`.
 - **Sync Rule**: ID suffix tracking `(TelegramID)` allows therapist to rename patient folders in Obsidian without breaking the bot.
 
@@ -54,7 +54,16 @@ A professional clinical ecosystem for massage therapists. Features interactive b
 
 ---
 
-## 🔧 Maintenance: Google OAuth Token Renewal
+## � Last Known Stable Commit
+
+- **Commit**: `fdf114f9c1f4baa87161fe7b7e1579aa07a87d23`
+- **Date**: 2026-01-23
+- **Status**: **Best State Ever**. Confirmed stable after PDF rollback. Contains Clinical Storage 2.0 and v4.1.0 logic.
+- **Rollback Command**: `git reset --hard fdf114f`
+
+---
+
+## �🔧 Maintenance: Google OAuth Token Renewal
 
 - **Next Renewal Due**: ~2026-07-09 (Check logs for `invalid_grant`)
 - **Procedure**: See detailed logs in `scripts/renew_token.sh`.
