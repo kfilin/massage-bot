@@ -12,14 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Visit History UI**: New "История посещений" section in TWA showing the 5 most recent confirmed visits.
 - **Status Tracking**: Appointment status (confirmed/cancelled) is now synchronized from Google Calendar.
 
-### Fixed
-
-- **Sync Logic**: Fixed a bug where TWA visit statistics were limited to a 24-hour window; now uses full history.
-- **Data Accuracy**: Cancelled events and "Admin Blocks" are now correctly excluded from clinical visit counts and history.
-
 ### Removed
 
 - **Redundancy**: Removed the empty "Ссылки на документы" placeholder from Markdown cards.
+
+### Decision Rationale
+
+- **Full History Sync**: Pivoted from a 24-hour sliding window to a full history scan for visit statistics. This ensures that a patient's "First Visit" and "Total Visits" remain accurate even if they haven't visited in months.
+- **Explicit Status Filtering**: Introduced a `Status` field to appointments to distinguish between "Confirmed" and "Cancelled" events. This prevents administrative noise (cancellations/blocks) from inflating clinical metrics.
 
 ## [4.2.0] - 2026-01-24
 

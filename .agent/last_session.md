@@ -16,8 +16,12 @@
     - **History UI**: Added a clean "History of Visits" list to the Patient Card TWA (last 5 visits).
 2. **Template Cleanup**:
     - **Redundancy Removal**: Removed the empty "Ссылки на документы" section from Markdown cards.
-3. **Operational Excellence**:
-    - **Versioning**: Bumped version to v4.2.1 across the codebase.
+
+## 💡 Learnings
+
+- **GCal Status Nuance**: Google Calendar events remain in the `List` results even after deletion if `ShowDeleted` isn't managed carefully, but checking the `Status == "cancelled"` property is the most robust way to ensure clinical accuracy.
+- **Sync Depth**: Relying on a short time window (e.g., 24h) for patient statistics is fragile in a medical context where patients may have long gaps between visits. Always default to full-history scans for "Gold Standard" stats unless performance becomes a primary constraint.
+- **Remote Names**: Stick to the explicitly defined remote names (`github`, `gitlab`) to ensure alignment with existing automated scripts (like `deploy_home_server.sh`).
 
 ## 🚧 Current Blockers & Risks
 
