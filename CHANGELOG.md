@@ -22,52 +22,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Refined Markdown rendering for clinical notes (fixed headers/bold text).
 - Verified and enforced 50MB file upload limits across all interfaces.
 
-## [4.1.1] - 2026-01-24
-
-### Added
-
-- Comprehensive Metrics Infrastructure (Prometheus on port 8083).
-- Business Intelligence reporter: `scripts/report_metrics.sh`.
-- Analytics for Visit Loyalty (New vs Returning) and Booking Lead Time.
-- Metrics documentation and team onboarding workflows.
-
 ## [4.1.0] - 2026-01-23
 
 ### Added
 
-- Bi-directional sync between Postgres and Markdown files (Clinical Storage 2.0).
+- **Clinical Storage 2.0**: Permanent switch back to Markdown-mirrored filesystem for Obsidian/WebDAV sync.
+- Bi-directional sync between Postgres and Markdown files.
 - ID-suffix folder tracking allowing therapist folder renaming in Obsidian.
-- WebDAV protocol support for Obsidian Mobile synchronization.
+- Infrastructure: Moved metrics to port 8083; established Prometheus/Grafana baseline.
 - Concurrency locking and slot caching for booking stability.
-- HTML sanitization for patient record generation.
+
+## [4.0.0] - 2026-01-20
+
+### Changed
+
+- **The PDF Pivot**: Decommissioned StirlingPDF and removed PDF generation buttons. Reverted to browser-native `window.print()` for stability and lower overhead.
+- **The Postgres Return**: Re-implemented PostgreSQL as the primary metadata store. The scale of the project (patient records, analytics, audit logs) made a relational DB essential for long-term reliability.
 
 ## [3.1.15] - 2026-01-18
 
 ### Added
 
 - Robust name extraction from Google Calendar events.
-- Quiet self-healing logic for session management.
-- Medical card UI overhaul.
+- Quiet self-healing logic for session management and medical card auto-auth.
 
-## [3.1.12] - 2026-01-16
+## [2.0.0] - 2025-11-20
+
+### Changed
+
+- **Experiment Phase**: Attempted transition to standalone file-based storage and PDF-only exports.
+- Temporary removal of PostgreSQL in favor of pure FS-based state (later reverted in v4.0.0).
+
+## [1.0.0] - 2025-10-15
 
 ### Added
 
-- Automated 2h visit reminders for patients.
-- Dynamic medical card sync with Google Calendar.
-- Aggressive regex scrubbing for clinical notes to improve readability.
-
-## [3.1.8] - 2025-11-27
-
-### Fixed
-
-- Initialization error handling (replaced panics with educational messages for invalid tokens).
-- Google Mirroring stability fixes for CI/CD pipelines.
-
-## [3.15.0] - 2026-01-22
-
-### Fixed
-
-- Stabilized project backbone after experimental PDF generation phase.
-- Reverted to `window.print()` for reliable PDF exports across devices.
-- Recovered core clinical logic and appointment handling.
+- Initial Bot Foundation: Persistent menus and Google Meet integration.
+- Initial PostgreSQL integration for analytics and sessions.
+- Clinical records stored as semi-structured `.md` files.
+- 24h smart cancellation policy implementation.
