@@ -7,23 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [4.2.1] - 2026-01-24
 
-### Added
+### Added (v4.2.1)
 
 - **Visit History UI**: New "История посещений" section in TWA showing the 5 most recent confirmed visits.
 - **Status Tracking**: Appointment status (confirmed/cancelled) is now synchronized from Google Calendar.
 
-### Removed
+### Changed (v4.2.1)
+
+- **Direct Scrubbing**: Instead of a complex migration, implemented a direct, permanent scrub of the legacy "Ссылки на документы" boilerplate within the `SyncAll` startup flow.
+
+### Fixed (v4.2.1)
+
+- **Sync Logic**: Fixed a bug where TWA visit statistics were limited to a 24-hour window; now uses full history.
+- **Data Accuracy**: Cancelled events and "Admin Blocks" are now correctly excluded from clinical visit counts and history.
+
+### Removed (v4.2.1)
 
 - **Redundancy**: Removed the empty "Ссылки на документы" placeholder from Markdown cards.
 
-### Decision Rationale
+### Decision Rationale (v4.2.1)
 
 - **Full History Sync**: Pivoted from a 24-hour sliding window to a full history scan for visit statistics. This ensures that a patient's "First Visit" and "Total Visits" remain accurate even if they haven't visited in months.
 - **Explicit Status Filtering**: Introduced a `Status` field to appointments to distinguish between "Confirmed" and "Cancelled" events. This prevents administrative noise (cancellations/blocks) from inflating clinical metrics.
 
 ## [4.2.0] - 2026-01-24
 
-### Added
+### Added (v4.2.0)
 
 - **Navigation 2.0**: "Back" button navigation for booking flow (Date → Service, Time → Date).
 - **Policy Enforcement**: 72h cancellation warning in bot confirmation and Patient's Card.

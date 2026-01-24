@@ -1,9 +1,8 @@
-# Checkpoint Summary: 2026-01-24 (Visit History Accuracy v4.2.1)
+# Checkpoint- **Commit**: `0aa07d6`
 
-## 🎯 Current Technical State
-
-- **Bot Version**: v4.2.1 Stable.
-- **Stable Commit**: `1333fd2`
+- **Date**: 2026-01-24
+- **Status**: **v4.2.1 Clinical Edition Stable**. Implemented visit history UI, fixed 24h sync bug, added appointment status filtering, and performed a direct, permanent scrub of legacy boilerplate from all patient records.
+- **Rollback Command**: `git reset --hard 0aa07d6`
 - **UI/UX**: "История посещений" section added to TWA; visit stats fixed (now using full history).
 - **Quality**: Cancelled events and Admin Blocks filtered from statistics.
 
