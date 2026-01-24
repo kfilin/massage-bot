@@ -61,46 +61,65 @@ const medicalRecordTemplate = `
         .header-content { max-width: 800px; margin: 0 auto; }
         .badge { display: inline-block; padding: 4px 10px; background: var(--accent-soft); color: var(--accent); border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; }
         h1 { font-family: 'Outfit', sans-serif; font-size: 28px; font-weight: 700; margin: 0 0 8px 0; color: var(--text-main); letter-spacing: -0.02em; }
-        .patient-meta { font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 12px; }
+        .patient-meta { font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 8px; }
         .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 24px; }
-        .stat-card { background: var(--bg-page); padding: 12px; border-radius: 12px; border: 1px solid var(--border); text-align: center; }
-        .stat-val { font-size: 18px; font-weight: 800; color: var(--accent); }
-        .stat-desc { font-size: 10px; text-transform: uppercase; font-weight: 600; color: var(--text-muted); }
+        .stat-card { background: var(--bg-page); padding: 16px 8px; border-radius: 12px; border: 1px solid var(--border); display: flex; flex-direction: column; justify-content: space-between; align-items: center; min-height: 100px; text-align: center; }
+        .stat-val { font-size: 15px; font-weight: 800; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; margin: auto 0; }
+        .stat-val-large { font-size: 20px; }
+        .stat-desc { font-size: 10px; text-transform: uppercase; font-weight: 600; color: var(--text-muted); padding-top: 8px; }
         .main-container { max-width: 800px; margin: 0 auto; padding: 24px; }
         section { background: var(--bg-card); border-radius: 16px; padding: 24px; border: 1px solid var(--border); margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
         h2 { font-family: 'Outfit', sans-serif; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin: 0 0 16px 0; display: flex; align-items: center; gap: 8px; }
-        h2::before { content: ""; width: 4px; height: 14px; background: var(--accent); border-radius: 4px; }
-        .notes-content { font-size: 16px; color: #334155; white-space: pre-wrap; line-height: 1.8; }
+        .notes-content { font-size: 16px; color: #334155; white-space: pre-wrap; line-height: 1.6; }
+        .notes-content h1, .notes-content h2, .notes-content h3 { color: var(--text-main); margin-top: 24px; margin-bottom: 12px; font-family: 'Outfit', sans-serif; }
+        .notes-content h1 { font-size: 20px; }
+        .notes-content h2 { font-size: 18px; }
+        .notes-content h3 { font-size: 16px; }
         .doc-list { display: flex; flex-direction: column; gap: 8px; }
-        .doc-item { display: flex; align-items: center; gap: 12px; padding: 14px; background: var(--bg-page); border-radius: 12px; text-decoration: none; color: var(--text-main); font-size: 14px; font-weight: 500; border: 1px solid transparent; transition: all 0.2s; }
+        .doc-item { display: flex; justify-content: space-between; align-items: center; padding: 14px; background: var(--bg-page); border-radius: 12px; text-decoration: none; color: var(--text-main); font-size: 14px; font-weight: 500; border: 1px solid transparent; }
+        .doc-info { display: flex; flex-direction: column; }
+        .doc-stat { font-size: 12px; color: var(--text-muted); font-weight: 400; margin-top: 2px; }
+        .doc-latest { font-size: 11px; color: var(--text-muted); font-weight: 400; text-align: right; }
         .footer { text-align: center; padding: 32px 24px 64px; color: var(--text-muted); font-size: 12px; font-weight: 500; }
         .btn-cancel { padding: 6px 12px; background: var(--danger-soft); color: var(--danger); border: none; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; }
         .appt-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); }
         .appt-item:last-child { border-bottom: none; }
+
+        /* Mobile Optimization */
+        @media (max-width: 480px) {
+            .premium-header { padding: 24px 16px; }
+            h1 { font-size: 24px; }
+            .stat-grid { grid-template-columns: 1fr; gap: 8px; }
+            .stat-card { flex-direction: row; min-height: 48px; padding: 12px 16px; border-radius: 10px; }
+            .stat-val { text-align: right; width: auto; margin: 0; font-size: 13px; font-weight: 700; }
+            .stat-val-large { font-size: 16px; }
+            .stat-desc { padding-top: 0; font-size: 9px; order: -1; text-align: left; }
+            .main-container { padding: 12px; }
+            section { padding: 16px; border-radius: 12px; margin-bottom: 16px; }
+            .notes-content { font-size: 14px; }
+        }
     </style>
 </head>
 <body>
     <header class="premium-header">
         <div class="header-content">
-            <span class="badge">Клиническая Карта</span>
+            <span class="badge">КАРТА ПАЦИЕНТА</span>
             <h1>{{.Name}}</h1>
             <div class="patient-meta">
                 <span>ID: {{.TelegramID}}</span>
-                <span>•</span>
-                <span>Visits: {{.TotalVisits}}</span>
             </div>
             <div class="stat-grid">
                 <div class="stat-card">
-                    <div class="stat-val">{{.TotalVisits}}</div>
                     <div class="stat-desc">Посещений</div>
+                    <div class="stat-val stat-val-large">{{.TotalVisits}}</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-val" style="font-size: 12px;">{{.CurrentService}}</div>
                     <div class="stat-desc">Услуга</div>
+                    <div class="stat-val">{{.CurrentService}}</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-val" style="font-size: 12px;">{{.LastVisit}}</div>
                     <div class="stat-desc">Обновлено</div>
+                    <div class="stat-val">{{.LastVisit}}</div>
                 </div>
             </div>
         </div>
@@ -125,7 +144,6 @@ const medicalRecordTemplate = `
         {{end}}
 
         <section>
-            <h2>История Болезни</h2>
             <div class="notes-content">{{.TherapistNotes}}</div>
         </section>
 
@@ -139,10 +157,16 @@ const medicalRecordTemplate = `
         <section>
             <h2>Документы и Снимки</h2>
             <div class="doc-list">
-                {{range .Documents}}
+                {{range .DocGroups}}
                 <div class="doc-item">
-                    <span class="doc-icon">📁</span>
-                    <span>{{.Name}}</span>
+                    <div class="doc-info">
+                        <div style="font-weight: 600;">{{.Name}}</div>
+                        <div class="doc-stat">Количество: {{.Count}}</div>
+                    </div>
+                    <div class="doc-latest">
+                        <div>Последний:</div>
+                        <div>{{.Latest}}</div>
+                    </div>
                 </div>
                 {{else}}
                 <div style="text-align: center; padding: 20px; color: var(--text-muted); font-size: 14px;">Документов пока нет.</div>

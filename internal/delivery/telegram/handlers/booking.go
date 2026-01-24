@@ -69,6 +69,39 @@ func (h *BookingHandler) HandleStart(c telebot.Context) error {
 
 	h.repository.LogEvent(strconv.FormatInt(userID, 10), "start_bot", nil)
 
+	// Tentatively register patient if not exists to capture Telegram name
+	existingPatient, err := h.repository.GetPatient(strconv.FormatInt(userID, 10))
+	if err != nil {
+		firstName := c.Sender().FirstName
+		lastName := c.Sender().LastName
+		fullName := strings.TrimSpace(firstName + " " + lastName)
+		if fullName == "" {
+			fullName = c.Sender().Username
+		}
+		if fullName != "" {
+			errSave := h.repository.SavePatient(domain.Patient{
+				TelegramID:     strconv.FormatInt(userID, 10),
+				Name:           fullName,
+				HealthStatus:   "initial",
+				TherapistNotes: fmt.Sprintf("Зарегистрирован через /start: %s", time.Now().Format("02.01.2006")),
+			})
+			if errSave != nil {
+				log.Printf("ERROR: Failed to tentatively save new patient %d: %v", userID, errSave)
+			}
+		}
+	} else if existingPatient.Name == "" {
+		firstName := c.Sender().FirstName
+		lastName := c.Sender().LastName
+		fullName := strings.TrimSpace(firstName + " " + lastName)
+		if fullName != "" {
+			existingPatient.Name = fullName
+			errSave := h.repository.SavePatient(existingPatient)
+			if errSave != nil {
+				log.Printf("ERROR: Failed to update patient name for %d: %v", userID, errSave)
+			}
+		}
+	}
+
 	return h.showCategories(c)
 }
 
@@ -374,6 +407,9 @@ func (h *BookingHandler) generateCalendar(month time.Time) *telebot.ReplyMarkup 
 		rows = append(rows, selector.Row(weekBtns...))
 	}
 
+	// Back button to return to service selection
+	rows = append(rows, selector.Row(selector.Data("⬅️ Назад к выбору услуги", "back_to_services")))
+
 	selector.Inline(rows...)
 	return selector
 }
@@ -417,6 +453,16 @@ func (h *BookingHandler) HandleDateSelection(c telebot.Context) error {
 
 		// Now ask for time
 		return h.askForTime(c)
+	} else if data == "back_to_services" {
+		// Return to service selection for the stored category
+		session := h.sessionStorage.Get(userID)
+		category, ok := session[SessionKeyCategory].(string)
+		if !ok || category == "" {
+			return h.showCategories(c)
+		}
+		// Mock callback data for HandleCategorySelection
+		c.Callback().Data = "select_category|" + category
+		return h.HandleCategorySelection(c)
 	}
 	return c.Send("Неизвестное действие с датой. Пожалуйста, попробуйте /start снова.")
 }
@@ -469,6 +515,7 @@ func (h *BookingHandler) askForTime(c telebot.Context) error {
 			selector.Data(slot.Start.Format("15:04"), "select_time", slot.Start.Format("15:04")),
 		))
 	}
+	rows = append(rows, selector.Row(selector.Data("⬅️ Назад к выбору даты", "back_to_date")))
 	selector.Inline(rows...)
 
 	// Используем специальную клавиатуру: Кнопка "Назад" + Главное меню
@@ -501,6 +548,16 @@ func (h *BookingHandler) HandleTimeSelection(c telebot.Context) error {
 
 	data := strings.TrimSpace(c.Callback().Data) // Trim spaces
 	userID := c.Sender().ID
+
+	if data == "back_to_date" {
+		userID := c.Sender().ID
+		session := h.sessionStorage.Get(userID)
+		service, ok := session[SessionKeyService].(domain.Service)
+		if !ok {
+			return h.showCategories(c)
+		}
+		return h.askForDate(c, service.Name)
+	}
 
 	parts := strings.Split(data, "|")
 	if len(parts) != 2 || parts[0] != "select_time" {
@@ -536,9 +593,9 @@ func (h *BookingHandler) HandleTimeSelection(c telebot.Context) error {
 		}
 	}
 
-	// Check for returning patient
+	// Check for returning patient (with at least one visit)
 	patient, errRepo := h.repository.GetPatient(strconv.FormatInt(userID, 10))
-	if errRepo == nil && patient.Name != "" {
+	if errRepo == nil && patient.Name != "" && patient.TotalVisits > 0 {
 		h.sessionStorage.Set(userID, SessionKeyName, patient.Name)
 		log.Printf("DEBUG: Returning patient %d detected (Name: %s), skipping name input", userID, patient.Name)
 		return h.askForConfirmation(c)
@@ -797,7 +854,7 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 	h.sessionStorage.ClearSession(userID)
 
 	// 3. Confirm to Patient
-	confirmationMsg := fmt.Sprintf("✅ <b>Запись подтверждена!</b>\n\n📅 %s\n⏰ %s\n⏳ %s",
+	confirmationMsg := fmt.Sprintf("✅ <b>Запись подтверждена!</b>\n\n📅 %s\n⏰ %s\n⏳ %s\n\n⚠️ Отмена возможна за 72 часа до приема. Для отмены свяжитесь с терапевтом.",
 		appointmentTime.Format("02.01.2006"),
 		appointmentTime.Format("15:04"),
 		service.Name)
@@ -1098,7 +1155,7 @@ func (h *BookingHandler) HandleFileMessage(c telebot.Context) error {
 	if err != nil {
 		log.Printf("ERROR: Failed to download file from Telegram: %v", err)
 		c.Bot().Delete(statusMsg)
-		return c.Send("❌ Ошибка при загрузке файла. Возможно, он слишком большой для Telegram-бота (лимит 20МБ).\n\nПопробуйте отправить файл меньшего размера или ссылкой.")
+		return c.Send("❌ Ошибка при загрузке файла. Возможно, он слишком большой для Telegram-бота (лимит 50МБ).\n\nПопробуйте отправить файл меньшего размера или ссылкой.")
 	}
 	defer fileReader.Close()
 

@@ -33,7 +33,7 @@ func init() {
 		log.Fatalf("Failed to load timezone 'Europe/Istanbul': %v", err)
 	}
 
-	tempDuration := 60 * time.Minute // Default slot duration is now 60 minutes
+	tempDuration := 60 * time.Minute // Default slot duration is 60 minutes
 	SlotDuration = &tempDuration
 }
 
@@ -172,26 +172,24 @@ func (s *Service) GetAvailableTimeSlots(ctx context.Context, date time.Time, dur
 	}
 	log.Printf("DEBUG: Found %d existing appointments on %s.", len(appointmentsOnSelectedDate), dateInApptTimezone.Format("2006-01-02"))
 
-	// Iterate through potential slots
+	// Step interval for potential slot start times (always 1 hour for Vera's preference)
+	stepInterval := 60 * time.Minute
+
+	// Iterate through potential slots (09:00, 10:00, ..., 17:00)
 	for currentSlotStart.Add(time.Duration(durationMinutes)*time.Minute).Before(workDayEnd) || currentSlotStart.Add(time.Duration(durationMinutes)*time.Minute).Equal(workDayEnd) {
 		currentSlotEnd := currentSlotStart.Add(time.Duration(durationMinutes) * time.Minute)
 
 		// Check if the slot is in the past (using NowFunc for testability)
 		nowInApptTimezone := s.NowFunc().In(ApptTimeZone)
 		if currentSlotStart.Before(nowInApptTimezone) {
-			log.Printf("DEBUG: Slot %s-%s is in the past, skipping.", currentSlotStart.Format("15:04"), currentSlotEnd.Format("15:04"))
-			currentSlotStart = currentSlotEnd // Move to the next potential slot
+			currentSlotStart = currentSlotStart.Add(stepInterval) // Move to the next potential slot start
 			continue
 		}
 
 		isAvailable := true
 		for _, existingAppt := range appointmentsOnSelectedDate {
-			// Check for overlap
-			// Slot starts before existing ends AND Slot ends after existing starts
+			// Check for overlap: New Slot starts before existing ends AND New Slot ends after existing starts
 			if currentSlotStart.Before(existingAppt.EndTime) && currentSlotEnd.After(existingAppt.StartTime) {
-				log.Printf("DEBUG: Slot %s-%s overlaps with existing appointment %s-%s, skipping.",
-					currentSlotStart.Format("15:04"), currentSlotEnd.Format("15:04"),
-					existingAppt.StartTime.Format("15:04"), existingAppt.EndTime.Format("15:04"))
 				isAvailable = false
 				break
 			}
@@ -202,11 +200,10 @@ func (s *Service) GetAvailableTimeSlots(ctx context.Context, date time.Time, dur
 				Start: currentSlotStart,
 				End:   currentSlotEnd,
 			})
-			log.Printf("DEBUG: Added available slot: %s-%s", currentSlotStart.Format("15:04"), currentSlotEnd.Format("15:04"))
 		}
 
-		// Move to the next potential slot, which is the end of the current slot
-		currentSlotStart = currentSlotEnd
+		// Move to the next potential slot start time using the fixed step interval
+		currentSlotStart = currentSlotStart.Add(stepInterval)
 	}
 
 	log.Printf("DEBUG: GetAvailableTimeSlots finished. Found %d available slots.", len(availableSlots))

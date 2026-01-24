@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -252,10 +253,41 @@ func (r *PostgresRepository) LogEvent(patientID string, eventType string, detail
 	return err
 }
 
+func (r *PostgresRepository) mdToHTML(md string) template.HTML {
+	if md == "" {
+		return template.HTML("")
+	}
+	// 1. Basic escaping and line breaks
+	h := template.HTMLEscapeString(md)
+
+	// 2. Simple Markdown logic (order matters)
+	// Headers
+	reH3 := regexp.MustCompile(`(?m)^### (.*)$`)
+	h = reH3.ReplaceAllString(h, "<h3>$1</h3>")
+	reH2 := regexp.MustCompile(`(?m)^## (.*)$`)
+	h = reH2.ReplaceAllString(h, "<h2>$1</h2>")
+	reH1 := regexp.MustCompile(`(?m)^# (.*)$`)
+	h = reH1.ReplaceAllString(h, "<h1>$1</h1>")
+
+	// Bold
+	reBold := regexp.MustCompile(`\*\*(.*?)\*\*`)
+	h = reBold.ReplaceAllString(h, "<strong>$1</strong>")
+
+	// Lists
+	reList := regexp.MustCompile(`(?m)^[*-] (.*)$`)
+	h = reList.ReplaceAllString(h, "• $1")
+
+	// Line breaks (convert remaining \n to <br>)
+	h = strings.ReplaceAll(h, "\n", "<br>")
+
+	return template.HTML(h)
+}
+
 func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient) string {
-	type docItem struct {
-		Name    string
-		IsVoice bool
+	type docGroup struct {
+		Name   string
+		Count  int
+		Latest string
 	}
 	type templateData struct {
 		Name               string
@@ -264,7 +296,7 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient) string {
 		GeneratedAt        string
 		CurrentService     string
 		BotVersion         string
-		TherapistNotes     string
+		TherapistNotes     template.HTML
 		VoiceTranscripts   template.HTML
 		FirstVisit         string
 		LastVisit          string
@@ -272,7 +304,7 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient) string {
 		LastVisitLink      string
 		ShowFirstVisitLink bool
 		ShowLastVisitLink  bool
-		Documents          []docItem
+		DocGroups          []docGroup
 	}
 
 	getCalLink := func(t time.Time, service string) string {
@@ -282,9 +314,10 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient) string {
 		return fmt.Sprintf("https://www.google.com/calendar/render?action=TEMPLATE&text=%s&dates=%s/%s", strings.ReplaceAll(title, " ", "+"), start, end)
 	}
 
-	re := regexp.MustCompile(`[\x{1F300}-\x{1FAD6}]|[\x{2600}-\x{26FF}]|[\x{2700}-\x{27BF}]|[\x{1F600}-\x{1F64F}]|[\x{1F680}-\x{1F6FF}]|[\x{1F1E6}-\x{1F1FF}]`)
-	cleanNotes := re.ReplaceAllString(p.TherapistNotes, "")
-	cleanTranscripts := re.ReplaceAllString(p.VoiceTranscripts, "")
+	// We'll keep emojis for now as they are part of modern UI
+	// re := regexp.MustCompile(`[\x{1F300}-\x{1FAD6}]|[\x{2600}-\x{26FF}]|[\x{2700}-\x{27BF}]|[\x{1F600}-\x{1F64F}]|[\x{1F680}-\x{1F6FF}]|[\x{1F1E6}-\x{1F1FF}]`)
+	// cleanNotes := re.ReplaceAllString(p.TherapistNotes, "")
+	cleanNotes := p.TherapistNotes
 
 	data := templateData{
 		Name:               strings.ToUpper(p.Name),
@@ -293,8 +326,8 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient) string {
 		GeneratedAt:        time.Now().Format("02.01.2006 15:04"),
 		CurrentService:     p.CurrentService,
 		BotVersion:         r.BotVersion,
-		TherapistNotes:     cleanNotes,
-		VoiceTranscripts:   template.HTML(strings.ReplaceAll(template.HTMLEscapeString(cleanTranscripts), "\n", "<br>")),
+		TherapistNotes:     r.mdToHTML(cleanNotes),
+		VoiceTranscripts:   template.HTML(strings.ReplaceAll(template.HTMLEscapeString(p.VoiceTranscripts), "\n", "<br>")),
 		FirstVisit:         p.FirstVisit.Format("02.01.2006 15:04"),
 		LastVisit:          p.LastVisit.Format("02.01.2006 15:04"),
 		FirstVisitLink:     getCalLink(p.FirstVisit, p.CurrentService),
@@ -303,27 +336,97 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient) string {
 		ShowLastVisitLink:  p.LastVisit.After(time.Now()),
 	}
 
-	docList := r.listDocuments(p.TelegramID)
-	if docList != "Документов пока нет." {
-		lines := strings.Split(strings.TrimSpace(docList), "\n")
-		for _, line := range lines {
-			if strings.TrimSpace(line) == "" {
-				continue
+	// Grouping Logic
+	groups := make(map[string]*docGroup)
+	initGroup := func(name string) {
+		groups[name] = &docGroup{Name: name, Count: 0}
+	}
+	initGroup("Scans")
+	initGroup("Photos")
+	initGroup("Videos")
+	initGroup("Voice Messages")
+	initGroup("Texts")
+	initGroup("Others")
+
+	patientDir := r.getPatientDir(p)
+	filepath.Walk(patientDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		if info.Name() == fmt.Sprintf("%s.md", p.TelegramID) {
+			return nil
+		}
+
+		relPath, _ := filepath.Rel(patientDir, path)
+		folder := ""
+		if parts := strings.Split(relPath, string(os.PathSeparator)); len(parts) > 0 {
+			folder = parts[0]
+		}
+
+		var targetGroup *docGroup
+		ext := strings.ToLower(filepath.Ext(path))
+
+		switch folder {
+		case "scans":
+			targetGroup = groups["Scans"]
+		case "images":
+			targetGroup = groups["Photos"]
+		case "messages":
+			targetGroup = groups["Voice Messages"]
+		case "documents":
+			if ext == ".pdf" || ext == ".doc" || ext == ".docx" || ext == ".txt" {
+				targetGroup = groups["Texts"]
+			} else {
+				targetGroup = groups["Others"]
 			}
-			cleanLine := strings.TrimPrefix(line, "- ")
-			name := cleanLine
-			if strings.Contains(cleanLine, "|") {
-				name = cleanLine[strings.Index(cleanLine, "|")+1 : strings.Index(cleanLine, "]]")]
+		default:
+			// Fallback by extension if outside standard folders
+			if ext == ".jpg" || ext == ".png" || ext == ".jpeg" {
+				targetGroup = groups["Photos"]
+			} else if ext == ".mp4" || ext == ".mov" || ext == ".avi" {
+				targetGroup = groups["Videos"]
+			} else if ext == ".pdf" || ext == ".doc" || ext == ".docx" {
+				targetGroup = groups["Texts"]
+			} else {
+				targetGroup = groups["Others"]
 			}
-			isVoice := strings.Contains(strings.ToLower(name), ".ogg") || strings.Contains(strings.ToLower(name), ".wav")
-			data.Documents = append(data.Documents, docItem{Name: name, IsVoice: isVoice})
+		}
+
+		if targetGroup != nil {
+			targetGroup.Count++
+			modTime := info.ModTime().Format("02.01.2006 15:04")
+			if targetGroup.Latest == "" || info.ModTime().After(parseTime(targetGroup.Latest)) {
+				targetGroup.Latest = modTime
+			}
+		}
+		return nil
+	})
+
+	// Add only populated groups
+	order := []string{"Scans", "Photos", "Videos", "Voice Messages", "Texts", "Others"}
+	for _, name := range order {
+		if g := groups[name]; g != nil && g.Count > 0 {
+			data.DocGroups = append(data.DocGroups, *g)
 		}
 	}
 
-	tmpl, _ := template.New("medical_record").Parse(medicalRecordTemplate)
-	var buf strings.Builder
-	tmpl.Execute(&buf, data)
+	var buf bytes.Buffer
+	tmpl, errTmpl := template.New("medicalRecord").Parse(medicalRecordTemplate)
+	if errTmpl != nil {
+		log.Printf("ERROR: Failed to parse medical record template: %v", errTmpl)
+		return "Error generating record."
+	}
+	errTmpl = tmpl.Execute(&buf, data)
+	if errTmpl != nil {
+		log.Printf("ERROR: Failed to execute medical record template: %v", errTmpl)
+		return "Error generating record."
+	}
 	return buf.String()
+}
+
+func parseTime(s string) time.Time {
+	t, _ := time.Parse("02.01.2006 15:04", s)
+	return t
 }
 
 func (r *PostgresRepository) listDocuments(telegramID string) string {

@@ -37,15 +37,15 @@ A professional clinical ecosystem for massage therapists. Features interactive b
 
 This project uses a dual-remote setup with automated mirroring to maintain sync and trigger builds.
 
-1. **Push to GitHub (`origin`)**: Primary source for code and metrics.
+1. **Push to GitHub (`origin`)**: **Manual step**. Primary source for code and metrics.
 2. **Push to GitLab (`gitlab`)**: **Manual step**. Pushing to GitLab triggers the CI/CD pipeline (`.gitlab-ci.yml`) for production deployment.
 3. **GitLab Pipeline**: Builds the Docker image, pushes to registry, and deploys to the home server.
     - Runs tests (Go 1.24).
     - Builds the Docker image and pushes it to the GitLab Registry.
     - Triggers the `deploy_home_server.sh` script on the target server.
 
-> [!IMPORTANT]
-> Always push to **GitHub** first to ensure both repositories are in sync. Pushing directly to GitLab should only be done for debugging the pipeline itself, as it leaves GitHub outdated.
+> [!NOTE]
+> Both remotes must be updated manually. Ensure changes are pushed to both **GitHub** (for tracking) and **GitLab** (to trigger the production pipeline).
 
 ---
 
@@ -56,10 +56,10 @@ This project uses a dual-remote setup with automated mirroring to maintain sync 
 - **Status**: **Stable & Production Ready**.
 - **Core Features**:
   - [x] WebDAV / Obsidian Mobile Sync.
-  - [x] Premium "PDF-free" TWA Dashboard.
+  - [x] Premium TWA Dashboard.
   - [x] Automated 2h Visit Reminders.
   - [x] Hierarchical Storage (scans/images/messages).
-  - [x] DB Resilience (5x retry loop).
+  - [x] DB Resilience (Extended timeout strategy).
 
 ---
 
