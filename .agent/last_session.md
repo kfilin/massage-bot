@@ -9,7 +9,7 @@
 
 ## ✅ Accomplishments
 
-1. **Booking Flow Revolution**:
+1. **Booking Flow Improvements**:
     - **Hourly Stepping**: Simplified slot generation to exactly one patient per hour to ensure therapist breaks and schedule predictability.
     - **Navigation 2.0**: Implemented "Back" buttons across the entire booking flow (Date selection -> Service selection, Time selection -> Date selection).
     - **Smart Name Capture**: Tentative registration of new patients via `/start` to capture Telegram names, with mandatory clinical name input on first booking.
