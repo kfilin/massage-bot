@@ -147,11 +147,11 @@ func StartBot(
 		} else if strings.HasPrefix(trimmedData, "select_service|") {
 			log.Printf("DEBUG: OnCallback: Matched 'select_service' prefix.")
 			return bookingHandler.HandleServiceSelection(c)
-		} else if strings.HasPrefix(trimmedData, "select_date|") || strings.HasPrefix(trimmedData, "navigate_month|") {
-			log.Printf("DEBUG: OnCallback: Matched 'select_date' or 'navigate_month' prefix.")
+		} else if strings.HasPrefix(trimmedData, "select_date|") || strings.HasPrefix(trimmedData, "navigate_month|") || trimmedData == "back_to_services" {
+			log.Printf("DEBUG: OnCallback: Matched 'select_date', 'navigate_month' or 'back_to_services'.")
 			return bookingHandler.HandleDateSelection(c)
-		} else if strings.HasPrefix(trimmedData, "select_time|") {
-			log.Printf("DEBUG: OnCallback: Matched 'select_time' prefix.")
+		} else if strings.HasPrefix(trimmedData, "select_time|") || trimmedData == "back_to_date" {
+			log.Printf("DEBUG: OnCallback: Matched 'select_time' or 'back_to_date'.")
 			return bookingHandler.HandleTimeSelection(c)
 		} else if trimmedData == "confirm_booking" {
 			log.Printf("DEBUG: OnCallback: Matched 'confirm_booking' data.")
