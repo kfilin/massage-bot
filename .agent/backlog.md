@@ -2,11 +2,11 @@
 
 ## 📋 Observation & Improvement Ideas
 
-### 1. "History of Visits" Data Accuracy & Utility
+### 1. [DONE] "History of Visits" Data Accuracy & Utility
 
-- **Issue**: Cancelled appointments in Google Calendar might still influence the "First/Last Visit" dates or appear in the history table even if the total count decreases correctly.
-- **Goal**: Decide if the "History of Visits" block is needed. If it is kept, ensure cancelled/deleted events are filtered out completely from the chronological calculations.
-- **Context**: The user noticed that while the visit count badge updates correctly, the history table sometimes retains cancelled future entries.
+- **Status**: Completed in v4.2.1.
+- **Resolution**: Implemented full-history sync, appointment status filtering, and a TWA history UI.
+- **Commit**: `ba80b18`
 
 ### 2. Robust TWA Authentication (InitData)
 
