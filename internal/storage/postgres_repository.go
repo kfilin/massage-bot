@@ -553,6 +553,14 @@ func (r *PostgresRepository) SyncAll() error {
 	var patients []domain.Patient
 	r.db.Select(&patients, "SELECT * FROM patients")
 	for _, p := range patients {
+		// --- PERMANENT SCRUB of legacy boilerplate (Clinical Edition Cleanup) ---
+		if strings.Contains(p.TherapistNotes, "## 📁 Ссылки на документы") {
+			parts := strings.Split(p.TherapistNotes, "## 📁 Ссылки на документы")
+			p.TherapistNotes = strings.TrimSpace(parts[0])
+			r.SavePatient(p) // Persists cleaned notes to DB and mirrors to Markdown
+			log.Printf("[Cleanup] Permanently scrubbed legacy section for patient %s", p.TelegramID)
+		}
+
 		filePath := filepath.Join(r.getPatientDir(p), fmt.Sprintf("%s.md", p.TelegramID))
 		if _, err := os.Stat(filePath); os.IsNotExist(err) {
 			r.saveToMarkdown(p)
