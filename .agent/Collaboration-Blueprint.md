@@ -52,9 +52,10 @@ This blueprint defines the "Operating System" for exceptional software developme
 
 - **Trigger**: User sends the code word `/checkpoint`.
 - **Action**: AI must stop and perform a "Full Context Flush."
-- **Output**: Update the project's Handoff/Checkpoint file with:
-  - Technical summary of recent achievements.
+- **Output**: Update the project's Handoff/Checkpoint file and **CHANGELOG.md** with:
+  - Technical summary of recent achievements (Handoff/Last Session).
   - Snapshot of the "Source of Truth" (Current Commit).
+  - Version update and feature breakdown (**CHANGELOG.md**).
   - Outstanding variables or environment quirks.
   - Priority list for the next sprint.
 
