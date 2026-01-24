@@ -27,36 +27,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Clinical Storage 2.0**: Permanent switch back to Markdown-mirrored filesystem for Obsidian/WebDAV sync.
-- **Suffix Tracking**: Implemented `(TelegramID)` folder suffix tracking, allowing the therapist to rename folders in Obsidian without breaking bot links.
-- **Metrics Stack**: Moved metrics to port 8083; established Prometheus/Grafana baseline.
+- **Suffix Tracking**: Implemented `(TelegramID)` folder suffix tracking, allowing therapist-led folder renames in Obsidian.
+- **Metrics Stack**: Established Prometheus/Grafana baseline on port 8083.
 - **Resilience**: Added a 5-attempt retry loop for Postgres database connections.
 
 ## [4.0.0] - 2026-01-20
 
 ### Changed
 
-- **Architecture Pivot**: Decommissioned StirlingPDF and removed PDF generation buttons. Reverted to browser-native `window.print()` for stability.
-- **Storage Strategy**: Re-implemented PostgreSQL as the primary metadata store, moving away from purely file-based state for enterprise-level reliability.
+- **Architecture Pivot**: Decommissioned StirlingPDF in favor of browser-native `window.print()`.
+- **The Postgres Return**: Re-implemented PostgreSQL as the primary metadata store for long-term scalability.
 
 ## [3.1.15] - 2026-01-18
 
 ### Added
 
-- **Smart Registration**: Robust name extraction from Google Calendar events and "Quiet Self-Healing" logic for session management.
-- **TWA Auth Expansion**: Implemented `initData` self-healing to automatically authenticate TWA users.
+- **Smart Registration**: Robust name extraction from Google Calendar and "Quiet Self-Healing" session management.
+- **TWA Auth Expansion**: implemented `initData` self-healing for seamless web-app authentication.
 
 ## [3.1.8] - 2025-11-27
 
 ### Added
 
-- **Voice Intelligence**: Integrated **Groq (Whisper)** for high-speed voice note transcription in clinical records.
-- **Policy Shift**: Extended the therapist's cancellation grace period from 24h to **72h (3 days)** based on clinical requirements.
-- **Russian Localization**: Initial translation of core bot interfaces and documentation into Russian.
+- **Voice Intelligence**: Integrated **Groq (Whisper)** for voice note transcription.
+- **Policy Shift**: Extended the cancellation window from 24h to **72h**.
+- **Admin Alerts**: Cross-admin notifications for time blocks and new bookings.
+
+## [2.5.0] - 2025-11-15
+
+### Changed
+
+- **Menu Evolution**: Switched from one-time keyboards to a persistent **Main Menu** pattern for better UX.
+- **Scheduling**: Implemented the "No Weekend" rule, filtering out Saturdays and Sundays from the calendar.
+
+## [2.1.0] - 2025-11-10
+
+### Added
+
+- **Admin Arsenal**: Introduced the `/block` command for manual schedule blocking.
+- **Security**: Implementation of a **Blacklist** to prevent problematic user registrations.
+- **Google Meet**: Automated generation of video call links for all consultations.
+
+## [2.0.0] - 2025-11-01
+
+### Changed
+
+- **Experiment Phase**: Temporary removal of PostgreSQL in favor of pure FS-based state.
+- **The OAuth Port Dance**: Successfully resolved host conflicts by moving from port 8080 to **18080** and establishing a dedicated `HEALTH_PORT=8081`.
 
 ## [1.0.0] - 2025-10-15
 
 ### Added
 
-- **Foundations**: Persistent main menus, Google Meet integration, and initial PostgreSQL/Analytics setup.
-- **Interview Filter**: Established the "Magic Question" professional standard for architectural choices.
-- **Initial Sync**: Basic Markdown clinical storage and 24h cancellation policy.
+- **Initial Core**: Bot structure with Google Calendar integration.
+- **Persistence**: Initial Postgres setup for sessions and `token.json` migration to the `data/` volume.
+- **Standard**: established the "Magic Question" architectural review process.
