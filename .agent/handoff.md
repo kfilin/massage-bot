@@ -1,6 +1,6 @@
 # Handoff: Next Steps & Priorities
 
-Current state: **v4.2.0 Booking Overhaul**. Stable and production-ready.
+Current state: **v4.2.1 High-Fidelity History**. Stable and production-ready.
 
 ## 🔴 HIGH PRIORITY (Technical Debt)
 
@@ -22,4 +22,4 @@ Current state: **v4.2.0 Booking Overhaul**. Stable and production-ready.
    - Implement ZIP-based patient data backups.
 
 ---
-*Current Gold Standard: `4d64549`*
+*Current Gold Standard: `0fbbaf5`*

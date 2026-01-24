@@ -74,10 +74,10 @@ This project uses a dual-remote setup with automated mirroring to maintain sync 
 
 ## 💎 Gold Standard Checkpoint
 
-- **Commit**: `4d64549`
+- **Commit**: `0fbbaf5`
 - **Date**: 2026-01-24
-- **Status**: **Booking Overhaul & TWA Mobile UI Enabled**. Hourly slots, "Back" buttons, first-visit name registration, responsive "КАРТА ПАЦИЕНТА", and summarized document grouping implemented.
-- **Rollback Command**: `git reset --hard 4d64549`
+- **Status**: **High-Fidelity History & TWA Mobile UI Enabled**. Hourly slots, "Back" buttons, responsive "КАРТА ПАЦИЕНТА", summarized documents, and fully reconstructed professional history (v1.0.0 - v4.2.1) documented.
+- **Rollback Command**: `git reset --hard 0fbbaf5`
 
 ---
 
