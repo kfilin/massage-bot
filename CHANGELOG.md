@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.2.1] - 2026-01-24
+
+### Added
+
+- **Visit History UI**: New "История посещений" section in TWA showing the 5 most recent confirmed visits.
+- **Status Tracking**: Appointment status (confirmed/cancelled) is now synchronized from Google Calendar.
+
+### Fixed
+
+- **Sync Logic**: Fixed a bug where TWA visit statistics were limited to a 24-hour window; now uses full history.
+- **Data Accuracy**: Cancelled events and "Admin Blocks" are now correctly excluded from clinical visit counts and history.
+
+### Removed
+
+- **Redundancy**: Removed the empty "Ссылки на документы" placeholder from Markdown cards.
+
 ## [4.2.0] - 2026-01-24
 
 ### Added

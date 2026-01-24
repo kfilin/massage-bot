@@ -185,23 +185,28 @@ func startWebAppServer(port string, secret string, botToken string, repo ports.R
 		}
 
 		// Sync logic: Fetch actual appointments from GCal to ensure Medical Card is up-to-date
-		appts, err := apptService.GetCustomerAppointments(r.Context(), finalID)
+		appts, err := apptService.GetCustomerHistory(r.Context(), finalID)
 		if err == nil {
 			// Update visit stats even if zero
 			var lastVisit, firstVisit time.Time
-			if len(appts) > 0 {
-				for _, a := range appts {
-					if firstVisit.IsZero() || a.StartTime.Before(firstVisit) {
-						firstVisit = a.StartTime
-					}
-					if lastVisit.IsZero() || a.StartTime.After(lastVisit) {
-						lastVisit = a.StartTime
-					}
+			confirmedCount := 0
+			for _, a := range appts {
+				// Filter: Only confirmed visits, skip cancellations and admin blocks
+				if a.Status == "cancelled" || strings.Contains(strings.ToLower(a.Service.Name), "block") || strings.Contains(strings.ToLower(a.CustomerName), "admin block") {
+					continue
 				}
-				patient.FirstVisit = firstVisit
-				patient.LastVisit = lastVisit
+
+				confirmedCount++
+				if firstVisit.IsZero() || a.StartTime.Before(firstVisit) {
+					firstVisit = a.StartTime
+				}
+				if lastVisit.IsZero() || a.StartTime.After(lastVisit) {
+					lastVisit = a.StartTime
+				}
 			}
-			patient.TotalVisits = len(appts)
+			patient.FirstVisit = firstVisit
+			patient.LastVisit = lastVisit
+			patient.TotalVisits = confirmedCount
 
 			// CLEANUP LEGACY AUDIT LOGS FROM NOTES (Aggressive regex scrubbing)
 			// Matches lines starting with (optional symbols) followed by Запись:, Первая запись:, or Зарегистрирован:
@@ -213,7 +218,7 @@ func startWebAppServer(port string, secret string, botToken string, repo ports.R
 			repo.SavePatient(patient)
 		}
 
-		html := repo.GenerateHTMLRecord(patient)
+		html := repo.GenerateHTMLRecord(patient, appts)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		fmt.Fprint(w, html)
 	})

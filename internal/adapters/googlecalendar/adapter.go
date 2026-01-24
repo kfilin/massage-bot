@@ -400,5 +400,6 @@ func eventToAppointment(event *calendar.Event) (*domain.Appointment, error) {
 		CustomerTgID: customerTgID,
 		Notes:        notes,
 		Service:      domain.Service{Name: serviceName, DurationMinutes: duration}, // Populate service details
+		Status:       event.Status,
 	}, nil
 }

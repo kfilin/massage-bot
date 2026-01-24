@@ -896,8 +896,15 @@ func (h *BookingHandler) syncPatientStats(ctx context.Context, telegramID string
 	}
 
 	var lastVisit, firstVisit time.Time
+	confirmedCount := 0
 	if len(appts) > 0 {
 		for _, a := range appts {
+			// Filter: Only confirmed visits, skip cancellations and admin blocks
+			if a.Status == "cancelled" || strings.Contains(strings.ToLower(a.Service.Name), "block") || strings.Contains(strings.ToLower(a.CustomerName), "admin block") {
+				continue
+			}
+
+			confirmedCount++
 			if firstVisit.IsZero() || a.StartTime.Before(firstVisit) {
 				firstVisit = a.StartTime
 			}
@@ -908,7 +915,7 @@ func (h *BookingHandler) syncPatientStats(ctx context.Context, telegramID string
 		patient.FirstVisit = firstVisit
 		patient.LastVisit = lastVisit
 	}
-	patient.TotalVisits = len(appts)
+	patient.TotalVisits = confirmedCount
 
 	// Save back to repository
 	if err := h.repository.SavePatient(patient); err != nil {

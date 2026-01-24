@@ -147,6 +147,20 @@ const medicalRecordTemplate = `
             <div class="notes-content">{{.TherapistNotes}}</div>
         </section>
 
+        {{if .RecentVisits}}
+        <section>
+            <h2>История посещений</h2>
+            <div class="appt-list">
+                {{range .RecentVisits}}
+                <div class="appt-item">
+                    <div style="font-weight: 600; font-size: 14px;">{{.Date}}</div>
+                    <div style="font-size: 13px; color: var(--text-muted);">{{.Service}}</div>
+                </div>
+                {{end}}
+            </div>
+        </section>
+        {{end}}
+
         {{if .VoiceTranscripts}}
         <section>
             <h2>Расшифровки Консультаций</h2>
@@ -173,7 +187,7 @@ const medicalRecordTemplate = `
                 {{end}}
             </div>
         </section>
-        <footer class="footer">Vera Massage Bot v4.1.0<br>Professional Medical Record Hub</footer>
+        <footer class="footer">Vera Massage Bot v4.2.1<br>Professional Medical Record Hub</footer>
     </main>
 </body>
 </html>

@@ -41,6 +41,7 @@ type Appointment struct {
 	Notes           string `json:"notes"`               // Any additional notes for the appointment
 	CalendarEventID string `json:"calendar_event_id"`   // ID из Google Calendar или другого репозитория
 	MeetLink        string `json:"meet_link,omitempty"` // Google Meet link for online consultations
+	Status          string `json:"status"`              // Event status (confirmed, tentative, cancelled)
 }
 
 // --- Константы и глобальные переменные для временных слотов и рабочего дня ---

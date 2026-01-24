@@ -110,10 +110,7 @@ func (r *PostgresRepository) saveToMarkdown(p domain.Patient) error {
 %s
 
 ## 📝 Заметки терапевта
-(Используйте этот раздел для ежедневных записей)
-
-## 📁 Ссылки на документы
-(Документы загружаются через бота и доступны в TWA)`, body)
+(Используйте этот раздел для ежедневных записей)`, body)
 	}
 
 	// Create content from template
@@ -283,11 +280,15 @@ func (r *PostgresRepository) mdToHTML(md string) template.HTML {
 	return template.HTML(h)
 }
 
-func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient) string {
+func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient, history []domain.Appointment) string {
 	type docGroup struct {
 		Name   string
 		Count  int
 		Latest string
+	}
+	type visitInfo struct {
+		Date    string
+		Service string
 	}
 	type templateData struct {
 		Name               string
@@ -305,6 +306,7 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient) string {
 		ShowFirstVisitLink bool
 		ShowLastVisitLink  bool
 		DocGroups          []docGroup
+		RecentVisits       []visitInfo
 	}
 
 	getCalLink := func(t time.Time, service string) string {
@@ -334,6 +336,30 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient) string {
 		LastVisitLink:      getCalLink(p.LastVisit, p.CurrentService),
 		ShowFirstVisitLink: p.FirstVisit.After(time.Now()),
 		ShowLastVisitLink:  p.LastVisit.After(time.Now()),
+	}
+
+	// Populate Recent Visits (only confirmed, non-block)
+	var confirmedRecents []domain.Appointment
+	for _, a := range history {
+		if a.Status != "cancelled" && !strings.Contains(strings.ToLower(a.Service.Name), "block") && !strings.Contains(strings.ToLower(a.CustomerName), "admin block") {
+			confirmedRecents = append(confirmedRecents, a)
+		}
+	}
+	// Sort by date descending
+	sort.Slice(confirmedRecents, func(i, j int) bool {
+		return confirmedRecents[i].StartTime.After(confirmedRecents[j].StartTime)
+	})
+
+	// Take last 5
+	limit := 5
+	if len(confirmedRecents) < limit {
+		limit = len(confirmedRecents)
+	}
+	for i := 0; i < limit; i++ {
+		data.RecentVisits = append(data.RecentVisits, visitInfo{
+			Date:    confirmedRecents[i].StartTime.Format("02.01.2006"),
+			Service: confirmedRecents[i].Service.Name,
+		})
 	}
 
 	// Grouping Logic
