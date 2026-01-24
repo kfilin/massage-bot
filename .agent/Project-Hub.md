@@ -8,7 +8,7 @@ A professional clinical ecosystem for massage therapists. Features interactive b
 
 ## 🏗️ Technical Foundation
 
-- **Version**: v4.1.0 (Clinical Edition)
+- **Version**: v4.2.0 (Booking Overhaul)
 - **Language**: **Go 1.24** (Alpine-based)
 - **Database**: PostgreSQL 15 (Metadata & Sync Status)
 - **Clinical Storage**: **Markdown-mirrored Filesystem** (Clinical Storage 2.0)
@@ -74,10 +74,10 @@ This project uses a dual-remote setup with automated mirroring to maintain sync 
 
 ## 💎 Gold Standard Checkpoint
 
-- **Commit**: `77e9e8d`
+- **Commit**: `4d64549`
 - **Date**: 2026-01-24
-- **Status**: **Total Intelligence Enabled**. Business analytics, lead time tracking, reporting script (`/scripts`), and metrics memo implemented. Port 8083 established.
-- **Rollback Command**: `git reset --hard 77e9e8d`
+- **Status**: **Booking Overhaul & TWA Mobile UI Enabled**. Hourly slots, "Back" buttons, first-visit name registration, responsive "КАРТА ПАЦИЕНТА", and summarized document grouping implemented.
+- **Rollback Command**: `git reset --hard 4d64549`
 
 ---
 

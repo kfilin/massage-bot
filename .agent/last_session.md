@@ -1,39 +1,35 @@
-# Checkpoint Summary: 2026-01-24 (Metrics & Intelligence v4.1.1)
+# Checkpoint Summary: 2026-01-24 (Booking Overhaul v4.2.0)
 
 ## 🎯 Current Technical State
 
-- **Bot Version**: v4.1.1 Clinical Intelligence.
-- **Metrics Infrastructure**: Prometheus on port `8083`.
-- **Reporting**: CLI reporter via `scripts/report_metrics.sh`.
-- **Sync Rule**: Manual GitLab push required to trigger deployment.
+- **Bot Version**: v4.2.0 Booking Overhaul.
+- **Stable Commit**: `4d64549`
+- **UI/UX**: Responsive "КАРТА ПАЦИЕНТА" TWA with category-based document grouping.
+- **Booking Core**: Hourly slot generation (09:00 - 18:00) with 72h cancellation guards.
 
 ## ✅ Accomplishments
 
-1. **Comprehensive Instrumented Metrics**:
-    - **Technical**: API latency (Google/Groq), DB errors, active sessions.
-    - **Business**: Loyalty (New vs Returning), Booking Lead Time, Service Popularity.
-2. **Infrastructure Conflict Resolution**:
-    - Moved health/metrics endpoint from `8081` to `8083` to resolve conflict with `cadvisor`.
-    - Verified reachability and metric registration.
-3. **Intelligence Toolkit**:
-    - Created `scripts/report_metrics.sh` for formatted BI reports.
-    - Created `.agent/workflows/get-metrics.md` for team onboarding.
-4. **Documentation Overhaul**:
-    - Created `docs/metrics.md` (Metrics Memo) and `.agent/Scripts-Inventory.md`.
-    - Updated `backlog.md` with technical debt identified in `adapter.go`.
-5. **Monitoring Stack Hardening**:
-    - Overhauled monitoring `docker-compose.yml` with resource limits and log rotation.
-    - Integrated bot metrics into production `prometheus.yml`.
+1. **Booking Flow Revolution**:
+    - **Hourly Stepping**: Simplified slot generation to exactly one patient per hour to ensure therapist breaks and schedule predictability.
+    - **Navigation 2.0**: Implemented "Back" buttons across the entire booking flow (Date selection -> Service selection, Time selection -> Date selection).
+    - **Smart Name Capture**: Tentative registration of new patients via `/start` to capture Telegram names, with mandatory clinical name input on first booking.
+2. **Clinical Card (TWA) Polishing**:
+    - **Mobile Responsiveness**: Stat boxes now stack vertically on mobile screens for a perfect fit.
+    - **Document Summarization**: Files are now grouped by category (Scans, Photos, Videos, Voice, Others) showing counts and latest timestamps instead of a raw list.
+    - **Visual Cleanup**: Removed blue vertical header bars and localized badge to "КАРТА ПАЦИЕНТА".
+    - **Markdown Rendering**: Fixed clinical notes rendering to support bold text and headers in TWA.
+3. **Professionalism & Standards**:
+    - **Commit Standards**: Switched to professional, descriptive commit messages.
+    - **History Squashing**: Consolidated development iterations into a single clean feature commit.
 
 ## 🚧 Current Blockers & Risks
 
-- **OAuth Token Expiry Metric**: Currently falling back to short-lived access token expiry (0.0 days) in reports. Functional logic is fine, but warning system needs refinement for long-term tracking.
-- **Manual Mirroring**: Automated GitHub-to-GitLab mirror is disabled due to fragility; team must push manually to GitLab to deploy.
+- **Free/Busy Logic**: Still using a basic overlap check; a full Google Free/Busy integration is the next logical step for enterprise-level resilience.
 
 ## 🔜 Next Steps
 
-1. **Free/Busy Logic**: Transition `GetAvailableSlots` from the current "basic" placeholder to a robust Google Calendar Free/Busy implementation.
-2. **Patient Metadata Tuning**: Improve the reliability of name extraction and visit sync from Google Calendar events.
+1. **Free/Busy Query**: Transition `GetAvailableTimeSlots` to use the actual Google Calendar Free/Busy API.
+2. **Backlog Cleanup**: Review and prioritize tasks in `backlog.md` for the next sprint.
 
 ---
 *Created by Antigravity AI.*
