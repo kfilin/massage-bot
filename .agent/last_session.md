@@ -1,25 +1,23 @@
-# Checkpoint Summary: 2026-01-24 (High-Fidelity History v4.2.1)
+# Checkpoint Summary: 2026-01-24 (Visit History Accuracy v4.2.1)
 
 ## 🎯 Current Technical State
 
 - **Bot Version**: v4.2.1 Stable.
-- **Stable Commit**: `0fbbaf5`
-- **UI/UX**: Responsive "КАРТА ПАЦИЕНТА" TWA; category-based clinical document grouping.
-- **Documentation**: Permanent `CHANGELOG.md` with granular historical backfill (v1.0.0 - v4.2.1).
+- **Stable Commit**: `1333fd2`
+- **UI/UX**: "История посещений" section added to TWA; visit stats fixed (now using full history).
+- **Quality**: Cancelled events and Admin Blocks filtered from statistics.
 
 ## ✅ Accomplishments
 
-1. **Booking Flow & TWA Refinement**:
-    - **Hourly Stepping**: Simplified slot generation for schedule predictability.
-    - **Navigation 2.0**: Full "Back" button support in the booking flow.
-    - **Mobile Optimization**: Responsive TWA grid that stacks stat boxes on small screens.
-    - **Document Summary**: Clinical files summarized by type (Scans, Photos, etc.) with totals.
-2. **Professional History Reconstruction**:
-    - **Changelog Backfill**: Researched and documented the "Why" behind 100+ commits, including the Postgres return and the PDF-to-Markdown pivot.
-    - **Peculiar Details**: Captured Groq/Whisper voice transcription integration, folder-suffix tracking for Obsidian, and DB retry resilience.
+1. **Visit History & Sync Refinement**:
+    - **Full History Sync**: Fixed a bug where TWA stats were limited to the last 24 hours of data.
+    - **Status Tracking**: Added `Status` field to `domain.Appointment` and GCal adapter.
+    - **Smart Filtering**: Excluded `cancelled` events and manual "Admin Blocks" from clinical counts and history.
+    - **History UI**: Added a clean "History of Visits" list to the Patient Card TWA (last 5 visits).
+2. **Template Cleanup**:
+    - **Redundancy Removal**: Removed the empty "Ссылки на документы" section from Markdown cards.
 3. **Operational Excellence**:
-    - **Conventional Commits**: Enforced a new professional commit standard.
-    - **Workflow Automation**: Created a formal `/checkpoint` workflow and integrated it into the Collaboration Blueprint.
+    - **Versioning**: Bumped version to v4.2.1 across the codebase.
 
 ## 🚧 Current Blockers & Risks
 

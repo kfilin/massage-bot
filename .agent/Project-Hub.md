@@ -8,7 +8,7 @@ A professional clinical ecosystem for massage therapists. Features interactive b
 
 ## 🏗️ Technical Foundation
 
-- **Version**: v4.2.0 (Booking Overhaul)
+- **Version**: v4.2.1 (Visit History Accuracy)
 - **Language**: **Go 1.24** (Alpine-based)
 - **Database**: PostgreSQL 15 (Metadata & Sync Status)
 - **Clinical Storage**: **Markdown-mirrored Filesystem** (Clinical Storage 2.0)
@@ -74,10 +74,10 @@ This project uses a dual-remote setup with automated mirroring to maintain sync 
 
 ## 💎 Gold Standard Checkpoint
 
-- **Commit**: `0fbbaf5`
+- **Commit**: `1333fd2`
 - **Date**: 2026-01-24
-- **Status**: **High-Fidelity History & TWA Mobile UI Enabled**. Hourly slots, "Back" buttons, responsive "КАРТА ПАЦИЕНТА", summarized documents, and fully reconstructed professional history (v1.0.0 - v4.2.1) documented.
-- **Rollback Command**: `git reset --hard 0fbbaf5`
+- **Status**: **Visit History Accuracy & TWA History UI Enabled**. Fixed 24h sync bug, added appointment status filtering, added recent visits section to TWA, and cleaned up medical card template.
+- **Rollback Command**: `git reset --hard 1333fd2`
 
 ---
 

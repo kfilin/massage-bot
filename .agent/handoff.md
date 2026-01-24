@@ -22,4 +22,4 @@ Current state: **v4.2.1 High-Fidelity History**. Stable and production-ready.
    - Implement ZIP-based patient data backups.
 
 ---
-*Current Gold Standard: `0fbbaf5`*
+*Current Gold Standard: `1333fd2`*
