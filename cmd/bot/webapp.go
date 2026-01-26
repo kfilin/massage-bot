@@ -286,11 +286,9 @@ func startWebAppServer(port string, secret string, botToken string, adminIDs []s
 		notificationMsg := fmt.Sprintf("⚠️ *Запись отменена!*\n\nПациент: %s\nДата: %s\nУслуга: %s",
 			appt.CustomerName, appt.StartTime.In(domain.ApptTimeZone).Format("02.01.2006 15:04"), appt.Service.Name)
 
-		// 1. Notify Admins (Skip if admin is the patient who just got the patientMsg)
+		// 1. Notify Admins
 		for _, adminID := range adminIDs {
-			if adminID != id {
-				sendTelegramMessage(botToken, adminID, notificationMsg)
-			}
+			sendTelegramMessage(botToken, adminID, notificationMsg)
 		}
 
 		// 2. Notify Patient (Push confirmation)
