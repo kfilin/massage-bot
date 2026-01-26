@@ -1,32 +1,33 @@
-# Handoff: Project Finale (v5.0.0 Stable)
+# Handoff: Project Excellence (v5.1.0 Stable)
 
-Current state: **v5.0.0 Technical Excellence Mode**. Roadmap completed.
-The bot is now a professional-grade clinical tool with zero-collision scheduling and automated off-site backups.
+Current state: **v5.1.0 Operational Excellence Mode**.
+The bot is now highly observable with refined logging and redundant, verified backups (ZIP + Duplicati).
 
-## 🏁 Final Phase Completion Summary (v5.0)
+## 🏁 Session Completion Summary (v5.1)
 
-- **Robust Scheduling**: Successfully migrated to the official **Google Calendar Free/Busy API**.
-  - Guaranteed zero-collision booking.
-  - Respects "Out of Office" and overlaps created outside the bot.
-- **Automated Backups 2.0**: Comprehensive ZIP archival (DB Dump + Patient Files).
-  - **Daily 24h Ticker**: Automatic delivery to Primary Admin (Kirill's Telegram).
-  - **Self-Healing Storage**: Temporary files are deleted immediately after delivery.
-- **Infrastructure**: Added `postgresql-client` and `zip` to the production Docker image.
+- **Enhanced Observability**:
+  - `DEBUG` logs for DB, Google Calendar, and Telegram Middleware.
+  - Reduced PostgreSQL noise (disabled health check connection logs).
+- **Redundant Backups**:
+  - **Phase 2 Complete**: Duplicati is now running on the `caddy-test-net`, performing incremental, encrypted backups of `./data`.
+- **Documentation Refined**:
+  - Massive cleanup of `.agent/` and `docs/`.
+  - `Project-Hub.md` and `backlog.md` updated to reflection current reality.
 
 ## 🟠 HIGH PRIORITY (Post-Launch Maintenance)
 
-1. **Duplicati Integration**:
-   - Set up a local Duplicati instance on the home server.
-   - Configure a job to perform incremental, encrypted backups of the `/app/data` volume to a secondary local or cloud target (e.g., S3 or Backblaze).
-
-2. **Google OAuth Token Watch**:
+1. **Google OAuth Token Watch**:
    - **Next Renewal Due**: ~2026-07-09.
    - Monitors logs for `invalid_grant` errors.
+   - Run `scripts/renew_token.sh` if renewal fails.
 
-## 🟢 FUTURE PERSPECTIVES (Backlog)
+2. **Duplicati Report Integration**:
+   - Consider integrating Duplicati report webhooks to alert the bot if a backup job fails.
 
-1. **Patient Discovery**: Refine summary parsing for better inbound metadata extraction from existing calendar events.
-2. **Duplicati Alerts**: Integrate Duplicati's report emails/webhooks with the bot's `/status` command.
+## 🟢 FUTURE PERSPECTIVES
+
+1. **Patient Discovery Extension**: Refine the CRM logic to auto-import more health history from calendar event bodies.
+2. **Interactive Status**: Expand `/status` to include the health of the latest Duplicati job.
 
 ---
-*Current Gold Standard: `Final Phase Complete` (v5.0.0)*
+*Current Gold Standard: `d8cc299` (v5.1.0 Stable + Enhanced Logging)*
