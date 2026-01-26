@@ -397,6 +397,12 @@ func (s *Service) GetCustomerHistory(ctx context.Context, customerTgID string) (
 	return customerAppts, nil
 }
 
+// GetUpcomingAppointments returns all appointments within a specific time range.
+func (s *Service) GetUpcomingAppointments(ctx context.Context, timeMin, timeMax time.Time) ([]domain.Appointment, error) {
+	log.Printf("DEBUG: GetUpcomingAppointments called for range %s - %s", timeMin.Format("02.01 15:04"), timeMax.Format("02.01 15:04"))
+	return s.repo.FindEvents(ctx, &timeMin, &timeMax)
+}
+
 // GetTotalUpcomingCount returns the total number of upcoming appointments for all customers.
 func (s *Service) GetTotalUpcomingCount(ctx context.Context) (int, error) {
 	allAppts, err := s.repo.FindAll(ctx)

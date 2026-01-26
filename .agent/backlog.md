@@ -37,5 +37,17 @@
 - **Goal**: Integrate backup logic into the bot (or cron) with off-site redundancy (e.g., S3 or Telegram Admin upload).
 - **Context**: `postgres_repository.go:L564` is empty. `scripts/backup_data.sh` handles local `data/` zipping but lacks cloud integration.
 
+### 7. Full Chat UI (Vera <-> Patient)
+
+- **Goal**: Implement a direct communication channel within the bot where Vera can reply *as the bot* to patient inquiries.
+- **Status**: Deferred to backlog per user decision (2026-01-26).
+- **Context**: Currently information is logged to patient cards, but real-time two-way chat isn't required yet.
+
+### 8. Automated Cancellation for Unconfirmed Bookings
+
+- **Goal**: Automatically cancel an appointment if it remains "Unconfirmed" after a certain period (e.g., at T-48h).
+- **Status**: Under evaluation (User debating on timeframes). Added to backlog (2026-01-26).
+- **Context**: Helps keep the schedule clean but requires careful timing logic.
+
 ---
-*Last updated: 2026-01-24 02:05*
+*Last updated: 2026-01-26 11:25*

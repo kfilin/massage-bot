@@ -13,6 +13,7 @@ type AppointmentService interface {
 	GetAvailableTimeSlots(ctx context.Context, date time.Time, durationMinutes int) ([]domain.TimeSlot, error)
 	CreateAppointment(ctx context.Context, appointment *domain.Appointment) (*domain.Appointment, error)
 	CancelAppointment(ctx context.Context, appointmentID string) error
+	GetUpcomingAppointments(ctx context.Context, timeMin, timeMax time.Time) ([]domain.Appointment, error)
 	GetCustomerAppointments(ctx context.Context, customerTgID string) ([]domain.Appointment, error)
 	GetCustomerHistory(ctx context.Context, customerTgID string) ([]domain.Appointment, error)
 	FindByID(ctx context.Context, appointmentID string) (*domain.Appointment, error)

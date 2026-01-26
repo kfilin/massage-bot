@@ -1,6 +1,8 @@
 package telegram
 
 import (
+	"context"
+	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -11,7 +13,9 @@ import (
 	"github.com/kfilin/massage-bot/internal/domain"
 	"github.com/kfilin/massage-bot/internal/monitoring"
 	"github.com/kfilin/massage-bot/internal/ports" // Import ports for interfaces
+	"github.com/kfilin/massage-bot/internal/services/reminder"
 
+	// Added reminder service
 	// Import storage pkg for ban check
 	"gopkg.in/telebot.v3"
 )
@@ -64,6 +68,10 @@ func StartBot(
 	}
 
 	bookingHandler := handlers.NewBookingHandler(appointmentService, sessionStorage, finalAdminIDs, therapistID, trans, repo, webAppURL, webAppSecret)
+
+	// Initialize and start Reminder Service
+	reminderService := reminder.NewService(appointmentService, repo, b, finalAdminIDs)
+	reminderService.Start(context.Background())
 
 	// GLOBAL MIDDLEWARE: Enforce ban check on ALL entry points
 	b.Use(func(next telebot.HandlerFunc) telebot.HandlerFunc {
@@ -162,6 +170,15 @@ func StartBot(
 		} else if strings.HasPrefix(trimmedData, "cancel_appt|") {
 			log.Printf("DEBUG: OnCallback: Matched 'cancel_appt' prefix.")
 			return bookingHandler.HandleCancelAppointmentCallback(c)
+		} else if strings.HasPrefix(trimmedData, "confirm_appt_reminder|") {
+			log.Printf("DEBUG: OnCallback: Matched 'confirm_appt_reminder' prefix.")
+			return bookingHandler.HandleReminderConfirmation(c)
+		} else if strings.HasPrefix(trimmedData, "cancel_appt_reminder|") {
+			log.Printf("DEBUG: OnCallback: Matched 'cancel_appt_reminder' prefix.")
+			return bookingHandler.HandleReminderCancellation(c)
+		} else if strings.HasPrefix(trimmedData, "admin_reply|") {
+			log.Printf("DEBUG: OnCallback: Matched 'admin_reply' prefix.")
+			return bookingHandler.HandleAdminReplyRequest(c)
 		} else if trimmedData == "ignore" {
 			log.Printf("DEBUG: OnCallback: Matched 'ignore' data.")
 			return nil // Просто игнорируем кнопки-заглушки
@@ -191,7 +208,35 @@ func StartBot(
 
 		session := sessionStorage.Get(userID)
 
-		// Priority level 2: Confirmation flow
+		// Priority level 2: Admin Replying to Patient
+		if replyingToID, ok := session[handlers.SessionKeyAdminReplyingTo].(string); ok && replyingToID != "" {
+			log.Printf("DEBUG: OnText: Admin %d is replying to patient %s.", userID, replyingToID)
+
+			patientID, _ := strconv.ParseInt(replyingToID, 10, 64)
+			patientUser := &telebot.User{ID: patientID}
+
+			// Send to patient
+			replyMsg := fmt.Sprintf("📩 <b>Сообщение от Веры:</b>\n\n%s", text)
+			_, err := b.Send(patientUser, replyMsg, telebot.ModeHTML)
+			if err != nil {
+				log.Printf("ERROR: Failed to deliver admin reply to patient %s: %v", replyingToID, err)
+				return c.Send("❌ Не удалось доставить сообщение пациенту.")
+			}
+
+			// Log to Med-Card
+			patient, err := repo.GetPatient(replyingToID)
+			if err == nil {
+				prefix := fmt.Sprintf("\n\n[👩‍⚕️ Вера %s]: ", time.Now().In(domain.ApptTimeZone).Format("02.01.2006 15:04"))
+				patient.TherapistNotes += prefix + text
+				repo.SavePatient(patient)
+			}
+
+			// Clear state
+			sessionStorage.Set(userID, handlers.SessionKeyAdminReplyingTo, nil)
+			return c.Send("✅ Сообщение доставлено и сохранено в мед-карте.")
+		}
+
+		// Priority level 3: Confirmation flow
 		if awaitingConfirmation, ok := session[handlers.SessionKeyAwaitingConfirmation].(bool); ok && awaitingConfirmation {
 			log.Printf("DEBUG: OnText: Bot is awaiting confirmation for user %d.", userID)
 			cleanText := strings.ToLower(text)
@@ -208,7 +253,7 @@ func StartBot(
 			}
 		}
 
-		// Priority level 3: Standard flow (Name input, etc.)
+		// Priority level 4: Standard flow (Name input, etc.)
 		switch text {
 		case "Подтвердить": // Safety fallback
 			log.Printf("DEBUG: OnText: Matched 'Подтвердить' (unexpectedly outside confirmation flow).")
@@ -225,12 +270,50 @@ func StartBot(
 			if _, ok := session[handlers.SessionKeyService].(domain.Service); !ok {
 				log.Printf("DEBUG: OnText: SessionKeyService not set. Asking to select service.")
 				return c.Send("Пожалуйста, выберите услугу, используя предложенные кнопки.")
-			} else if _, ok := session[handlers.SessionKeyName].(string); !ok { // Только запрашиваем имя, если оно еще не установлено
+			} else if _, ok := session[handlers.SessionKeyName].(string); !ok {
 				log.Printf("DEBUG: OnText: SessionKeyName not set. Assuming name input.")
 				return bookingHandler.HandleNameInput(c)
 			} else {
-				log.Printf("DEBUG: OnText: All session data present, unknown text input.")
-				return c.Send("Неизвестная команда или некорректный ввод. Вы можете начать заново командой /start.")
+				log.Printf("DEBUG: OnText: All session data present, unknown text input. Forwarding to admins.")
+
+				// Provide polite feedback to user
+				c.Send("Ваше сообщение получено и передано Вере.")
+
+				// Forward to all admins
+				telegramID := strconv.FormatInt(c.Sender().ID, 10)
+				customerName := c.Sender().FirstName + " " + c.Sender().LastName
+				if c.Sender().Username != "" {
+					customerName += " (@" + c.Sender().Username + ")"
+				}
+
+				notification := fmt.Sprintf("📩 <b>Новое сообщение от пациента!</b>\n\n<b>Пациент:</b> %s (ID: %s)\n<b>Текст:</b> %s",
+					customerName, telegramID, text)
+
+				// Log to Med-Card automatically
+				patient, err := repo.GetPatient(telegramID)
+				if err == nil {
+					prefix := fmt.Sprintf("\n\n[💬 Пациент %s]: ", time.Now().In(domain.ApptTimeZone).Format("02.01.2006 15:04"))
+					patient.TherapistNotes += prefix + text
+					repo.SavePatient(patient)
+				}
+
+				// Add link to med-card and Reply button
+				selector := &telebot.ReplyMarkup{}
+				btnReply := selector.Data("✍️ Ответить", "admin_reply", telegramID)
+
+				if bookingHandler.WebAppURL != "" {
+					cardURL := bookingHandler.GenerateWebAppURL(telegramID)
+					notification += fmt.Sprintf("\n\n📄 <a href=\"%s\">Открыть мед-карту</a>", cardURL)
+				}
+				selector.Inline(selector.Row(btnReply))
+
+				for _, adminIDStr := range finalAdminIDs {
+					adminID, _ := strconv.ParseInt(adminIDStr, 10, 64)
+					// Helper to send notification with Reply button
+					_, _ = b.Send(&telebot.User{ID: adminID}, notification, telebot.ModeHTML, selector)
+				}
+
+				return nil
 			}
 		}
 	})

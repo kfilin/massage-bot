@@ -2,6 +2,7 @@ package ports
 
 import (
 	"io"
+	"time"
 
 	"github.com/kfilin/massage-bot/internal/domain"
 )
@@ -22,4 +23,8 @@ type Repository interface {
 	CreateBackup() (string, error)
 	SyncAll() error
 	MigrateFolderNames() error
+
+	// Appointment Metadata (Reminders/Confirmations)
+	SaveAppointmentMetadata(apptID string, confirmedAt *time.Time, remindersSent map[string]bool) error
+	GetAppointmentMetadata(apptID string) (confirmedAt *time.Time, remindersSent map[string]bool, err error)
 }

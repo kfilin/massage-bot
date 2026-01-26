@@ -42,6 +42,8 @@ type Appointment struct {
 	CalendarEventID string `json:"calendar_event_id"`   // ID из Google Calendar или другого репозитория
 	MeetLink        string `json:"meet_link,omitempty"` // Google Meet link for online consultations
 	Status          string `json:"status"`              // Event status (confirmed, tentative, cancelled)
+	ConfirmedAt     *time.Time `json:"confirmed_at,omitempty"`
+	RemindersSent   map[string]bool `json:"reminders_sent,omitempty"` // Map of reminder types (72h, 24h) to sent status
 }
 
 // --- Константы и глобальные переменные для временных слотов и рабочего дня ---

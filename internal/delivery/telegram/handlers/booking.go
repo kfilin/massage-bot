@@ -27,7 +27,7 @@ type BookingHandler struct {
 	therapistID          string // Added to notify Vera
 	transcriptionService ports.TranscriptionService
 	repository           ports.Repository
-	webAppURL            string
+	WebAppURL            string
 	webAppSecret         string
 }
 
@@ -40,6 +40,7 @@ const (
 	SessionKeyAwaitingConfirmation = "awaiting_confirmation"
 	SessionKeyCategory             = "category" // New for categorized menu
 	SessionKeyIsAdminBlock         = "is_admin_block"
+	SessionKeyAdminReplyingTo      = "admin_replying_to"
 )
 
 // NewBookingHandler creates a new BookingHandler.
@@ -51,7 +52,7 @@ func NewBookingHandler(as ports.AppointmentService, ss ports.SessionStorage, adm
 		therapistID:          therapistID,
 		transcriptionService: trans,
 		repository:           repo,
-		webAppURL:            webAppURL,
+		WebAppURL:            webAppURL,
 		webAppSecret:         webAppSecret,
 	}
 }
@@ -467,6 +468,58 @@ func (h *BookingHandler) HandleDateSelection(c telebot.Context) error {
 	return c.Send("Неизвестное действие с датой. Пожалуйста, попробуйте /start снова.")
 }
 
+// HandleReminderConfirmation handles the patient's confirmation from a reminder
+func (h *BookingHandler) HandleReminderConfirmation(c telebot.Context) error {
+	apptID := strings.TrimPrefix(c.Callback().Data, "confirm_appt_reminder|")
+	log.Printf("DEBUG: HandleReminderConfirmation called for apptID: %s", apptID)
+
+	now := time.Now()
+	err := h.repository.SaveAppointmentMetadata(apptID, &now, nil)
+	if err != nil {
+		log.Printf("ERROR: Failed to save confirmation for appt %s: %v", apptID, err)
+		return c.Send("❌ Ошибка при подтверждении записи.")
+	}
+
+	// Notify Vera
+	appt, err := h.appointmentService.FindByID(context.Background(), apptID)
+	if err == nil {
+		notification := fmt.Sprintf("✅ <b>Запись подтверждена!</b>\n\nПациент: %s\nДата: %s\nУслуга: %s",
+			appt.CustomerName, appt.StartTime.Format("02.01 15:04"), appt.Service.Name)
+
+		for _, adminIDStr := range h.adminIDs {
+			adminID, _ := strconv.ParseInt(adminIDStr, 10, 64)
+			h.BotNotify(c.Bot(), adminID, notification)
+		}
+	}
+
+	return c.Edit("✅ Спасибо! Ваша запись подтверждена. Ждем вас!")
+}
+
+// HandleReminderCancellation redirects to the standard cancellation flow but from a reminder
+func (h *BookingHandler) HandleReminderCancellation(c telebot.Context) error {
+	apptID := strings.TrimPrefix(c.Callback().Data, "cancel_appt_reminder|")
+	log.Printf("DEBUG: HandleReminderCancellation called for apptID: %s", apptID)
+
+	// Since we already have the ID, we can directly cancel or use the existing callback handler
+	// For consistency, let's use the existing callback handler logic
+	c.Callback().Data = "cancel_appt|" + apptID
+	return h.HandleCancelAppointmentCallback(c)
+}
+
+// HandleAdminReplyRequest initiates the process of replying to a patient via the bot
+func (h *BookingHandler) HandleAdminReplyRequest(c telebot.Context) error {
+	patientID := strings.TrimPrefix(c.Callback().Data, "admin_reply|")
+	log.Printf("DEBUG: HandleAdminReplyRequest called for patientID: %s", patientID)
+
+	patient, err := h.repository.GetPatient(patientID)
+	if err != nil {
+		return c.Send("❌ Пациент не найден.")
+	}
+
+	h.sessionStorage.Set(c.Sender().ID, SessionKeyAdminReplyingTo, patientID)
+	return c.Send(fmt.Sprintf("✍️ Введите ответ для пациента <b>%s</b>:", patient.Name), telebot.ModeHTML, telebot.ForceReply)
+}
+
 // askForTime sends available time slots to the user.
 func (h *BookingHandler) askForTime(c telebot.Context) error {
 	log.Printf("DEBUG: Entered askForTime for user %d", c.Sender().ID)
@@ -863,7 +916,7 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 	}
 
 	selector := &telebot.ReplyMarkup{}
-	url := h.generateWebAppURL(patient.TelegramID)
+	url := h.GenerateWebAppURL(patient.TelegramID)
 
 	if url != "" {
 		selector.Inline(
@@ -970,7 +1023,7 @@ func (h *BookingHandler) HandleMyRecords(c telebot.Context) error {
 
 	// Compact menu for record management
 	selector := &telebot.ReplyMarkup{}
-	url := h.generateWebAppURL(patient.TelegramID)
+	url := h.GenerateWebAppURL(patient.TelegramID)
 
 	if url != "" {
 		btnWebApp := selector.WebApp("📱 ОТКРЫТЬ МЕД-КАРТУ (LIVE)", &telebot.WebApp{URL: url})
@@ -1220,9 +1273,14 @@ func (h *BookingHandler) HandleFileMessage(c telebot.Context) error {
 		html.EscapeString(fileName),
 		float64(fileSize)/(1024*1024))
 
+	// Add link to med-card and Reply button
+	selector := &telebot.ReplyMarkup{}
+	btnReply := selector.Data("✍️ Ответить", "admin_reply", telegramID)
+	selector.Inline(selector.Row(btnReply))
+
 	for _, adminIDStr := range h.adminIDs {
 		adminID, _ := strconv.ParseInt(adminIDStr, 10, 64)
-		h.BotNotify(c.Bot(), adminID, notification)
+		h.BotNotify(c.Bot(), adminID, notification, selector)
 	}
 
 	return nil
@@ -1261,8 +1319,8 @@ func (h *BookingHandler) HandleBackup(c telebot.Context) error {
 }
 
 // BotNotify is a helper to send notifications to admins
-func (h *BookingHandler) BotNotify(b *telebot.Bot, to int64, message string) {
-	_, err := b.Send(&telebot.User{ID: to}, message, telebot.ModeHTML)
+func (h *BookingHandler) BotNotify(b *telebot.Bot, to int64, message string, opts ...interface{}) {
+	_, err := b.Send(&telebot.User{ID: to}, message, append([]interface{}{telebot.ModeHTML}, opts...)...)
 	if err != nil {
 		log.Printf("ERROR: Failed to send notification to admin %d: %v", to, err)
 	}
@@ -1364,9 +1422,9 @@ func (h *BookingHandler) HandleStatus(c telebot.Context) error {
 	return c.Send(status, telebot.ModeHTML)
 }
 
-// generateWebAppURL creates a signed URL for the Telegram Web App
-func (h *BookingHandler) generateWebAppURL(telegramID string) string {
-	if h.webAppURL == "" || h.webAppSecret == "" {
+// GenerateWebAppURL creates a signed URL for the Telegram Web App
+func (h *BookingHandler) GenerateWebAppURL(telegramID string) string {
+	if h.WebAppURL == "" || h.webAppSecret == "" {
 		return ""
 	}
 
@@ -1374,5 +1432,5 @@ func (h *BookingHandler) generateWebAppURL(telegramID string) string {
 	mac.Write([]byte(telegramID))
 	token := hex.EncodeToString(mac.Sum(nil))
 
-	return fmt.Sprintf("%s/card?id=%s&token=%s", h.webAppURL, telegramID, token)
+	return fmt.Sprintf("%s/card?id=%s&token=%s", h.WebAppURL, telegramID, token)
 }

@@ -34,4 +34,11 @@ CREATE TABLE IF NOT EXISTS sessions (
     data JSONB NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS appointment_metadata (
+    appointment_id TEXT PRIMARY KEY,
+    confirmed_at TIMESTAMP,
+    reminders_sent JSONB DEFAULT '{}'::jsonb,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 `

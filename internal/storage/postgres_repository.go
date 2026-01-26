@@ -570,3 +570,47 @@ func (r *PostgresRepository) SyncAll() error {
 }
 
 func (r *PostgresRepository) CreateBackup() (string, error) { return "", nil } // Simplified for now
+
+func (r *PostgresRepository) SaveAppointmentMetadata(apptID string, confirmedAt *time.Time, remindersSent map[string]bool) error {
+	remindersSentJSON, err := json.Marshal(remindersSent)
+	if err != nil {
+		return fmt.Errorf("failed to marshal reminders_sent: %w", err)
+	}
+
+	query := `
+		INSERT INTO appointment_metadata (appointment_id, confirmed_at, reminders_sent, updated_at)
+		VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+		ON CONFLICT (appointment_id) DO UPDATE SET
+			confirmed_at = EXCLUDED.confirmed_at,
+			reminders_sent = EXCLUDED.reminders_sent,
+			updated_at = CURRENT_TIMESTAMP
+	`
+	_, err = r.db.Exec(query, apptID, confirmedAt, remindersSentJSON)
+	if err != nil {
+		monitoring.DbErrorsTotal.WithLabelValues("save_appointment_metadata").Inc()
+		return fmt.Errorf("failed to save appointment metadata: %w", err)
+	}
+	return nil
+}
+
+func (r *PostgresRepository) GetAppointmentMetadata(apptID string) (*time.Time, map[string]bool, error) {
+	var row struct {
+		ConfirmedAt   *time.Time `db:"confirmed_at"`
+		RemindersSent []byte     `db:"reminders_sent"`
+	}
+
+	query := "SELECT confirmed_at, reminders_sent FROM appointment_metadata WHERE appointment_id = $1"
+	err := r.db.Get(&row, query, apptID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	remindersSent := make(map[string]bool)
+	if len(row.RemindersSent) > 0 {
+		if err := json.Unmarshal(row.RemindersSent, &remindersSent); err != nil {
+			return nil, nil, fmt.Errorf("failed to unmarshal reminders_sent: %w", err)
+		}
+	}
+
+	return row.ConfirmedAt, remindersSent, nil
+}
