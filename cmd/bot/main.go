@@ -82,9 +82,22 @@ func main() {
 
 	// 6b. Start Web App server (now with apptService for sync)
 	if cfg.WebAppSecret != "" {
-		allAdmins := append([]string{cfg.AdminTelegramID}, cfg.AllowedTelegramIDs...)
+		adminMap := make(map[string]struct{})
+		if cfg.AdminTelegramID != "" {
+			adminMap[cfg.AdminTelegramID] = struct{}{}
+		}
+		for _, id := range cfg.AllowedTelegramIDs {
+			if id != "" {
+				adminMap[id] = struct{}{}
+			}
+		}
 		if cfg.TherapistID != "" {
-			allAdmins = append(allAdmins, cfg.TherapistID)
+			adminMap[cfg.TherapistID] = struct{}{}
+		}
+
+		var allAdmins []string
+		for id := range adminMap {
+			allAdmins = append(allAdmins, id)
 		}
 		go startWebAppServer(cfg.WebAppPort, cfg.WebAppSecret, cfg.TgBotToken, allAdmins, patientRepo, appointmentService, os.Getenv("DATA_DIR"))
 	} else {
