@@ -1,25 +1,32 @@
-# Handoff: Next Steps & Priorities
+# Handoff: Next Steps & Priorities (v4.3.0)
 
-Current state: **v4.2.1 High-Fidelity History**. Stable and production-ready.
+Current state: **v4.3.0 Smart Communication**. The bot now proactively manages reminders and archives all interactions (including admin replies) to the medical records.
 
-## 🔴 HIGH PRIORITY (Technical Debt)
+## 🔴 HIGH PRIORITY (Phase 2: TWA Evolution)
 
-1. **Implement Robust Free/Busy Query**:
-   - Transition `GetAvailableTimeSlots` in `internal/services/appointment/service.go` to use the actual Google Calendar Free/Busy API.
-   - **Goal**: Prevent overlaps with physical events not created by the bot.
+1. **Conditional Cancellation buttons**:
+    - Update TWA logic to ONLY show the "Cancel" button if `(session_time - now) > 72h`.
+    - Provide a "Contact Vera" link as a fallback.
 
-2. **Refine Token Expiry Metric**:
-   - Update `client.go` to fix the "0.0 days" refresh token reporting issue in production.
+2. **Health Dashboard Improvements**:
+    - Polish the responsive layout for the new medical record groupings (Photos, Scans, etc.).
+    - Implement a "Next Appointment" countdown on the home screen.
 
-## 🟡 MEDIUM PRIORITY (Analytics)
+## 🟡 MEDIUM PRIORITY (Phase 3: Administrative Suite)
 
-1. **Grafana Dashboard**:
-   - Build a dashboard using the metrics on `:8083`.
+1. **Internal Admin Dashboard**:
+   - Create a Telegram-native view for Vera to see "Today's Agenda" and confirmation statuses in a single message/keyboard.
 
-## 🟢 LOW PRIORITY (Maintenance)
+2. **Billing & Logs**:
+    - Enhance the `LogEvent` mechanism to allow Vera to manually append clinical notes or billable amounts directly via the bot.
 
-1. **Automated Backups**:
-   - Implement ZIP-based patient data backups.
+## 🟢 LOW PRIORITY (Technical Debt)
+
+1. **Robust Free/Busy Query**:
+   - Integrate actual Google Calendar Free/Busy API for bulletproof schedule management.
+
+2. **Automated Backups**:
+    - Integrate the `CreateBackup` repository method with the bot's `/backup` command and S3/Telegram storage.
 
 ---
-*Current Gold Standard: `1333fd2`*
+*Current Gold Standard: `ddbe67c` (v4.3.0)*

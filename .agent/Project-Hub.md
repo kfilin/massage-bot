@@ -8,7 +8,7 @@ A professional clinical ecosystem for massage therapists. Features interactive b
 
 ## 🏗️ Technical Foundation
 
-- **Version**: v4.2.2 (Navigation Fix)
+- **Version**: v4.3.0 (Smart Reminders & Loop Closure)
 - **Language**: **Go 1.24** (Alpine-based)
 - **Database**: PostgreSQL 15 (Metadata & Sync Status)
 - **Clinical Storage**: **Markdown-mirrored Filesystem** (Clinical Storage 2.0)
@@ -57,7 +57,8 @@ This project uses a dual-remote setup with automated mirroring to maintain sync 
 - **Core Features**:
   - [x] WebDAV / Obsidian Mobile Sync.
   - [x] Premium TWA Dashboard.
-  - [x] Automated 2h Visit Reminders.
+  - [x] Automated Interactive Reminders (72h/24h).
+  - [x] Smart Forwarding with Loop Closure (Admin Reply).
   - [x] Hierarchical Storage (scans/images/messages).
   - [x] DB Resilience (Extended timeout strategy).
 
@@ -74,10 +75,10 @@ This project uses a dual-remote setup with automated mirroring to maintain sync 
 
 ## 💎 Gold Standard Checkpoint
 
-- **Commit**: `512aa0a`
-- **Date**: 2026-01-24
-- **Status**: **v4.2.2 Stable**. Fixed navigation buttons routing ("Back to Service" and "Back to Date"), ensuring seamless booking flow.
-- **Rollback Command**: `git reset --hard 512aa0a`
+- **Commit**: `ddbe67c`
+- **Date**: 2026-01-26
+- **Status**: **v4.3.0 Stable**. Implemented Smart Reminders and Closed-Loop communication.
+- **Rollback Command**: `git reset --hard ddbe67c`
 
 ---
 
