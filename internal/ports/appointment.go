@@ -34,6 +34,7 @@ type AppointmentRepository interface {
 	GetAccountInfo(ctx context.Context) (string, error)
 	GetCalendarID() string
 	ListCalendars(ctx context.Context) ([]string, error)
+	GetFreeBusy(ctx context.Context, timeMin, timeMax time.Time) ([]domain.TimeSlot, error)
 }
 
 // SessionStorage defines the interface for managing user sessions (e.g., in-memory or Redis).

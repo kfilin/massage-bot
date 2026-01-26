@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"html"
 	"log"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -1315,7 +1316,10 @@ func (h *BookingHandler) HandleBackup(c telebot.Context) error {
 		Caption:  fmt.Sprintf("💾 Резервная копия данных от %s", time.Now().Format("02.01.2006 15:04")),
 	}
 
-	return c.Send(doc)
+	err = c.Send(doc)
+	// Cleanup temporary zip
+	os.Remove(zipPath)
+	return err
 }
 
 // BotNotify is a helper to send notifications to admins

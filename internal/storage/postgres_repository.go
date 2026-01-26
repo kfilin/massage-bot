@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"archive/zip"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -59,6 +61,7 @@ func (r *PostgresRepository) SavePatient(p domain.Patient) error {
 			voice_transcripts = EXCLUDED.voice_transcripts,
 			current_service = EXCLUDED.current_service
 	`
+	log.Printf("DEBUG: Saving patient record for ID: %s", p.TelegramID)
 	_, err := r.db.NamedExec(query, p)
 	if err != nil {
 		monitoring.DbErrorsTotal.WithLabelValues("save_patient").Inc()
@@ -138,6 +141,7 @@ ID: %s
 }
 
 func (r *PostgresRepository) GetPatient(telegramID string) (domain.Patient, error) {
+	log.Printf("DEBUG: Fetching patient record for ID: %s", telegramID)
 	var p domain.Patient
 	err := r.db.Get(&p, "SELECT * FROM patients WHERE telegram_id = $1", telegramID)
 
@@ -230,6 +234,7 @@ func (r *PostgresRepository) IsUserBanned(telegramID string, username string) (b
 		query += " OR username = $2 OR username = $3"
 		params = append(params, username, "@"+username)
 	}
+	log.Printf("DEBUG: Checking ban status for ID: %s, Username: %s", telegramID, username)
 	err := r.db.Get(&count, query, params...)
 	return count > 0, err
 }
@@ -245,6 +250,7 @@ func (r *PostgresRepository) UnbanUser(telegramID string) error {
 }
 
 func (r *PostgresRepository) LogEvent(patientID string, eventType string, details map[string]interface{}) error {
+	log.Printf("DEBUG: Logging analytics event: %s for patient: %s", eventType, patientID)
 	detailsJSON, _ := json.Marshal(details)
 	_, err := r.db.Exec("INSERT INTO analytics_events (patient_id, event_type, details) VALUES ($1, $2, $3)", patientID, eventType, detailsJSON)
 	return err
@@ -603,7 +609,80 @@ func (r *PostgresRepository) SyncAll() error {
 	return nil
 }
 
-func (r *PostgresRepository) CreateBackup() (string, error) { return "", nil } // Simplified for now
+func (r *PostgresRepository) CreateBackup() (string, error) {
+	log.Printf("DEBUG: Starting database backup creation tool...")
+	timestamp := time.Now().Format("20060102_150405")
+	backupDir := filepath.Join(r.dataDir, "temp_backups")
+	os.MkdirAll(backupDir, 0755)
+
+	sqlFile := filepath.Join(backupDir, fmt.Sprintf("db_dump_%s.sql", timestamp))
+	zipFile := filepath.Join(r.dataDir, fmt.Sprintf("backup_%s.zip", timestamp))
+
+	// 1. Perform Database Dump
+	// Map our DB environment variables to pg_dump expected ones
+	cmd := exec.Command("pg_dump", "-f", sqlFile)
+	cmd.Env = append(os.Environ(),
+		fmt.Sprintf("PGDATABASE=%s", os.Getenv("DB_NAME")),
+		fmt.Sprintf("PGUSER=%s", os.Getenv("DB_USER")),
+		fmt.Sprintf("PGPASSWORD=%s", os.Getenv("DB_PASSWORD")),
+		fmt.Sprintf("PGHOST=%s", os.Getenv("DB_HOST")),
+		fmt.Sprintf("PGPORT=%s", os.Getenv("DB_PORT")),
+	)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("pg_dump failed: %v (stderr: %s)", err, stderr.String())
+	}
+
+	// 2. Create ZIP archive
+	newZipFile, err := os.Create(zipFile)
+	if err != nil {
+		return "", err
+	}
+	defer newZipFile.Close()
+
+	zipWriter := zip.NewWriter(newZipFile)
+	defer zipWriter.Close()
+
+	// Add SQL dump to ZIP
+	if err := r.addFileToZip(zipWriter, sqlFile, "db_dump.sql"); err != nil {
+		return "", err
+	}
+
+	// Add patients directory to ZIP
+	patientsDir := filepath.Join(r.dataDir, "patients")
+	err = filepath.Walk(patientsDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		relPath, _ := filepath.Rel(r.dataDir, path)
+		return r.addFileToZip(zipWriter, path, relPath)
+	})
+	if err != nil {
+		return "", err
+	}
+
+	// 3. Cleanup temp files
+	os.RemoveAll(backupDir)
+
+	return zipFile, nil
+}
+
+func (r *PostgresRepository) addFileToZip(zipWriter *zip.Writer, filePath string, zipPath string) error {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	writer, err := zipWriter.Create(zipPath)
+	if err != nil {
+		return err
+	}
+
+	_, err = io.Copy(writer, file)
+	return err
+}
 
 func (r *PostgresRepository) SaveAppointmentMetadata(apptID string, confirmedAt *time.Time, remindersSent map[string]bool) error {
 	remindersSentJSON, err := json.Marshal(remindersSent)

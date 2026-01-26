@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -73,6 +74,40 @@ func StartBot(
 	reminderService := reminder.NewService(appointmentService, repo, b, finalAdminIDs)
 	reminderService.Start(context.Background())
 
+	// Start Daily Backup Worker (Sent to Primary Admin)
+	if adminTelegramID != "" {
+		go func() {
+			// Wait 5 minutes after startup to avoid congestion
+			time.Sleep(5 * time.Minute)
+			ticker := time.NewTicker(24 * time.Hour)
+			defer ticker.Stop()
+
+			for range ticker.C {
+				log.Printf("[BackupWorker] Starting scheduled daily backup for Admin %s...", adminTelegramID)
+				zipPath, err := repo.CreateBackup()
+				if err != nil {
+					log.Printf("[BackupWorker] FAILED to create scheduled backup: %v", err)
+					continue
+				}
+
+				adminIntID, err := strconv.ParseInt(adminTelegramID, 10, 64)
+				if err == nil {
+					doc := &telebot.Document{
+						File:     telebot.FromDisk(zipPath),
+						FileName: filepath.Base(zipPath),
+						Caption:  fmt.Sprintf("💾 Ежедневная копия данных (%s)\n\n<i>Примечание: Локальный файл удален для экономии места.</i>", time.Now().Format("02.01.2006")),
+					}
+					_, err = b.Send(&telebot.User{ID: adminIntID}, doc, telebot.ModeHTML)
+					if err != nil {
+						log.Printf("[BackupWorker] FAILED to send scheduled backup: %v", err)
+					}
+				}
+				// Cleanup temporary zip to save server disk space
+				os.Remove(zipPath)
+			}
+		}()
+	}
+
 	// GLOBAL MIDDLEWARE: Enforce ban check on ALL entry points
 	b.Use(func(next telebot.HandlerFunc) telebot.HandlerFunc {
 		return func(c telebot.Context) error {
@@ -104,6 +139,7 @@ func StartBot(
 		return func(c telebot.Context) error {
 			if c.Message() != nil {
 				text := c.Message().Text
+				log.Printf("DEBUG: Incoming Message from %d (%s): %s", c.Sender().ID, c.Sender().Username, text)
 				if strings.HasPrefix(text, "/") {
 					command := strings.Split(text, " ")[0]
 					monitoring.BotCommandsTotal.WithLabelValues(command).Inc()
@@ -111,6 +147,7 @@ func StartBot(
 					monitoring.BotCommandsTotal.WithLabelValues("text_message").Inc()
 				}
 			} else if c.Callback() != nil {
+				log.Printf("DEBUG: Incoming Callback from %d (%s): %s", c.Sender().ID, c.Sender().Username, c.Callback().Data)
 				monitoring.BotCommandsTotal.WithLabelValues("callback").Inc()
 			}
 			return next(c)

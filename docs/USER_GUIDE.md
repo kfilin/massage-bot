@@ -15,6 +15,25 @@ You will see a main menu at the bottom of your screen with these buttons:
 
 ---
 
+## 💬 Reminders & Communication
+
+### 🕒 Automated Reminders
+
+The bot will send you notifications **3 days** and **24 hours** before your appointment.
+
+- Tap **[ ✅ Confirm ]** to let the therapist know you are coming.
+- If your plans changed, you can cancel directly from the reminder message.
+
+### ✍️ Contacting the Therapist
+
+You can send any text or voice message directly to the bot.
+
+- The bot will forward your message to Vera.
+- When Vera replies, you will receive the message right here in the bot.
+- All important communication is automatically archived to your Medical Card for future reference.
+
+---
+
 ## 📅 How to Book an Appointment
 
 1. Tap **🗓 Book Appointment**.
@@ -23,7 +42,8 @@ You will see a main menu at the bottom of your screen with these buttons:
 4. **Select a Time**: Pick an available time slot.
 5. **Confirm**: Review the details (Service, Time, Price) and tap **Confirm**.
 
-> **Note**: You will receive a notification and the appointment will be added to the therapist's calendar instantly.
+> [!NOTE]
+> You will receive a confirmation message, and the appointment will be added to Vera's calendar instantly.
 
 ---
 
@@ -36,7 +56,8 @@ If your plans change, please cancel at least **72 hours (3 days) in advance**:
 3. Tap the **Cancel** button next to the appointment you wish to remove.
 4. Confirm the cancellation.
 
-> ⚠️ The bot may block last-minute cancellations (less than 3 days). In that case, please contact Vera directly.
+> [!WARNING]
+> The bot enforces a 72-hour cancellation policy. If you need to cancel last-minute, please contact Vera directly via the bot.
 
 ---
 
@@ -48,21 +69,17 @@ The bot acts as your personal health assistant.
 
 Tap **📄 Medical Card** to open your private **Live Dashboard** directly inside Telegram. It includes:
 
-- **Live Sync**: Your visit stats (Total Visits, First/Last visit dates) update automatically from Google Calendar.
-- **Professional Layout**: View your "Medical History" (Therapist's notes) and "Visit History" in a clean, clinical interface.
-- **PDF Export**: Need a physical copy? Tap **"Save PDF"** at the top of the card to generate a professional document for your records.
-- **Google Calendar Integration**: Direct links to add future appointments to your own calendar.
+- **Live Sync**: Your visit stats (Total Visits, First/Last visit dates) and clinical notes update automatically.
+- **Visit History**: View your past appointments and treatments.
+- **PDF Export**: Tap **"Save PDF"** at the top of the card to generate a professional document for your records.
 
-### Uploading Files (MRI, X-Ray, Videos)
+### Uploading Documents (MRI, X-Ray, etc.)
 
 You can store your medical history securely in the bot.
 
-1. Tap **📤 Upload Documents** to see instructions.
-2. Simply **send a file** (Photo, PDF, or Video) to the bot chat.
-3. The bot will automatically save it to your secure digital folder and link it to your Medical Card.
-4. **Voice Notes**: If you send a voice message, the bot will transcribe it and append it to your consultation notes.
-
-> **Supported**: Photos (.jpg), Documents (.pdf, .dcm), Videos (.mp4), Voice Messages (.ogg).
+1. **Send a file** (Photo, PDF, or Video) to the bot chat.
+2. The bot will automatically save it to your secure folder and link it to your Medical Card.
+3. **Voice Notes**: If you send a voice message with a health update, the bot will transcribe it and add it to your consultation history.
 
 ---
 
@@ -72,10 +89,10 @@ You can store your medical history securely in the bot.
 A: That slot is likely already taken or it is outside working hours (09:00 - 18:00).
 
 **Q: The bot says "No spots available" for everything?**
-A: This message may appear if the booking system is temporarily restricted. Please try again later.
+A: This may happen if the booking system is temporarily restricted. Please try again later.
 
 **Q: Is my data safe?**
-A: Yes. Your documents are stored privately on a secure server and are only accessible by you and the therapist.
+A: Yes. Your documents are stored on a secure server and are only accessible by you and the therapist.
 
 ---
-*Created by Kirill Filin with Gemini Assistance. Based on the v3.15 Stable Backbone.*
+*Created by Kirill Filin with Gemini Assistance. Based on the v5.0.0 Technical Excellence Backbone.*

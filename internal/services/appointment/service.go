@@ -116,80 +116,44 @@ func (s *Service) GetAvailableTimeSlots(ctx context.Context, date time.Time, dur
 	log.Printf("DEBUG: GetAvailableTimeSlots called for date: %s, duration: %d minutes.", date.Format("2006-01-02"), durationMinutes)
 
 	if durationMinutes <= 0 {
-		log.Printf("ERROR: GetAvailableTimeSlots received invalid duration: %d", durationMinutes)
 		return nil, domain.ErrInvalidDuration
 	}
 
 	// Ensure the date is in the correct timezone for working hours logic
 	dateInApptTimezone := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, ApptTimeZone)
 
+	// Fetch busy intervals for the entire day
+	timeMin := dateInApptTimezone
+	timeMax := dateInApptTimezone.Add(24 * time.Hour)
+
+	busySlots, err := s.repo.GetFreeBusy(ctx, timeMin, timeMax)
+	if err != nil {
+		log.Printf("ERROR: Failed to fetch FreeBusy: %v", err)
+		return nil, fmt.Errorf("failed to fetch available slots: %w", err)
+	}
+
 	var availableSlots []domain.TimeSlot
 
-	// Iterate through the working day in SlotDuration increments
-	// Start from WorkDayStartHour in the specified timezone
+	// Iterate through the working day in 1-hour steps
 	currentSlotStart := time.Date(dateInApptTimezone.Year(), dateInApptTimezone.Month(), dateInApptTimezone.Day(), WorkDayStartHour, 0, 0, 0, ApptTimeZone)
 	workDayEnd := time.Date(dateInApptTimezone.Year(), dateInApptTimezone.Month(), dateInApptTimezone.Day(), WorkDayEndHour, 0, 0, 0, ApptTimeZone)
-
-	// Try cache first
-	s.cacheMu.RLock()
-	var existingAppointments []domain.Appointment
-	cacheValid := s.NowFunc().Before(s.cacheExpires)
-	if cacheValid {
-		existingAppointments = s.cachedEvents
-	}
-	s.cacheMu.RUnlock()
-
-	if !cacheValid {
-		log.Printf("DEBUG: Cache expired or empty, fetching from repo...")
-		var err error
-		existingAppointments, err = s.repo.FindAll(ctx)
-		if err != nil {
-			log.Printf("ERROR: Failed to fetch existing appointments: %v", err)
-			if !errors.Is(err, domain.ErrAppointmentNotFound) {
-				return nil, fmt.Errorf("failed to fetch existing appointments: %w", err)
-			}
-			existingAppointments = []domain.Appointment{}
-		}
-
-		// Update cache
-		s.cacheMu.Lock()
-		s.cachedEvents = existingAppointments
-		s.cacheExpires = s.NowFunc().Add(cacheTTL)
-		s.cacheMu.Unlock()
-	} else {
-		log.Printf("DEBUG: Using cached appointments (expires in %v)", s.cacheExpires.Sub(s.NowFunc()))
-	}
-
-	// Filter existing appointments for the specific date
-	var appointmentsOnSelectedDate []domain.Appointment
-	for _, appt := range existingAppointments {
-		// Compare dates (ignoring time) in the same timezone
-		if appt.StartTime.In(ApptTimeZone).Year() == dateInApptTimezone.Year() &&
-			appt.StartTime.In(ApptTimeZone).Month() == dateInApptTimezone.Month() &&
-			appt.StartTime.In(ApptTimeZone).Day() == dateInApptTimezone.Day() {
-			appointmentsOnSelectedDate = append(appointmentsOnSelectedDate, appt)
-		}
-	}
-	log.Printf("DEBUG: Found %d existing appointments on %s.", len(appointmentsOnSelectedDate), dateInApptTimezone.Format("2006-01-02"))
-
-	// Step interval for potential slot start times (always 1 hour for Vera's preference)
 	stepInterval := 60 * time.Minute
 
-	// Iterate through potential slots (09:00, 10:00, ..., 17:00)
+	nowInApptTimezone := s.NowFunc().In(ApptTimeZone)
+
 	for currentSlotStart.Add(time.Duration(durationMinutes)*time.Minute).Before(workDayEnd) || currentSlotStart.Add(time.Duration(durationMinutes)*time.Minute).Equal(workDayEnd) {
 		currentSlotEnd := currentSlotStart.Add(time.Duration(durationMinutes) * time.Minute)
 
-		// Check if the slot is in the past (using NowFunc for testability)
-		nowInApptTimezone := s.NowFunc().In(ApptTimeZone)
+		// Check if the slot is in the past
 		if currentSlotStart.Before(nowInApptTimezone) {
-			currentSlotStart = currentSlotStart.Add(stepInterval) // Move to the next potential slot start
+			currentSlotStart = currentSlotStart.Add(stepInterval)
 			continue
 		}
 
 		isAvailable := true
-		for _, existingAppt := range appointmentsOnSelectedDate {
-			// Check for overlap: New Slot starts before existing ends AND New Slot ends after existing starts
-			if currentSlotStart.Before(existingAppt.EndTime) && currentSlotEnd.After(existingAppt.StartTime) {
+		for _, busy := range busySlots {
+			// Check for overlap: [start, end)
+			if currentSlotStart.Before(busy.End) && currentSlotEnd.After(busy.Start) {
 				isAvailable = false
 				break
 			}
@@ -202,7 +166,6 @@ func (s *Service) GetAvailableTimeSlots(ctx context.Context, date time.Time, dur
 			})
 		}
 
-		// Move to the next potential slot start time using the fixed step interval
 		currentSlotStart = currentSlotStart.Add(stepInterval)
 	}
 
@@ -254,28 +217,23 @@ func (s *Service) CreateAppointment(ctx context.Context, appt *domain.Appointmen
 	}
 
 	// 3. Check for slot availability (re-check to prevent race conditions or double bookings)
-	// Fetch all existing appointments for the specific date
-	existingAppointments, err := s.repo.FindAll(ctx) // Fetch all events
+	// Fetch busy intervals for the day
+	dayStart := time.Date(appt.StartTime.Year(), appt.StartTime.Month(), appt.StartTime.Day(), 0, 0, 0, 0, loc)
+	dayEnd := dayStart.Add(24 * time.Hour)
+
+	busySlots, err := s.repo.GetFreeBusy(ctx, dayStart, dayEnd)
 	if err != nil {
-		log.Printf("ERROR: Failed to fetch existing appointments for availability check: %v", err)
-		if !errors.Is(err, domain.ErrAppointmentNotFound) {
-			return nil, fmt.Errorf("failed to fetch existing appointments for availability check: %w", err)
-		}
-		existingAppointments = []domain.Appointment{}
+		log.Printf("ERROR: Failed to fetch FreeBusy for overlapping check: %v", err)
+		return nil, fmt.Errorf("failed to verify slot availability: %w", err)
 	}
 
-	for _, existingAppt := range existingAppointments {
-		// Compare dates (ignoring time) in the same timezone
-		if existingAppt.StartTime.In(loc).Year() == appt.StartTime.Year() &&
-			existingAppt.StartTime.In(loc).Month() == appt.StartTime.Month() &&
-			existingAppt.StartTime.In(loc).Day() == appt.StartTime.Day() {
-			// Check for overlap with the new appointment
-			if appt.StartTime.Before(existingAppt.EndTime) && appt.EndTime.After(existingAppt.StartTime) {
-				log.Printf("ERROR: New appointment %s-%s overlaps with existing appointment %s-%s",
-					appt.StartTime.Format("15:04"), appt.EndTime.Format("15:04"),
-					existingAppt.StartTime.Format("15:04"), existingAppt.EndTime.Format("15:04"))
-				return nil, domain.ErrSlotUnavailable
-			}
+	for _, busy := range busySlots {
+		// Check for overlap: [start, end)
+		if appt.StartTime.Before(busy.End) && appt.EndTime.After(busy.Start) {
+			log.Printf("ERROR: New appointment %s-%s overlaps with busy interval %s-%s",
+				appt.StartTime.Format("15:04"), appt.EndTime.Format("15:04"),
+				busy.Start.Format("15:04"), busy.End.Format("15:04"))
+			return nil, domain.ErrSlotUnavailable
 		}
 	}
 	log.Printf("DEBUG: Appointment slot is available.")

@@ -54,7 +54,7 @@ This blueprint defines the "Operating System" for exceptional software developme
 - **Action**: AI must stop and perform a "Full Context Flush."
 - **Output**: Update the project's Handoff/Checkpoint file and **CHANGELOG.md** with:
   - Technical summary of recent achievements (Handoff/Last Session).
-  - Snapshot of the "Source of Truth" (Current Commit).
+  - **Gold Standard Designation**: If explicitly requested, mark the current state as the "Gold Standard" (the most stable, high-functioning baseline to which we can safely return).
   - Version update and feature breakdown (**CHANGELOG.md**).
   - Outstanding variables or environment quirks.
   - Priority list for the next sprint.

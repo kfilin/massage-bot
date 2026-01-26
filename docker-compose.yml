@@ -17,7 +17,7 @@ services:
     env_file:
       - .env
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8083/health"]
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8083/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -37,7 +37,7 @@ services:
   db:
     image: postgres:15-alpine
     container_name: massage-bot-db
-    command: postgres -c log_timezone=Europe/Istanbul
+    command: postgres -c log_timezone=Europe/Istanbul -c log_statement=all -c log_connections=on -c log_disconnections=on
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${DB_NAME:-massage_bot}
@@ -47,7 +47,7 @@ services:
     volumes:
       - ./postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-massage_bot}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-massage_bot}" ]
       interval: 3s
       timeout: 3s
       retries: 5

@@ -4,6 +4,20 @@ This document provides a detailed overview of every file and directory in the **
 
 ---
 
+## 🤖 Agent Context & AI Collaboration (`.agent/`)
+
+| File | Purpose |
+| :--- | :--- |
+| `.agent/Project-Hub.md` | **The Source of Truth**. High-level project vision, tech stack, and milestone tracking. |
+| `.agent/Collaboration-Blueprint.md` | **The Operating System**. Defines how AI and Humans work together (The "Gold Standard"). |
+| `.agent/last_session.md` | **Continuity Bridge**. Technical summary of the previous development session. |
+| `.agent/handoff.md` | **Instruction Set**. Specific goals and high-priority tasks for the current session. |
+| `.agent/backlog.md` | **Future Roadmap**. Ideas, refinements, and technical debt to be addressed. |
+| `.agent/Scripts-Inventory.md` | **Toolbox**. Detailed documentation of all scripts in `scripts/`. |
+| `.agent/workflows/` | **Standard Ops**. Reusable workflows (e.g., `/checkpoint`). |
+
+---
+
 ## 🏗️ Core Infrastructure & Docker
 
 | File | Purpose |
@@ -16,13 +30,13 @@ This document provides a detailed overview of every file and directory in the **
 
 ---
 
-## 🛡️ Reverse Proxy (SSL)
+## 🛡️ Reverse Proxy & Deployments
 
 | Folder / File | Purpose |
 | :--- | :--- |
 | `deploy/Caddyfile` | **Proxy Config**. Handles HTTPS and routes traffic to the bot. |
-| `deploy/Caddyfile.example` | Template for the server's host-level Caddy configuration. |
-| `deploy/Caddyfile.dev` | Simplified proxy configuration for local development. |
+| `deploy/k8s/` | **Kubernetes**. Production manifests (Deployment, Secrets, ConfigMap). |
+| `deploy/Caddyfile.example` | Template for host-level Caddy configuration. |
 
 ---
 
@@ -30,10 +44,10 @@ This document provides a detailed overview of every file and directory in the **
 
 | Folder / File | Purpose |
 | :--- | :--- |
-| `cmd/` | **Entry Points**. Contains `bot/main.go` and the WebApp server logic. |
-| `internal/` | **The Brain**. Contains business logic, database handlers, and services. |
-| `go.mod` / `go.sum` | **Dependencies**. Lists all external libraries used by the bot. |
-| `Makefile` | **Shortcuts**. Commands like `make build` or `make test`. |
+| `cmd/bot/main.go` | **Entry Point**. Initializes the bot and health servers. |
+| `internal/` | **The Brain**. Domain logic, database repository, and service layer. |
+| `go.mod` / `go.sum` | **Dependencies**. External Go libraries. |
+| `Makefile` | **Shortcuts**. Automation for build/test/metrics tasks. |
 
 ---
 
@@ -41,11 +55,13 @@ This document provides a detailed overview of every file and directory in the **
 
 | Folder / File | Purpose |
 | :--- | :--- |
-| `README.md` | **Home Page**. General overview and quick-start guide. |
-| `docs/DEVELOPER.md` | **Technical Guide**. In-depth info for maintainers (Architecture/Security). |
-| `docs/USER_GUIDE_RU.md` | **Patient Guide**. Instructions for clients using the bot. |
-| `docs/VERA_GUIDE_RU.md` | **Therapist Guide**. Instructions for medical record management. |
-| `docs/files.md` | **This File**. The project's navigational map. |
+| `README.md` | **Home Page**. Quick-start and general overview. |
+| `CHANGELOG.md` | **Version History**. Chronological log of all notable changes. |
+| `docs/DEVELOPER.md` | **Technical Guide**. Security and architecture details. |
+| `docs/USER_GUIDE.md` | **Patient Guide (EN)**. Instructions for bot users in English. |
+| `docs/USER_GUIDE_RU.md` | **Patient Guide (RU)**. Detailed Russian manual (Master version). |
+| `docs/VERA_GUIDE_RU.md` | **Therapist Guide**. Record management instructions. |
+| `docs/metrics.md` | **Monitoring Reference**. List of instrumented Prometheus metrics. |
 
 ---
 
@@ -53,16 +69,10 @@ This document provides a detailed overview of every file and directory in the **
 
 | Folder | Purpose |
 | :--- | :--- |
-| `data/` | **Clinical Records**. Stores patient medical cards as `.md` files. |
-| `postgres_data/` | **Database Files**. Persistent storage for the PostgreSQL database. |
-| `logs/` | **Audit Trail**. Application logs for debugging and monitoring. |
+| `data/patients/` | **Clinical Records**. Secure Markdown storage for patient cards. |
+| `data/backups/` | **ZIP Archives**. Staging area for automated Telegram backups. |
+| `logs/access.log` | **Audit Trail**. Traffic and application logs. |
 
 ---
 
-## 🚀 Automation & CI/CD
-
-| File / Folder | Purpose |
-| :--- | :--- |
-| `scripts/` | Shell scripts for deployment, backups, and token renewal. |
-| `deploy/k8s/` | **Kubernetes**. Manifests for K8s-based deployments. |
-| `.gitlab-ci.yml` | GitLab pipeline for building images and auto-deploying. |
+### Last updated: 2026-01-26 (Post-Cleanup Refresh)

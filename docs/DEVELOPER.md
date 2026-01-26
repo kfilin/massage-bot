@@ -1,6 +1,6 @@
-# 🛠 Vera Massage Bot - Developer Guide (v4.1.0)
+# 🛠 Vera Massage Bot - Developer Guide (v5.0.0)
 
-Technical documentation for maintainers and developers. This project has been rebuilt on the stable **v3.x backbone** to eliminate PDF-complexity while retaining advanced clinical features.
+Technical documentation for maintainers and developers. The project is currently in its **v5.0.0 (Technical Excellence)** state, featuring zero-collision scheduling and automated disaster recovery.
 
 ## 🏗 Architecture Overview
 
@@ -8,9 +8,10 @@ Technical documentation for maintainers and developers. This project has been re
 - **Framework**: `telebot v3`
 - **Primary Data**: **PostgreSQL 15** for transactional metadata, stats, and auth.
 - **Clinical Files**: **Markdown (.md)** mirrored filesystem storage for Obsidian compatibility.
+- **Scheduling**: **Google Calendar Free/Busy API** (v3) for real-time availability.
 - **Interfaces**:
   - **Telegram Bot**: Main interaction layer.
-  - **TWA (Telegram Web App)**: Premium Clinical UI (Auth via HMAC-SHA256).
+  - **TWA (Telegram Web App)**: Premium Clinical UI.
   - **WebDAV**: Clinical data sync server (CORS-enabled).
 
 ## 📁 Storage Structure (Clinical Storage 2.0)
@@ -22,87 +23,60 @@ data/patients/
 └── Name (TelegramID)/          # Flexible folder name (suffix-tracked)
     ├── TelegramID.md           # Mirrored Medical Card (Markdown)
     ├── scans/                  # Categorized clinical documents
-    │   └── DD.MM.YY/*.pdf
     ├── images/                 # MRI/X-Ray photos
     └── messages/               # Voice recordings (.ogg)
 ```
 
-## ⚙️ Configuration (Environment Variables)
+## ⚙️ Core Technical Services
 
-| Variable | Description |
-| :--- | :--- |
-| `DB_URL` | PostgreSQL connection string |
-| `WEBAPP_SECRET` | Used for both TWA HMAC validation and WebDAV password |
-| `TZ` | System timezone (Default: `Europe/Istanbul`) |
-| `DATA_DIR` | Directory for clinical Markdown files |
-| `GOOGLE_CALENDAR_ID` | Targeted GCal ID |
+### 1. Zero-Collision Scheduler
+
+The `AppointmentService` leverages the official Google Free/Busy API. It queries all relevant calendars to find true available blocks.
+
+- **JIT Verification**: A final Free/Busy check is performed *within* the booking confirmation transaction to prevent race conditions.
+
+### 2. Automated Backup Worker (v5.0)
+
+A background worker (24h ticker) that:
+
+- Dumps the PostgreSQL database via `pg_dump`.
+- Zips the database dump and the `/app/data/patients/` directory.
+- Sends the resulting archive to the Admin's Telegram ID.
+- Purges temporary files to maintain disk health.
+
+### 3. Smart Forwarding & Admin Reply
+
+Forwarded patient messages include a signed callback token. Admins can respond directly, and the entire "conversation loop" is automatically archived to the patient's Markdown record.
+
+---
 
 ## 🚀 Development Workflow
 
 ### 1. External Dependencies
 
 - **PostgreSQL**: Required for metadata.
-- **Google Cloud Console**: Enable 'Google Calendar API', configure OAuth2, and place `credentials.json` in root.
-- **Groq Cloud (Optional)**: Used for high-speed Whisper transcription of patient voice notes. Configure `GROQ_API_KEY` in `.env`.
+- **Google Cloud Console**: Enable 'Calendar API', configure OAuth2.
+- **Groq Cloud**: For Whisper transcription (`GROQ_API_KEY`).
 
 ### 2. Local Setup
 
 ```bash
-# Install dependencies
 go mod download
-
-# Build check
-docker-compose build massage-bot
+docker-compose build
 ```
-
-### 3. Database Resilience
-
-The system includes a **DB Retry Loop**. When the backend starts, it will attempt to connect to PostgreSQL 5 times with exponential backoff. This is crucial for home-server deployments where the DB container might start slower than the app.
-
-## 🛡️ Security & Performance Enhancements (v4.1.0)
-
-### 1. Concurrency Locking
-
-The `AppointmentService` uses a `sync.Mutex` to wrap the `CreateAppointment` critical section. This prevents race conditions where two users might attempt to book the same slot simultaneously.
-
-### 2. Available Slots Caching
-
-To reduce load on the Google Calendar API and improve TWA responsiveness, available slots are cached with a **2-minute TTL**.
-
-- **Invalidation**: The cache is automatically cleared whenever a new appointment is created, ensuring high data integrity.
-
-### 3. HTML Sanitization
-
-All voice transcripts rendered in the TWA are passed through `template.HTMLEscapeString`. This prevents XSS (Cross-Site Scripting) attacks while preserving readability by converting newlines to `<br>` tags.
-
-## 💉 WebDAV & TWA Integration
-
-- **WebDAV**: Mounted at `/webdav/`. Uses **Basic Auth** (Username: TelegramID, Password: `WEBAPP_SECRET` based HMAC).
-- **TWA**: Hosted on port `8082`. Uses **HMAC-SHA256** validation of `initData` provided by Telegram.
-
-## 📦 Deployment (Docker)
-
-The production image is a multi-stage `Dockerfile` (Builder -> Runtime) resulting in a minimal footprint (<50MB).
-
-```bash
-# Deploy to home server
-./scripts/deploy_home_server.sh
-```
-
-### Infrastructure Files Explained
-
-| File | Purpose | Use Case |
-| :--- | :--- | :--- |
-| `docker-compose.yml` | **Primary config**. The source of truth for Docker. | Used by `docker compose up`. |
-| `deploy/docker-compose.prod.yml` | **Production**. Optimized for home server deployments. | Used in production environments. |
-| `deploy/docker-compose.dev.yml` | **Development**. Tailored for local coding. | Used during development. |
-| `deploy/Caddyfile` | **Proxy Config**. Defines SSL and routing rules. | Used by host-level Caddy. |
-| `deploy/k8s/` | **Kubernetes**. Advanced orchestration manifests. | Used for K8s deployments. |
-
-`docker-compose.yml` includes specific limits to prevent host thrashing:
-
-- `cpus: 0.5`
-- `memory: 256M`
 
 ---
-*Created by Kirill Filin with Gemini Assistance. Build Version: 4.1.0-clinical.*
+
+## 📦 Deployment & Infrastructure
+
+The production environment is managed via Docker Compose on the home server.
+
+| File | Purpose |
+| :--- | :--- |
+| `docker-compose.yml` | **Master Controller**. |
+| `deploy/docker-compose.prod.yml` | Production-optimized overrides. |
+| `deploy/k8s/` | Kubernetes manifests. |
+| `scripts/deploy_home_server.sh` | Deployment automation. |
+
+---
+*Created by Kirill Filin with Gemini Assistance. Build Version: 5.0.0-clinical.*

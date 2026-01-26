@@ -37,6 +37,18 @@ func (m *mockRepo) GetCalendarID() string {
 func (m *mockRepo) ListCalendars(ctx context.Context) ([]string, error) {
 	return []string{"Primary (primary)"}, nil
 }
+func (m *mockRepo) GetFreeBusy(ctx context.Context, timeMin, timeMax time.Time) ([]domain.TimeSlot, error) {
+	var slots []domain.TimeSlot
+	for _, appt := range m.appointments {
+		if (appt.StartTime.After(timeMin) || appt.StartTime.Equal(timeMin)) && appt.StartTime.Before(timeMax) {
+			slots = append(slots, domain.TimeSlot{
+				Start: appt.StartTime,
+				End:   appt.EndTime,
+			})
+		}
+	}
+	return slots, nil
+}
 
 func TestGetAvailableTimeSlots(t *testing.T) {
 	repo := &mockRepo{

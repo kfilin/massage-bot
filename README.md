@@ -1,4 +1,4 @@
-# 💆 Vera Massage Bot (Clinical Edition v4.3.0)
+# 💆 Vera Massage Bot (Technical Excellence v5.0.0)
 
 ![Go Version](https://img.shields.io/badge/Go-1.24-00ADD8?style=flat&logo=go)
 ![Docker](https://img.shields.io/badge/Docker-Enabled-blue?logo=docker)
@@ -10,27 +10,33 @@ A professional Telegram-based ecosystem for clinical massage practice. Developed
 
 ## 🌟 High-Value Features
 
+### 📅 Zero-Collision Scheduling (v5.0)
+
+The definitive scheduling engine powered by the official **Google Calendar Free/Busy API**:
+
+- **100% Accuracy**: Respects "Out of Office", manual blocks, and external calendar overlays.
+- **Just-in-Time Verification**: Eliminates race conditions by re-verifying availability at the exact moment of confirmation.
+
+### 💾 Automated Backups 2.0 (v5.0)
+
+Disaster recovery that runs itself:
+
+- **Comprehensive Archival**: Daily ZIP backups containing the full PostgreSQL database (`pg_dump`) and patient Markdown files (`data/patients/`).
+- **Telegram Delivery**: Encrypted archives are delivered directly to the Admin every 24 hours.
+- **Self-Healing Storage**: Local temporary archives are purged after delivery to prevent disk bloat.
+
 ### 🩺 Clinical Storage 2.0
 
-The centerpiece of the v4 reconstruction. It moves away from scattered JSONs to a structured **Markdown-mirrored** architecture:
+A structured **Markdown-mirrored** architecture for patient records:
 
 - **Bi-directional Sync**: Edits made in the database reflect in `.md` files in real-time.
 - **Obsidian Mobility**: Connect **Obsidian Mobile** (iOS/Android) via WebDAV to manage medical cards directly on your phone.
 - **Suffix-based Lookup**: Therapist-friendly folder naming (e.g., `Ivan Ivanov (123456)`) while maintaining strict ID-based tracking.
 
-### 📱 Premium TWA Interface (v4)
+### 🔔 Interactive Reminders
 
-A high-end Telegram Web App experience for clinical management:
-
-- **Clinical White Theme**: Modern, minimalist UI optimized for medical professionals.
-- **Live GCal Stats**: Visit counts, first/last dates, and upcoming appointments synced directly from Google Calendar APIs.
-- **PDF Export**: Generate professional medical reports directly from the TWA dashboard.
-
-### 🔔 Automated Reminders & Smart Reply
-
-- **72h/24h Interactive Reminders**: Ticker-based worker scanning for upcoming visits to request patient confirmation.
+- **72h/24h Interactive Flow**: Ticker-based worker requests patient confirmation.
 - **Loop-Closed Messaging**: Admins can reply to patient inquiries directly via the bot using the `✍️ Ответить` interface.
-- **Zero-Manual Logging**: Every patient-therapist interaction is automatically archived in the clinical medical record.
 - **72h Cancellation Rule**: Enforced notice period for self-service cancellations to reduce administrative burden.
 
 ### 🔒 Enterprise Logic
@@ -45,9 +51,10 @@ A high-end Telegram Web App experience for clinical management:
 
 The project follows a clean architecture pattern, prioritizing stability and dependency isolation.
 
-- **Backend**: Go 1.24 (Fiber / Net-HTTP)
+- **Backend**: Go 1.24 (Fiber / Telebot v3)
 - **Database**: PostgreSQL 15+ (Transactional integrity)
 - **Sync**: WebDAV Server (CORS/OPTIONS enabled for Mobile clients)
+- **Monitoring**: Prometheus/Grafana stack on port 8083.
 - **Deployment**: Docker Compose with resource guards.
 
 ---
@@ -70,4 +77,5 @@ Create a `.env` file from `.env.example`.
 docker-compose up -d --build
 ```
 
-*Created by Kirill Filin with Gemini Assistance. Checkpoint: v4.3.0-clinical (2026-01-26).*
+---
+*Created by Kirill Filin with Gemini Assistance. Gold Standard Checkpoint: v5.0.0 Stable (2026-01-26).*

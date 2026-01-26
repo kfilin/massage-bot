@@ -13,6 +13,8 @@ import (
 var DB *sqlx.DB
 
 func InitDB() (*sqlx.DB, error) {
+	log.Printf("DEBUG: Connecting to DB: host=%s, port=%s, user=%s, dbname=%s, sslmode=%s",
+		os.Getenv("DB_HOST"), os.Getenv("DB_PORT"), os.Getenv("DB_USER"), os.Getenv("DB_NAME"), os.Getenv("DB_SSL_MODE"))
 	connStr := fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		os.Getenv("DB_HOST"),
@@ -43,9 +45,11 @@ func InitDB() (*sqlx.DB, error) {
 	}
 
 	// Initialize schema
+	log.Println("DEBUG: Ensuring database schema is up to date...")
 	if _, err := db.Exec(Schema); err != nil {
 		return nil, fmt.Errorf("failed to initialize schema: %w", err)
 	}
+	log.Println("DEBUG: Database schema initialized/verified.")
 
 	DB = db
 	log.Println("Database initialized successfully")

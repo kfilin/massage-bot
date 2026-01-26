@@ -130,75 +130,46 @@ func (a *adapter) ListCalendars(ctx context.Context) ([]string, error) {
 	return res, nil
 }
 
-// GetAvailableSlots fetches available time slots from Google Calendar.
-// This is a placeholder and needs actual implementation for checking free/busy times.
-func (a *adapter) GetAvailableSlots(ctx context.Context, date time.Time, durationMinutes int) ([]time.Time, error) {
-	// --- Placeholder for actual free/busy query to Google Calendar ---
-	// This is a complex logic involving Free/Busy API, checking existing events, and calculating gaps.
-	// For now, we'll return some mock data or simply indicate that this needs implementation.
-
-	// Example: Get existing events for the day to find busy slots
-	timeMin := date.Format(time.RFC3339)
-	timeMax := date.Add(24 * time.Hour).Format(time.RFC3339)
+// GetFreeBusy fetches busy time intervals from Google Calendar using the FreeBusy API.
+func (a *adapter) GetFreeBusy(ctx context.Context, timeMin, timeMax time.Time) ([]domain.TimeSlot, error) {
+	log.Printf("DEBUG: Querying FreeBusy from %s to %s for calendar %s", timeMin.Format(time.RFC3339), timeMax.Format(time.RFC3339), a.calendarID)
+	request := &calendar.FreeBusyRequest{
+		TimeMin: timeMin.Format(time.RFC3339),
+		TimeMax: timeMax.Format(time.RFC3339),
+		Items: []*calendar.FreeBusyRequestItem{
+			{Id: a.calendarID},
+		},
+	}
 
 	start := time.Now()
-	events, err := a.client.Events.List(a.calendarID).
-		ShowDeleted(false).
-		SingleEvents(true).
-		TimeMin(timeMin).
-		TimeMax(timeMax).
-		OrderBy("startTime").
-		Do()
+	resp, err := a.client.Freebusy.Query(request).Context(ctx).Do()
 	duration := time.Since(start).Seconds()
 
 	status := "success"
 	if err != nil {
 		status = "error"
 	}
-	monitoring.ApiRequestsTotal.WithLabelValues("google", "list_events", status).Inc()
-	monitoring.ApiLatency.WithLabelValues("google", "list_events").Observe(duration)
+	monitoring.ApiRequestsTotal.WithLabelValues("google", "free_busy_query", status).Inc()
+	monitoring.ApiLatency.WithLabelValues("google", "free_busy_query").Observe(duration)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to list calendar events: %w", err)
+		return nil, fmt.Errorf("failed to query freebusy: %w", err)
 	}
 
-	// This part needs to be refined to genuinely calculate available slots
-	// based on working hours, existing events, and slot duration.
-	// For now, it's a very basic example assuming we *might* find a slot.
-	availableSlots := []time.Time{}
-
-	// Define typical working hours for the day in the correct timezone
-	workStart := time.Date(date.Year(), date.Month(), date.Day(), domain.WorkDayStartHour, 0, 0, 0, domain.ApptTimeZone) // Используем domain.WorkDayStartHour и domain.ApptTimeZone
-	workEnd := time.Date(date.Year(), date.Month(), date.Day(), domain.WorkDayEndHour, 0, 0, 0, domain.ApptTimeZone)     // Используем domain.WorkDayEndHour и domain.ApptTimeZone
-
-	// Simple iteration (needs to consider existing events properly)
-	currentTime := workStart
-	for currentTime.Before(workEnd) {
-		slotEnd := currentTime.Add(*domain.SlotDuration) // Используем domain.SlotDuration
-		if slotEnd.After(workEnd) {
-			break // Slot extends past working hours
+	var busySlots []domain.TimeSlot
+	if cal, ok := resp.Calendars[a.calendarID]; ok {
+		for _, b := range cal.Busy {
+			s, _ := time.Parse(time.RFC3339, b.Start)
+			e, _ := time.Parse(time.RFC3339, b.End)
+			busySlots = append(busySlots, domain.TimeSlot{
+				Start: s,
+				End:   e,
+			})
 		}
-
-		isSlotBusy := false
-		for _, event := range events.Items {
-			eventStart, _ := time.Parse(time.RFC3339, event.Start.DateTime)
-			eventEnd, _ := time.Parse(time.RFC3339, event.End.DateTime)
-
-			// Check for overlap: [start, end)
-			if currentTime.Before(eventEnd) && slotEnd.After(eventStart) {
-				isSlotBusy = true
-				break
-			}
-		}
-
-		if !isSlotBusy {
-			availableSlots = append(availableSlots, currentTime)
-		}
-		currentTime = slotEnd // Move to the next potential slot
 	}
 
-	log.Printf("Found %d available slots for %s", len(availableSlots), date.Format("2006-01-02"))
-	return availableSlots, nil
+	log.Printf("DEBUG: FreeBusy query for %s returned %d busy intervals: %v", a.calendarID, len(busySlots), busySlots)
+	return busySlots, nil
 }
 
 // FindAll fetches all events (appointments) from Google Calendar starting from 24 hours ago.

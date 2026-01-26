@@ -29,7 +29,7 @@ A professional clinical ecosystem for massage therapists. Features interactive b
 ## 🔄 Git Workflow
 
 - **Master Branch**: Primary source of truth.
-- **Rule**: All restoration work from the "PDF experiment" has been consolidated into the `master` branch on the stable `v3.15` backbone.
+- **Rule**: All restoration work from the "PDF experiment" has been consolidated into the `master` branch on the stable `v5.0.0` backbone.
 
 ---
 
