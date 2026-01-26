@@ -96,7 +96,7 @@ func validateInitData(initData string, botToken string) (string, string, error) 
 	return fmt.Sprintf("%d", user.ID), fullName, nil
 }
 
-func startWebAppServer(port string, secret string, botToken string, repo ports.Repository, apptService ports.AppointmentService, dataDir string) {
+func startWebAppServer(port string, secret string, botToken string, adminIDs []string, repo ports.Repository, apptService ports.AppointmentService, dataDir string) {
 	if port == "" {
 		port = "8082"
 	}
@@ -281,6 +281,21 @@ func startWebAppServer(port string, secret string, botToken string, repo ports.R
 		}
 
 		log.Printf("TWA: User %s cancelled appointment %s", id, apptID)
+
+		// NOTIFY VIA BOT
+		notificationMsg := fmt.Sprintf("⚠️ *Запись отменена!*\n\nПациент: %s\nДата: %s\nУслуга: %s",
+			appt.CustomerName, appt.StartTime.In(domain.ApptTimeZone).Format("02.01.2006 15:04"), appt.Service.Name)
+
+		// 1. Notify Admins
+		for _, adminID := range adminIDs {
+			sendTelegramMessage(botToken, adminID, notificationMsg)
+		}
+
+		// 2. Notify Patient (Push confirmation)
+		patientMsg := fmt.Sprintf("✅ *Вы успешно отменили запись:*\n\n📅 %s\n💆 %s\n\nЖдем вас в другой раз!",
+			appt.StartTime.In(domain.ApptTimeZone).Format("02.01.2006 15:04"), appt.Service.Name)
+		sendTelegramMessage(botToken, id, patientMsg)
+
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
@@ -380,5 +395,26 @@ func startWebAppServer(port string, secret string, botToken string, repo ports.R
 
 	if err := server.ListenAndServe(); err != nil {
 		log.Fatalf("Web App server failed: %v", err)
+	}
+}
+
+// Helper to send simple Telegram messages without complex dependencies
+func sendTelegramMessage(token, chatID, text string) {
+	apiURL := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", token)
+	payload, _ := json.Marshal(map[string]string{
+		"chat_id":    chatID,
+		"text":       text,
+		"parse_mode": "Markdown",
+	})
+
+	resp, err := http.Post(apiURL, "application/json", strings.NewReader(string(payload)))
+	if err != nil {
+		log.Printf("Failed to send bot notification: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("Telegram API error: %s", resp.Status)
 	}
 }
