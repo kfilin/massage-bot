@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.0] - 2026-01-26
+
+### Added
+
+- **Phase 4: Technical Excellence** (Series Finale)
+- **Robust Scheduling**: Successfully migrated to the official Google Calendar **Free/Busy API**. This ensures 100% accurate collision detection for available slots, automatically respecting "Out of Office", manual blocks, and overlapping events created outside the bot.
+- **Automated Backups 2.0**: Implemented a comprehensive backup system that archives both the PostgreSQL database (`pg_dump`) and the clinical Markdown directory (`data/patients/`).
+- **Backup Worker**: Added a background ticker that performs an automated backup every 24 hours and sends it directly to the therapist via Telegram.
+- **Manual Backups**: Updated the `/backup` command for admins to trigger an immediate full ZIP archive delivery.
+
+### Changed
+
+- **Infrastructure**: Updated Dockerfile to include `postgresql-client` and `zip` for integrated backup capabilities.
+- **Availability Logic**: Refactored the internal scheduler to perform a just-in-time Free/Busy check during the final confirmation step, eliminating the risk of race-condition double bookings.
+
 ## [4.4.3] - 2026-01-26
 
 ### Fixed
