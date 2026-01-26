@@ -44,16 +44,45 @@ const medicalRecordTemplate = `
             }
         }
 
+        function updateCountdown() {
+            const nextUnix = {{.NextApptUnix}};
+            if (nextUnix === 0) return;
+
+            const now = Math.floor(Date.now() / 1000);
+            const diff = nextUnix - now;
+            const el = document.getElementById('countdown');
+            if (!el) return;
+
+            if (diff <= 0) {
+                el.innerText = "Прием начинается...";
+                return;
+            }
+
+            const days = Math.floor(diff / 86400);
+            const hours = Math.floor((diff % 86400) / 3600);
+            const mins = Math.floor((diff % 3600) / 60);
+
+            let str = "";
+            if (days > 0) str += days + "д ";
+            if (hours > 0 || days > 0) str += hours + "ч ";
+            str += mins + "м";
+            
+            el.innerText = "До приема: " + str;
+        }
+
         window.addEventListener('DOMContentLoaded', () => {
             const tg = window.Telegram.WebApp;
             if (tg && tg.expand) { tg.expand(); tg.ready(); tg.setHeaderColor('#ffffff'); }
+            
+            updateCountdown();
+            setInterval(updateCountdown, 60000);
         });
     </script>
     <style>
         :root {
             --accent: #2563eb; --accent-soft: #eff6ff; --bg-page: #f8fafc; --bg-card: #ffffff;
             --text-main: #0f172a; --text-muted: #64748b; --border: #e2e8f0; --glass: rgba(255, 255, 255, 0.85);
-            --danger: #ef4444; --danger-soft: #fef2f2;
+            --danger: #ef4444; --danger-soft: #fef2f2; --success: #22c55e;
         }
         * { box-sizing: border-box; -webkit-font-smoothing: antialiased; }
         body { background-color: var(--bg-page); font-family: 'Inter', system-ui, sans-serif; margin: 0; padding: 0; color: var(--text-main); line-height: 1.6; overflow-x: hidden; }
@@ -76,14 +105,18 @@ const medicalRecordTemplate = `
         .notes-content h2 { font-size: 18px; }
         .notes-content h3 { font-size: 16px; }
         .doc-list { display: flex; flex-direction: column; gap: 8px; }
-        .doc-item { display: flex; justify-content: space-between; align-items: center; padding: 14px; background: var(--bg-page); border-radius: 12px; text-decoration: none; color: var(--text-main); font-size: 14px; font-weight: 500; border: 1px solid transparent; }
+        .doc-item { display: flex; justify-content: space-between; align-items: center; padding: 14px; background: var(--bg-page); border-radius: 12px; text-decoration: none; color: var(--text-main); font-size: 14px; font-weight: 500; border: 1px solid transparent; transition: all 0.2s ease; }
+        .doc-item:hover { transform: translateY(-1px); border-color: var(--accent); }
         .doc-info { display: flex; flex-direction: column; }
         .doc-stat { font-size: 12px; color: var(--text-muted); font-weight: 400; margin-top: 2px; }
         .doc-latest { font-size: 11px; color: var(--text-muted); font-weight: 400; text-align: right; }
         .footer { text-align: center; padding: 32px 24px 64px; color: var(--text-muted); font-size: 12px; font-weight: 500; }
-        .btn-cancel { padding: 6px 12px; background: var(--danger-soft); color: var(--danger); border: none; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; }
-        .appt-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); }
+        .btn-cancel { padding: 6px 12px; background: var(--danger-soft); color: var(--danger); border: none; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; transition: background 0.2s; }
+        .btn-cancel:hover { background: #fee2e2; }
+        .appt-item { display: flex; justify-content: space-between; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--border); }
         .appt-item:last-child { border-bottom: none; }
+        .countdown-banner { background: var(--accent); color: white; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; margin-top: 12px; display: inline-block; }
+        .contact-vera { font-size: 11px; color: var(--accent); text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
 
         /* Mobile Optimization */
         @media (max-width: 480px) {
@@ -126,24 +159,39 @@ const medicalRecordTemplate = `
     </header>
     <main class="main-container">
         <!-- UPCOMING APPOINTMENTS -->
-        {{if .ShowLastVisitLink}}
+        {{if .FutureAppointments}}
         <section>
             <h2>Будущие записи</h2>
             <div class="appt-list">
+                {{range .FutureAppointments}}
                 <div class="appt-item">
                     <div>
-                        <div style="font-weight: 700; font-size: 15px;">{{.LastVisit}}</div>
-                        <div style="font-size: 12px; color: var(--text-muted);">{{.CurrentService}}</div>
+                        <div style="font-weight: 700; font-size: 15px;">{{.Date}}</div>
+                        <div style="font-size: 12px; color: var(--text-muted);">{{.Service}}</div>
+                    </div>
+                    <div>
+                        {{if .CanCancel}}
+                            <button class="btn-cancel" onclick="cancelAppointment('{{.ID}}')">Отменить</button>
+                        {{else}}
+                            <a href="https://t.me/VeraFethiye" class="contact-vera">💬 Написать Вере</a>
+                        {{end}}
                     </div>
                 </div>
+                {{end}}
+                
+                {{if .NextApptUnix}}
+                <div id="countdown" class="countdown-banner">⏳ Загрузка...</div>
+                {{end}}
+                
                 <p style="font-size: 11px; color: var(--text-muted); margin-top: 12px;">
-                    ⚠️ Отмена возможна за 72 часа до приема. Для отмены свяжитесь с терапевтом.
+                    ⚠️ Отмена возможна за 72 часа до приема.
                 </p>
             </div>
         </section>
         {{end}}
 
         <section>
+            <h2>История болезни</h2>
             <div class="notes-content">{{.TherapistNotes}}</div>
         </section>
 
@@ -187,7 +235,7 @@ const medicalRecordTemplate = `
                 {{end}}
             </div>
         </section>
-        <footer class="footer">Vera Massage Bot v4.2.1<br>Professional Medical Record Hub</footer>
+        <footer class="footer">Vera Massage Bot {{.BotVersion}}<br>Professional Medical Record Hub</footer>
     </main>
 </body>
 </html>

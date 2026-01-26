@@ -290,6 +290,12 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient, history []doma
 		Date    string
 		Service string
 	}
+	type futureInfo struct {
+		ID        string
+		Date      string
+		Service   string
+		CanCancel bool
+	}
 	type templateData struct {
 		Name               string
 		TelegramID         string
@@ -302,11 +308,13 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient, history []doma
 		FirstVisit         string
 		LastVisit          string
 		FirstVisitLink     string
-		LastVisitLink      string
+		NextVisitLink      string // Renamed from LastVisitLink for clarity in countdown
 		ShowFirstVisitLink bool
-		ShowLastVisitLink  bool
+		ShowNextVisitLink  bool // Renamed from ShowLastVisitLink
 		DocGroups          []docGroup
 		RecentVisits       []visitInfo
+		FutureAppointments []futureInfo
+		NextApptUnix       int64
 	}
 
 	getCalLink := func(t time.Time, service string) string {
@@ -333,9 +341,35 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient, history []doma
 		FirstVisit:         p.FirstVisit.Format("02.01.2006 15:04"),
 		LastVisit:          p.LastVisit.Format("02.01.2006 15:04"),
 		FirstVisitLink:     getCalLink(p.FirstVisit, p.CurrentService),
-		LastVisitLink:      getCalLink(p.LastVisit, p.CurrentService),
 		ShowFirstVisitLink: p.FirstVisit.After(time.Now()),
-		ShowLastVisitLink:  p.LastVisit.After(time.Now()),
+	}
+
+	// Identify Future Appointments and Next Appointment for Countdown
+	now := time.Now().In(domain.ApptTimeZone)
+	var futureAppts []domain.Appointment
+	for _, a := range history {
+		if a.Status != "cancelled" && a.StartTime.After(now) && !strings.Contains(strings.ToLower(a.Service.Name), "block") {
+			futureAppts = append(futureAppts, a)
+		}
+	}
+	sort.Slice(futureAppts, func(i, j int) bool {
+		return futureAppts[i].StartTime.Before(futureAppts[j].StartTime)
+	})
+
+	if len(futureAppts) > 0 {
+		next := futureAppts[0]
+		data.NextApptUnix = next.StartTime.Unix()
+		data.NextVisitLink = getCalLink(next.StartTime, next.Service.Name)
+		data.ShowNextVisitLink = true
+
+		for _, a := range futureAppts {
+			data.FutureAppointments = append(data.FutureAppointments, futureInfo{
+				ID:        a.ID,
+				Date:      a.StartTime.In(domain.ApptTimeZone).Format("02.01.2006 15:04"),
+				Service:   a.Service.Name,
+				CanCancel: a.StartTime.Sub(now) > 72*time.Hour,
+			})
+		}
 	}
 
 	// Populate Recent Visits (only confirmed, non-block)

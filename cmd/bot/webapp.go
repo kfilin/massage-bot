@@ -223,6 +223,68 @@ func startWebAppServer(port string, secret string, botToken string, repo ports.R
 		fmt.Fprint(w, html)
 	})
 
+	mux.HandleFunc("/cancel", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		id := r.URL.Query().Get("id")
+		token := r.URL.Query().Get("token")
+		apptID := r.URL.Query().Get("apptId")
+
+		if id == "" || token == "" || apptID == "" {
+			http.Error(w, "Missing parameters", http.StatusBadRequest)
+			return
+		}
+
+		if !validateHMAC(id, token, secret) {
+			http.Error(w, "Invalid token", http.StatusUnauthorized)
+			return
+		}
+
+		// Security: Ensure the appointment belongs to the user
+		appt, err := apptService.FindByID(r.Context(), apptID)
+		if err != nil {
+			log.Printf("Cancel Error: Appt %s not found: %v", apptID, err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Запись не найдена"})
+			return
+		}
+
+		if appt.CustomerTgID != id {
+			log.Printf("Cancel Error: Appt %s (Owner: %s) access denied for User %s", apptID, appt.CustomerTgID, id)
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+
+		// Enforce 72h rule
+		now := time.Now().In(domain.ApptTimeZone)
+		if appt.StartTime.Sub(now) < 72*time.Hour {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"status": "error",
+				"error":  "До приема менее 72 часов. Пожалуйста, напишите терапевту напрямую.",
+			})
+			return
+		}
+
+		err = apptService.CancelAppointment(r.Context(), apptID)
+		if err != nil {
+			log.Printf("Cancel Error: Failed to cancel appt %s: %v", apptID, err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Не удалось отменить запись"})
+			return
+		}
+
+		log.Printf("TWA: User %s cancelled appointment %s", id, apptID)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	})
+
 	// WebDAV Handler for Obsidian Sync
 	davUser := os.Getenv("WEBDAV_USER")
 	davPass := os.Getenv("WEBDAV_PASSWORD")
