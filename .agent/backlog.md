@@ -33,10 +33,10 @@
 - **Status**: Completed in v5.0.0.
 - **Resolution**: Implemented ZIP archival of DB + Files with daily Telegram delivery to Admin.
 
-### 12. Local Duplicati Backup Setup
+### 12. [DONE] Local Duplicati Backup Setup
 
-- **Goal**: Set up a local Duplicati instance on the home server to perform incremental, encrypted backups of the `./data` directory to a secondary local or cloud target.
-- **Status**: Backlog (2026-01-26).
+- **Status**: Completed (2026-01-27).
+- **Resolution**: User set up and verified Duplicati instance on the home server for incremental, encrypted backups of the `./data` directory.
 
 ---
-*Last updated: 2026-01-26 14:28*
+*Last updated: 2026-01-27 00:07*
