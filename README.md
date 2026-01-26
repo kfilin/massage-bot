@@ -1,4 +1,4 @@
-# 💆 Vera Massage Bot (Clinical Edition v4.1.0)
+# 💆 Vera Massage Bot (Clinical Edition v4.3.0)
 
 ![Go Version](https://img.shields.io/badge/Go-1.24-00ADD8?style=flat&logo=go)
 ![Docker](https://img.shields.io/badge/Docker-Enabled-blue?logo=docker)
@@ -26,9 +26,11 @@ A high-end Telegram Web App experience for clinical management:
 - **Live GCal Stats**: Visit counts, first/last dates, and upcoming appointments synced directly from Google Calendar APIs.
 - **PDF Export**: Generate professional medical reports directly from the TWA dashboard.
 
-### 🔔 Automated Reminders & Scheduling
+### 🔔 Automated Reminders & Smart Reply
 
-- **2h Notification Worker**: Automatic Telegram reminders sent to patients exactly 2 hours before their visit.
+- **72h/24h Interactive Reminders**: Ticker-based worker scanning for upcoming visits to request patient confirmation.
+- **Loop-Closed Messaging**: Admins can reply to patient inquiries directly via the bot using the `✍️ Ответить` interface.
+- **Zero-Manual Logging**: Every patient-therapist interaction is automatically archived in the clinical medical record.
 - **72h Cancellation Rule**: Enforced notice period for self-service cancellations to reduce administrative burden.
 
 ### 🔒 Enterprise Logic
@@ -68,4 +70,4 @@ Create a `.env` file from `.env.example`.
 docker-compose up -d --build
 ```
 
-*Created by Kirill Filin with Gemini Assistance. Checkpoint: v4.1.0-clinical (2026-01-23).*
+*Created by Kirill Filin with Gemini Assistance. Checkpoint: v4.3.0-clinical (2026-01-26).*

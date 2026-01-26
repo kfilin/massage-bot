@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.3.0] - 2026-01-26
+
+### Added
+
+- **Reminder Service**: New background worker (10-min ticker) for automated patient notifications.
+- **Interactive Reminders**: Interactive `[✅ Подтвердить]` and `[❌ Отменить]` buttons for 72h and 24h appointment windows.
+- **Smart Admin Reply**: Forwarded patient messages now include a `[✍️ Ответить]` button, allowing admins to reply directly through the bot.
+- **Automatic Archiving**: All patient inquiries (text/voice) and admin responses are automatically logged to the patient's medical card (Postgres & Markdown).
+- **Confirmation Tracking**: New database metadata layer to track appointment confirmation status.
+
+### Changed
+
+- **Messaging Loop**: Refined auto-reply logic for unknown patient inputs ("Ваше сообщение получено и передано Вере.").
+- **Bot Persona**: Professionalized communication persona for better patient guidance.
+
+### Fixed
+
+- **Name Input Flow**: Fixed a regression in the booking flow where name input was bypassed by the forwarding middleware.
+
 ## [4.2.2] - 2026-01-24
 
 ### Fixed
