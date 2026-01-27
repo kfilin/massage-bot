@@ -29,7 +29,7 @@ func main() {
 	// 1. Load Configuration
 	cfg := config.LoadConfig()
 	log.Println("Configuration loaded.")
-	log.Println("Bot version: v4.4.0 Clinical Edition")
+	log.Println("Bot version: v5.1.0 Clinical Edition")
 
 	// Start health server
 	go startHealthServer()
@@ -40,7 +40,7 @@ func main() {
 		log.Fatalf("Error initializing database: %v", err)
 	}
 	patientRepo := storage.NewPostgresRepository(db, os.Getenv("DATA_DIR"))
-	patientRepo.BotVersion = "v4.4.0"
+	patientRepo.BotVersion = "v5.1.0"
 	log.Println("Database initialized.")
 
 	// Ensure Folders are in sync with Clinical Storage 2.0 logic

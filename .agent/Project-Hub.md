@@ -8,7 +8,7 @@ A professional clinical ecosystem for massage therapists. Features interactive b
 
 ## 🏗️ Technical Foundation
 
-- **Version**: v5.0.0 (Technical Excellence Edition)
+- **Version**: v5.1.0-stable (Transparency & Documentation Excellence)
 - **Language**: **Go 1.24** (Alpine-based)
 - **Database**: PostgreSQL 15 (Metadata & Sync Status)
 - **Clinical Storage**: **Markdown-mirrored Filesystem** (Clinical Storage 2.0)
@@ -78,10 +78,10 @@ This project uses a dual-remote setup with automated mirroring to maintain sync 
 
 ## 💎 Gold Standard Checkpoint
 
-- **Commit**: `90b3fd0` (Enhanced Logging & Documentation Cleanup)
+- **Commit**: `57783df` (v5.1.0 Stable Checkpoint)
 - **Date**: 2026-01-27
-- **Status**: **v5.0.0 Stable + Enhanced Logging**. Max transparency for clinical operations and verified Duplicati local backups.
-- **Rollback Command**: `git reset --hard 90b3fd0`
+- **Status**: **v5.1.0 STABLE**. Enhanced Observability (`DEBUG` logs) and Duplicati Integration verified.
+- **Rollback Command**: `git reset --hard 57783df`
 
 ---
 
