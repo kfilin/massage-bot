@@ -4,53 +4,56 @@ description: How to maintain the parallel Test Environment on the Home Server
 
 # Test Environment Workflow (Twin Strategy)
 
-We run a "Twin" environment on the Home Server to test changes before going live. Both environments co-exist in the **same folder** (`/opt/vera-bot`) but use different configuration files.
+We run a "Twin" environment on the Home Server to test changes before going live. We use a **Separate Folder** strategy for safety.
 
 ## 1. Architecture
 
-| Feature | **Production (Prod)** | **Test (Twin)** |
+| Feature | **Production** (`/opt/vera-bot`) | **Test** (`/opt/vera-bot-test`) |
 | :--- | :--- | :--- |
 | **Domain** | `app.massagemni.com` | `vera-bot-test.kfilin.icu` |
-| **Bot Token** | Real Vera Bot | Test Bot (from @BotFather) |
-| **App Port** | `8082` | `9082` |
-| **Health Port** | `8083` | `9083` |
-| **Database** | `massage-bot-db` (Prod Data) | `massage-bot-db-test` (Empty/Test Data) |
-| **Config** | `.env` | `.env.test` |
-| **Compose** | `docker-compose.yml` (Implicit) | `docker-compose.test.yml` |
-| **Data Dir** | `data/` | `data_test/` |
+| **Ports** | `8082`, `8083` | `9082`, `9083` |
+| **Database** | `massage-bot-db` | `massage-bot-db-test` |
+| **Command** | `docker compose up -d` | `docker compose up -d` |
 
-## 2. Setup (One-Time)
+## 2. Setup (One-Time Migration)
 
-1. **Switch to User**: `su - kirill` (or your user).
-2. **Pull Code**: `cd /opt/vera-bot && git pull origin master`.
-3. **Create Secrets**:
+1. **Clone to Test Folder**:
 
     ```bash
-    cp .env.test.example .env.test
-    nano .env.test # Add TEST_BOT_TOKEN and WEBAPP_URL
+    cd /opt
+    git clone https://github.com/kfilin/massage-bot.git vera-bot-test
+    cd vera-bot-test
     ```
 
-4. **Configure Caddy**:
-    Add the contents of `deploy/caddy_test_config.snippet` to `/etc/caddy/Caddyfile` and run `sudo service caddy reload`.
+2. **Configure Secrets**:
+
+    ```bash
+    cp .env.example .env
+    nano .env
+    # 1. Set TG_BOT_TOKEN to your Test Token
+    # 2. Set WEBAPP_URL to vera-bot-test.kfilin.icu
+    # 3. Set DB_NAME=massage_bot_test
+    ```
+
+3. **Apply Port Overrides**:
+    Copy the override file to valid `docker-compose.override.yml`:
+
+    ```bash
+    cp deploy/docker-compose.test-override.yml docker-compose.override.yml
+    ```
+
+    *Docker automatically merges `docker-compose.yml` + `docker-compose.override.yml`.*
+
+4. **Start Test Env**:
+
+    ```bash
+    docker compose up -d
+    ```
 
 ## 3. Usage
 
-### Deploying to Test
+Since we use separate folders, standard commands work safely:
 
-To update the test bot with the latest code from `master`:
-
-```bash
-./scripts/deploy_test_server.sh
-```
-
-### Viewing Logs
-
-```bash
-docker compose -f docker-compose.test.yml -p massage-bot-test logs -f --tail=50 massage-bot-test
-```
-
-### Stopping Test Environment
-
-```bash
-docker compose -f docker-compose.test.yml -p massage-bot-test down
-```
+* **Logs**: `docker compose logs -f`
+* **Stop**: `docker compose down` (Only affects Test!)
+* **Update**: `git pull && docker compose build --no-cache && docker compose up -d`

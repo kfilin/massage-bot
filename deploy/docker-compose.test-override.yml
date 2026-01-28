@@ -1,0 +1,20 @@
+services:
+  massage-bot:
+    container_name: massage-bot-test
+    ports:
+      - "9082:8082" # Override host port
+      - "9083:8083"
+    environment:
+      - HEALTH_PORT=8083
+    restart: unless-stopped
+
+  db:
+    container_name: massage-bot-db-test
+    ports:
+      - "5433:5432" # Override host port
+    environment:
+      POSTGRES_DB: massage_bot_test
+
+networks:
+  caddy-test-net:
+    driver: bridge

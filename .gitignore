@@ -51,6 +51,8 @@ gitlab-kubeconfig-final.yaml
 deploy/k8s/
 deploy/docker-compose*.yml
 deploy/Caddyfile*
+docker-compose.override.yml
+!deploy/docker-compose.test-override.yml
 !configs/config.example.yml
 !deploy/docker-compose.example.yml
 !deploy/docker-compose.test.yml
