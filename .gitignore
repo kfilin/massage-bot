@@ -3,6 +3,7 @@ config.yml
 .env
 .env.local
 .env.production
+.env.test
 
 # Database
 *.db
@@ -24,9 +25,11 @@ Thumbs.db
 # Logs
 *.log
 logs/
+logs_test/
 
 # Patient data
 data/
+data_test/
 !data/README.md
 
 # Temporary files
@@ -38,6 +41,7 @@ data/
 .gemini/
 verification-checklist.md
 postgres_data/
+postgres_data_test/
 postgres_data_dev/
 telegram_api_data/
 gitlab-kubeconfig-final.yaml
@@ -49,5 +53,6 @@ deploy/docker-compose*.yml
 deploy/Caddyfile*
 !configs/config.example.yml
 !deploy/docker-compose.example.yml
+!deploy/docker-compose.test.yml
 !deploy/Caddyfile.example
 VERA_GUIDE.md
