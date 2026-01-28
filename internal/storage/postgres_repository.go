@@ -256,6 +256,58 @@ func (r *PostgresRepository) LogEvent(patientID string, eventType string, detail
 	return err
 }
 
+// GetAppointmentHistory retrieves all appointments for a patient from the database
+func (r *PostgresRepository) GetAppointmentHistory(telegramID string) ([]domain.Appointment, error) {
+	var appts []domain.Appointment
+
+	// Denormalized fetch (no JOINs needed as we store service details)
+	query := `
+		SELECT id, customer_id, service_id, start_time, status, customer_name,
+		       service_name as "service.name", service_duration as "service.duration", service_price as "service.price"
+		FROM appointments
+		WHERE customer_id = $1
+		ORDER BY start_time DESC
+	`
+
+	err := r.db.Select(&appts, query, telegramID)
+	if err != nil {
+		return nil, err
+	}
+
+	return appts, nil
+}
+
+// UpsertAppointments batch inserts or updates appointments in the database
+func (r *PostgresRepository) UpsertAppointments(appts []domain.Appointment) error {
+	if len(appts) == 0 {
+		return nil
+	}
+
+	query := `
+		INSERT INTO appointments (id, customer_id, service_id, start_time, status, customer_name, 
+		                          service_name, service_duration, service_price, created_at, updated_at)
+		VALUES (:id, :customer_id, :service_id, :start_time, :status, :customer_name, 
+		        :service.name, :service.duration, :service.price, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+		ON CONFLICT (id) DO UPDATE SET
+			customer_id = EXCLUDED.customer_id,
+			service_id = EXCLUDED.service_id,
+			start_time = EXCLUDED.start_time,
+			status = EXCLUDED.status,
+			customer_name = EXCLUDED.customer_name,
+			service_name = EXCLUDED.service_name,
+			service_duration = EXCLUDED.service_duration,
+			service_price = EXCLUDED.service_price,
+			updated_at = CURRENT_TIMESTAMP;
+	`
+
+	// Create a named prepared statement for better performance (optional, direct NamedExec is fine for now)
+	_, err := r.db.NamedExec(query, appts)
+	if err != nil {
+		return fmt.Errorf("failed to batch upsert appointments: %w", err)
+	}
+	return nil
+}
+
 func (r *PostgresRepository) mdToHTML(md string) template.HTML {
 	if md == "" {
 		return template.HTML("")

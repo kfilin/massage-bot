@@ -23,6 +23,8 @@ type Repository interface {
 	CreateBackup() (string, error)
 	SyncAll() error
 	MigrateFolderNames() error
+	GetAppointmentHistory(telegramID string) ([]domain.Appointment, error)
+	UpsertAppointments(appts []domain.Appointment) error
 
 	// Appointment Metadata (Reminders/Confirmations)
 	SaveAppointmentMetadata(apptID string, confirmedAt *time.Time, remindersSent map[string]bool) error

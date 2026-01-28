@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -10,7 +11,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -184,18 +184,65 @@ func startWebAppServer(port string, secret string, botToken string, adminIDs []s
 			}
 		}
 
-		// Sync logic: Fetch actual appointments from GCal to ensure Medical Card is up-to-date
-		appts, err := apptService.GetCustomerHistory(r.Context(), finalID)
-		if err == nil {
-			// Update visit stats even if zero
+		// Optimize Speed: Use cached data from DB instead of blocking GCal sync
+
+		// 1. Try to load appointments purely from local DB for performance
+		dbAppts, err := repo.GetAppointmentHistory(finalID)
+		if err != nil {
+			log.Printf("DB Error loading history for %s: %v", finalID, err)
+			dbAppts = []domain.Appointment{}
+		}
+
+		// 2. Smart Sync Logic:
+		// If DB is empty -> We MUST sync synchronously (blocking) to show data
+		// If DB has data -> We sync asynchronously (non-blocking) to update cache
+
+		var appts []domain.Appointment
+
+		if len(dbAppts) == 0 {
+			// EMPTY CACHE: Blocking Sync
+			log.Printf("Cache miss for %s. Performing blocking sync...", finalID)
+			fetchedAppts, err := apptService.GetCustomerHistory(r.Context(), finalID)
+			if err == nil {
+				appts = fetchedAppts
+				// Save to DB immediately
+				if len(appts) > 0 {
+					if err := repo.UpsertAppointments(appts); err != nil {
+						log.Printf("Failed to cache synced appointments: %v", err)
+					}
+				}
+			} else {
+				log.Printf("Failed to fetch history from GCal: %v", err)
+			}
+		} else {
+			// CACHE HIT: Fast Return + Background Sync
+			appts = dbAppts
+			go func() {
+				// Background Sync
+				log.Printf("Background syncing history for %s...", finalID)
+				// Create a new context as the request context will be cancelled
+				bgCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+
+				fetchedAppts, err := apptService.GetCustomerHistory(bgCtx, finalID)
+				if err == nil && len(fetchedAppts) > 0 {
+					if err := repo.UpsertAppointments(fetchedAppts); err != nil {
+						log.Printf("Failed to update cache in background: %v", err)
+					} else {
+						log.Printf("Background sync successful for %s", finalID)
+					}
+				}
+			}()
+		}
+
+		// Recalculate stats based on appts
+		if len(appts) > 0 {
 			var lastVisit, firstVisit time.Time
 			confirmedCount := 0
 			for _, a := range appts {
-				// Filter: Only confirmed visits, skip cancellations and admin blocks
 				if a.Status == "cancelled" || strings.Contains(strings.ToLower(a.Service.Name), "block") || strings.Contains(strings.ToLower(a.CustomerName), "admin block") {
 					continue
 				}
-
 				confirmedCount++
 				if firstVisit.IsZero() || a.StartTime.Before(firstVisit) {
 					firstVisit = a.StartTime
@@ -208,14 +255,8 @@ func startWebAppServer(port string, secret string, botToken string, adminIDs []s
 			patient.LastVisit = lastVisit
 			patient.TotalVisits = confirmedCount
 
-			// CLEANUP LEGACY AUDIT LOGS FROM NOTES (Aggressive regex scrubbing)
-			// Matches lines starting with (optional symbols) followed by Запись:, Первая запись:, or Зарегистрирован:
-			scrubRegex := regexp.MustCompile(`(?m)^.*(Запись:|Первая запись:|Зарегистрирован:).*$\n?`)
-			patient.TherapistNotes = scrubRegex.ReplaceAllString(patient.TherapistNotes, "")
-			patient.TherapistNotes = strings.TrimSpace(patient.TherapistNotes)
-
-			// Save back to repo to persist the sync
-			repo.SavePatient(patient)
+			// Save stats back to be safe (optional, but keeps consistency)
+			// repo.SavePatient(patient)
 		}
 
 		html := repo.GenerateHTMLRecord(patient, appts)
@@ -233,12 +274,16 @@ func startWebAppServer(port string, secret string, botToken string, adminIDs []s
 		token := r.URL.Query().Get("token")
 		apptID := r.URL.Query().Get("apptId")
 
+		log.Printf("DEBUG [WebApp]: Incoming /cancel - id: %s, token: %s, apptID: %s", id, token, apptID)
+
 		if id == "" || token == "" || apptID == "" {
+			log.Printf("DEBUG [WebApp]: Missing parameters in /cancel")
 			http.Error(w, "Missing parameters", http.StatusBadRequest)
 			return
 		}
 
 		if !validateHMAC(id, token, secret) {
+			log.Printf("DEBUG [WebApp]: Invalid Token for ID: %s. Provided: %s", id, token)
 			http.Error(w, "Invalid token", http.StatusUnauthorized)
 			return
 		}

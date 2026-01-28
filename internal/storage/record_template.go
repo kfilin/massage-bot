@@ -28,10 +28,14 @@ const medicalRecordTemplate = `
             const id = url.searchParams.get('id');
             const token = url.searchParams.get('token');
 
-            if (!confirm("Вы уверены, что хотите отменить запись?")) return;
-
+            // Direct cancellation without blocking confirm dialog
             try {
-                const resp = await fetch("/cancel?id=" + id + "&token=" + token + "&apptId=" + apptId, { method: "POST" });
+                const resp = await fetch("/cancel?id=" + id + "&token=" + token + "&apptId=" + apptId, { 
+                    method: "POST",
+                    headers: {
+                        "ngrok-skip-browser-warning": "true"
+                    }
+                });
                 const result = await resp.json();
                 
                 if (result.status === "ok") {

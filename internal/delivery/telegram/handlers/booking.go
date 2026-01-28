@@ -1152,7 +1152,7 @@ func (h *BookingHandler) HandleUploadCommand(c telebot.Context) error {
 2. Я автоматически сохраню его в вашу медицинскую карту.
 3. Доктор увидит ваши документы при следующем посещении.
 
-⚠️ *Максимальный размер файла: 50 МБ*`, telebot.ParseMode(telebot.ModeMarkdown))
+⚠️ *Максимальный размер файла: 20 МБ (Ограничение Telegram)*`, telebot.ParseMode(telebot.ModeMarkdown))
 }
 
 // HandleFileMessage processes incoming documents and photos
@@ -1195,9 +1195,9 @@ func (h *BookingHandler) HandleFileMessage(c telebot.Context) error {
 		return nil // Not a recognized media type
 	}
 
-	// 500MB limit for all files
-	if fileSize > 500*1024*1024 {
-		return c.Send("❌ Файл слишком большой. Максимальный размер: 500 МБ.")
+	// 20MB limit for Public Telegram API
+	if fileSize > 20*1024*1024 {
+		return c.Send("❌ Файл слишком большой. Максимальный размер: 20 МБ (Ограничение Telegram).")
 	}
 
 	// Check if patient exists
@@ -1432,9 +1432,17 @@ func (h *BookingHandler) GenerateWebAppURL(telegramID string) string {
 		return ""
 	}
 
+	// Rigidly enforce HTTPS for Telegram compatibility
+	url := h.WebAppURL
+	if !strings.HasPrefix(url, "https://") && !strings.HasPrefix(url, "http://") {
+		url = "https://" + url
+	} else if strings.HasPrefix(url, "http://") {
+		url = strings.Replace(url, "http://", "https://", 1)
+	}
+
 	mac := hmac.New(sha256.New, []byte(h.webAppSecret))
 	mac.Write([]byte(telegramID))
 	token := hex.EncodeToString(mac.Sum(nil))
 
-	return fmt.Sprintf("%s/card?id=%s&token=%s", h.WebAppURL, telegramID, token)
+	return fmt.Sprintf("%s/card?id=%s&token=%s", url, telegramID, token)
 }

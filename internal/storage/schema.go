@@ -41,4 +41,20 @@ CREATE TABLE IF NOT EXISTS appointment_metadata (
     reminders_sent JSONB DEFAULT '{}'::jsonb,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS appointments (
+    id TEXT PRIMARY KEY,
+    customer_id TEXT NOT NULL,
+    service_id TEXT,
+    service_name TEXT,
+    service_duration INTEGER,
+    service_price NUMERIC,
+    start_time TIMESTAMP NOT NULL,
+    status TEXT,
+    customer_name TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_appointments_customer_id ON appointments(customer_id);
 `

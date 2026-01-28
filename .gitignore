@@ -39,6 +39,7 @@ data/
 verification-checklist.md
 postgres_data/
 postgres_data_dev/
+telegram_api_data/
 gitlab-kubeconfig-final.yaml
 *.log
 
