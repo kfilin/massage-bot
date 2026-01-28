@@ -1,0 +1,65 @@
+services:
+  massage-bot-test:
+    image: massage-bot:test
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: massage-bot-test
+    user: "1000:1000"
+    restart: unless-stopped
+    environment:
+      - TZ=Europe/Istanbul
+      - HEALTH_PORT=8083 # Internal port
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+    env_file:
+      - .env.test
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8083/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    ports:
+      - "9082:8082" # App Port
+      - "9083:8083" # Health Port
+    volumes:
+      - ./logs_test:/app/logs
+      - ./data_test:/app/data
+    networks:
+      - caddy-test-net
+    depends_on:
+      db-test:
+        condition: service_healthy
+
+  db-test:
+    image: postgres:15-alpine
+    container_name: massage-bot-db-test
+    command: postgres -c log_timezone=Europe/Istanbul -c log_statement=mod
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-massage_bot_test}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      TZ: Europe/Istanbul
+    volumes:
+      - ./postgres_data_test:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-massage_bot_test}" ]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+      start_period: 2s
+    networks:
+      - caddy-test-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  caddy-test-net:
+    external: true
