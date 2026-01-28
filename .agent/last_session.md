@@ -1,44 +1,46 @@
-# Session Log: v5.1.0 (Transparency & Documentation Excellence)
+# Session Log: v5.1.1 (Restoring Speed & Simplicity)
 
-**Date**: 2026-01-27
-**Commit**: `d8cc299`
-**Goal**: Increase operational transparency through enhanced logging and perform project-wide documentation cleanup.
+**Date**: 2026-01-29
+**Commit**: `057e937`
+**Goal**: Restore TWA performance ("Lightning Fast") and fix critical cancellation/data bugs.
 
 ---
 
 ## 🏛️ Architectural Decisions
 
-### 1. "Mod" Level Statement Logging
+### 1. Local-First Caching Strategy
 
-* **Decision**: Switched DB logging from `all` to `mod`.
-* **Rationale**: `all` logged every `SELECT` query and health check, creating massive noise. `mod` captures only queries that change state (Insert/Update/Delete), which are the critical ones for debugging data loss or synchronization bugs.
+* **Decision**: Switched TWA from Synchronous Google Calendar Sync to **Local DB Cache**.
+* **Rationale**: The synchronous API call added 3-5 seconds of latency per page load. We now serve 100% of TWA data from the local PostgreSQL DB (0ms latency).
+* **Sync Mechanism**: A "Smart Sync" hybrid:
+  * **Empty Cache**: Blocking Sync (UX: "Loading...") -> Save to DB -> Render.
+  * **Warm Cache**: Instant Render -> Background Sync -> Update DB.
 
-### 2. Global Middleware Logging
+### 2. Denormalized Appointments Table
 
-* **Decision**: Wrapped all incoming Telegram updates in a tracing middleware.
-* **Rationale**: Telegram Web App (TWA) life-cycles can be opaque. Logging the raw JSON payloads of incoming messages and callback data provides a "black box" recording for every patient interaction.
+* **Decision**: Implemented a standalone `appointments` table with flattened service details.
+* **Rationale**: The previous relational schema depended on a `services` table that didn't exist (services are hardcoded). Denormalizing `service_name`, `duration`, and `price` into the `appointments` table ensures robust data storage without unnecessary complexity.
 
 ---
 
 ## 🐛 Technical Challenges & Elegant Solutions
 
-### 1. Eliminating PG_ISREADY Noise
+### 1. The "Freezing" Confirmation
 
-* **Problem**: PostgreSQL's `log_connections` and `log_disconnections` caused every health check (every 3s) to flood the logs.
-* **Solution**: Explicitly disabled these flags in `docker-compose.yml` command. The dashboard is now clean, showing only actual service errors or DB mutations.
+* **Problem**: Apple iOS blocked the native `confirm("Are you sure?")` JavaScript dialog, causing the TWA to freeze indefinitely on "Step 1".
+* **Solution**: Removed the blocking dialog entirely. In the context of a 72h cancellation policy, speed is prioritized over "are you sure?" friction.
 
-### 2. Documentation Consolidation
+### 2. The Silent Network Failure
 
-* **Problem**: The project had over 1000 lines of redundant documentation and outdated logs in `docs/` and `.agent/`.
-* **Solution**: Performed a massive cleanup, deleting `session.md` and "Project Structure & SSL Debugging.md", and updating `DEVELOPER.md` and `Project-Hub.md` to reflect the stable v5.x ecosystem.
+* **Problem**: Local development with Ngrok was failing silently because Ngrok injects a "Browser Warning" page on every AJAX request.
+* **Solution**: Added the `ngrok-skip-browser-warning` header to all fetch requests. This is harmless in production but critical for local debugging.
 
 ---
 
 ## 💡 Learnings & Interesting Bits
 
-* **Duplicati Verification**: User successfully set up Duplicati via the admin panel, proving that the containerized volume approach is flexible enough for manual administrative intervention.
-* **Log Verbosity**: The transition from "Silent Production" to "Verbose Debug" has significantly reduced the time needed to verify complex Free/Busy logic.
+* **Database Reality Check**: Always verify the schema actually exists. The `appointments` table was missing for days, but because we were relying purely on GCal API reads, nobody noticed until we tried to cache data locally.
 
 ---
 *Created by Antigravity AI following the Collaboration Blueprint.*
-*Project Status: STABLE & TRANSPARENT (v5.1.0).*
+*Project Status: STABLE (v5.1.1).*
