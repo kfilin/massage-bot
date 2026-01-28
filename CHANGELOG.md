@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.1.1] - 2026-01-29
+
+### Fixed
+
+- **TWA Performance**: Restored "Lightning Fast" loading speeds by switching from synchronous Google Calendar sync to a **Local Database Cache** strategy.
+- **TWA Cancellation**: Removed blocking confirmation dialog that caused freezing on iOS devices; cancellation is now instant.
+- **Data Integrity**: Fixed a critical schema bug where the `appointments` table was missing, causing cache failures.
+- **Network Reliability**: Added `ngrok-skip-browser-warning` header to prevent silent failures during local testing (harmless in production).
+- **Media Uploads**: Adjusted file size limit validation to 20MB to align with Telegram Bot API constraints.
+
 ## [5.1.0] - 2026-01-27
 
 ### Added
