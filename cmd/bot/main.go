@@ -29,7 +29,7 @@ func main() {
 	// 1. Load Configuration
 	cfg := config.LoadConfig()
 	log.Println("Configuration loaded.")
-	log.Println("Bot version: v5.1.0 Clinical Edition")
+	log.Println("Bot version: v5.1.1 Clinical Edition")
 
 	// Start health server
 	go startHealthServer()
