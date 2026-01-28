@@ -64,6 +64,7 @@ This project uses a dual-remote setup with automated mirroring to maintain sync 
   - [x] **Zero-Collision Scheduling** (Free/Busy API).
   - [x] **Backups 2.0** (DB + FS ZIP + 24h Tele-Delivery).
   - [x] **Duplicati Integration** (Incremental encrypted local backups).
+  - [x] **Test Environment** (Running on `vera-bot-test.kfilin.icu`).
 
 ---
 

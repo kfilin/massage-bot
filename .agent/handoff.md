@@ -1,34 +1,28 @@
-# Handoff: Project Excellence (v5.1.1 Stable)
+# Handoff: Twin Environments (v5.1.1)
 
-Current state: **v5.1.1 Speed & Reliability Mode**.
-The bot is now "Lightning Fast" with local DB caching for the TWA and robust cancellation logic.
+Current state: **v5.1.1 Production & Test**.
+We have successfully established a parallel "Twin" environment on the Home Server.
 
-## 🏁 Session Completion Summary (v5.1.1)
+## 🏁 Session Completion Summary (Test Twin)
 
-- **Performance Restored**:
-  - TWA loads instantly via Postgres Caching.
-  - Background synchronization keeps GCal data fresh.
-- **Critical Fixes**:
-  - **Cancellation**: No longer freezes on mobile (removed `confirm()`).
-  - **Schema**: `appointments` table created and populated.
-  - **Network**: Ngrok warning bypass implemented.
+- **Test Environment Live**:
+  - URL: `vera-bot-test.kfilin.icu`
+  - Ports: `9082` (App), `9083` (Health), `5433` (DB).
+  - Isolated: Uses `massage-bot-db-test` and `data_test/`.
+  - Deployment: `./scripts/deploy_test_server.sh`.
+
 - **Documentation**:
-  - Full checkpoint performed (CHANGELOG, Project Hub, Session Log updated).
+  - `Project-Hub.md` and `task.md` updated.
+  - New workflow: `.agent/workflows/test-env-setup.md`.
 
-## 🟠 HIGH PRIORITY (Post-Launch Maintenance)
+## 🟠 HIGH PRIORITY (Next Steps)
 
-1. **Monitor Sync Jobs**:
-   - Ensure the `UpsertAppointments` background job covers all edge cases (e.g., deleted events in GCal should eventually be removed from DB).
-   - Currently, `GetCustomerHistory` fetches *all* and upserts. We might need a prune strategy later.
-
-2. **Google OAuth Token Watch**:
-   - **Next Renewal Due**: ~2026-07-09.
-   - Monitors logs for `invalid_grant` errors.
+1. **DNS Verification**: Confirm `vera-bot-test.kfilin.icu` resolves correctly (User action).
+2. **Caddy Reload**: Ensure the new snippet is active in Caddy.
 
 ## 🟢 FUTURE PERSPECTIVES
 
-1. **Patient Discovery Extension**: Refine the CRM logic to auto-import more health history from calendar event bodies.
-2. **Interactive Status**: Expand `/status` to include the health of the latest Duplicati job.
+1. **CI/CD for Test**: Currently `deploy_test_server.sh` is manual. We could wire this to a `develop` branch in GitLab later.
 
 ---
-*Current Gold Standard: `057e937` (v5.1.1 Speed Release)*
+*Current Gold Standard: `182f39e` (v5.1.1 + Test Env Config)*
