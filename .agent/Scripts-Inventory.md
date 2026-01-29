@@ -30,7 +30,18 @@ Detailed registry of all automation and maintenance scripts located in the `scri
   - Outputs the current container status and tail-logs for verification.
 - **Usage**: Triggered by the GitLab CI/CD pipeline or manually via SSH.
 
-### 4. `renew_token.sh`
+### 4. `deploy_test_server.sh`
+
+- **Purpose**: Deploys the isolated **Test Environment** (Dual Folder Strategy).
+- **What it does**:
+  - Targets `/opt/vera-bot-test` (separate from Prod).
+  - Handles **Git Initialization**: Clones the repo if the directory is empty.
+  - **Secrets**: Securely copies local `.env.test` to the remote as `.env` (if missing).
+  - **Networking**: Joins the external `caddy-test-net`.
+  - **Isolation**: Uses `deploy/docker-compose.test-override.yml` to shift ports to 9082/9083.
+- **Usage**: `./scripts/deploy_test_server.sh` (Simulates local deploy logic on remote).
+
+### 5. `renew_token.sh`
 
 - **Purpose**: Manual helper for Google OAuth Refresh Token renewal.
 - **What it does**:

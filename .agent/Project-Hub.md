@@ -8,13 +8,16 @@ A professional clinical ecosystem for massage therapists. Features interactive b
 
 ## 🏗️ Technical Foundation
 
-- **Version**: v5.1.1-stable (Speed & Reliability Restored)
+- **Version**: v5.2.1-stable (Twin Environments Active)
 - **Language**: **Go 1.24** (Alpine-based)
 - **Database**: PostgreSQL 15 (Metadata & Sync Status)
 - **Clinical Storage**: **Markdown-mirrored Filesystem** (Clinical Storage 2.0)
 - **Integrations**: Google Calendar API (Free/Busy v3), Groq (Whisper Transcription).
 - **Protocols**: **WebDAV** (for Obsidian Mobile sync).
 - **Infrastructure**: Docker Compose on Home Server with CPU/RAM guards.
+- **Environments**:
+  - **Prod**: `/opt/vera-bot` (Port 8082).
+  - **Test**: `/opt/vera-bot-test` (Port 9082) - Fully Isolated.
 
 ---
 
@@ -79,10 +82,13 @@ This project uses a dual-remote setup with automated mirroring to maintain sync 
 
 ## 💎 Gold Standard Checkpoint
 
-- **Commit**: `057e937` (v5.1.1 Release)
-- **Date**: 2026-01-29
-- **Status**: **v5.1.1 STABLE**. Restored TWA performance via local DB cache and fixed cancellation logic.
-- **Rollback Command**: `git reset --hard 057e937`
+- **Commit**: `6e33a0d` (v5.2.1 Stable)
+- **Date**: 2026-01-30
+- **Status**: **v5.2.1 TWIN ENV**. Production stable. Test Env fully isolated and accessible via `vera-bot-test.kfilin.icu`.
+  - TWA Root Fix (No Redirect).
+  - Android HTTP/2 Fix (`protocols h1`).
+  - Docker Compose Auto-Discovery (`.env` injection).
+- **Rollback Command**: `git reset --hard 6e33a0d`
 
 ---
 

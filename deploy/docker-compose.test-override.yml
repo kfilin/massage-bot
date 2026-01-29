@@ -12,7 +12,3 @@ services:
     environment:
       POSTGRES_DB: massage_bot_test
 
-networks:
-  caddy-test-net:
-    external: true
-    name: caddy-test-net

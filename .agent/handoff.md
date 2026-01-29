@@ -1,27 +1,20 @@
-# Handoff: Twin Environments (v5.1.1)
+# Handoff: Twin Environments (v5.2.1)
 
-Current state: **v5.1.1 Production Live**. Test Environment logic is committed but pending migration to a separate folder.
+Current state: **v5.2.1 Dual Environment Active**.
+Production is stable.
+Test Environment is deployed at `/opt/vera-bot-test` and **verified robust** via `vera-bot-test.kfilin.icu`.
 
 ## 🏁 Session Completion Summary
 
-- **Production (v5.1.1)**: Speed verified, Cancellation fixed. Running Stable.
-- **Test Environment**:
-  - Architecture verified locally (Ports 9082/9083).
-  - Strategy Refactored: **Dual Folder Strategy** (Safer).
-  - Code Pushed: `deploy/docker-compose.test-override.yml` and docs.
-
-## 🟠 HIGH PRIORITY (Next Session)
-
-1. **Execute Dual Folder Migration**:
-    - Clean up old test containers in `/opt/vera-bot`.
-    - Clone repo to `/opt/vera-bot-test`.
-    - Configure `.env` and `docker-compose.override.yml`.
-    - Launch Test Bot safely.
+- **TWA Fixed**: Solved "HTTP/2 Error: NO_ERROR" by enforcing `protocols h1` in Caddy.
+- **Root Logic**: WebApp now served at `/` (no redirects) for better stability.
+- **Docker Visibility**: Fixed `docker compose ps` in test folder by injecting `.env` variables.
+- **Status**: **Green**. Both environments are healthy and operational.
 
 ## 🟢 FUTURE PERSPECTIVES
 
-1. **DNS Verification**: Confirm `vera-bot-test.kfilin.icu`.
-2. **CI/CD**: Wire new test folder to a dedicated pipeline.
+1. **Feature Development**: Use the Test Environment (`vera-bot-test`) to safely build new features.
+2. **Monitoring**: Keep an eye on Android System WebView updates (might eventually fix the HTTP/2 bug).
 
 ---
-*Current Gold Standard: `55b1a08` (v5.1.1 + Dual Folder Strategy)*
+*Current Gold Standard: `v5.2.1` (Connectivity Fixes + Developer Experience)*

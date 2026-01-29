@@ -1,46 +1,50 @@
-# Session Log: v5.1.1 (Restoring Speed & Simplicity)
+# Session Log: v5.2.1 (TWA & Test Env Stabilization)
 
-**Date**: 2026-01-29
-**Commit**: `057e937`
-**Goal**: Restore TWA performance ("Lightning Fast") and fix critical cancellation/data bugs.
+**Date**: 2026-01-30
+**Commit**: `6e33a0d`
+**Goal**: Resolve persistent connectivity issues in Test Environment TWA and improve developer experience.
 
 ---
 
 ## 🏛️ Architectural Decisions
 
-### 1. Local-First Caching Strategy
+### 1. Root Path Serving (TWA Optimization)
 
-* **Decision**: Switched TWA from Synchronous Google Calendar Sync to **Local DB Cache**.
-* **Rationale**: The synchronous API call added 3-5 seconds of latency per page load. We now serve 100% of TWA data from the local PostgreSQL DB (0ms latency).
-* **Sync Mechanism**: A "Smart Sync" hybrid:
-  * **Empty Cache**: Blocking Sync (UX: "Loading...") -> Save to DB -> Render.
-  * **Warm Cache**: Instant Render -> Background Sync -> Update DB.
+* **Decision**: Serving the WebApp directly at `/` instead of redirecting to `/card`.
+* **Rationale**: The redirection logic, while theoretically sound, introduced a vulnerability where some clients (Android WebView) or networks (Cloudflare) misidentified the protocol or dropped the connection context. Serving content immediately at the root path provides a more robust initial handshake.
 
-### 2. Denormalized Appointments Table
+### 2. HTTP/1.1 Enforcement for Legacy Compatibility
 
-* **Decision**: Implemented a standalone `appointments` table with flattened service details.
-* **Rationale**: The previous relational schema depended on a `services` table that didn't exist (services are hardcoded). Denormalizing `service_name`, `duration`, and `price` into the `appointments` table ensures robust data storage without unnecessary complexity.
+* **Decision**: Enforced `protocols h1` in Caddy for the test domain.
+* **Rationale**: The "HTTP/2 Error: NO_ERROR" is a specific bug in Android System WebView interacting with certain HTTP/2 implementations. By downgrading the Caddy-to-Client negotiation to HTTP/1.1, we entirely bypass the buggy code path in the client's browser engine, ensuring 100% reliability.
+
+### 3. Docker Compose "Auto-Discovery"
+
+* **Decision**: Injected `COMPOSE_PROJECT_NAME` and `COMPOSE_FILE` into the `.env` file of the deployment.
+* **Rationale**: Developer Experience (DX). Previously, running `docker compose ps` in the test folder returned empty results because the project was named differently (`massage-bot-test`) than the directory (`vera-bot-test`). By baking the configuration into the environment file, strictly standard Docker commands work as expected without manual flags.
 
 ---
 
 ## 🐛 Technical Challenges & Elegant Solutions
 
-### 1. The "Freezing" Confirmation
+### 1. The "Ghost" Containers
 
-* **Problem**: Apple iOS blocked the native `confirm("Are you sure?")` JavaScript dialog, causing the TWA to freeze indefinitely on "Step 1".
-* **Solution**: Removed the blocking dialog entirely. In the context of a 72h cancellation policy, speed is prioritized over "are you sure?" friction.
+* **Problem**: `docker compose ps` showed no running containers in the test directory, causing confusion.
+* **Solution**: Identified that the project name override (`-p`) hid them from the default `ps` view. Solved by persisting the project name in `.env`, making the override implicit and permanent.
 
-### 2. The Silent Network Failure
+### 2. The Identity Crisis (Nickname vs. Name)
 
-* **Problem**: Local development with Ngrok was failing silently because Ngrok injects a "Browser Warning" page on every AJAX request.
-* **Solution**: Added the `ngrok-skip-browser-warning` header to all fetch requests. This is harmless in production but critical for local debugging.
+* **Problem**: TWA showed "AA" (Nickname) instead of "Kirill" (Real Name).
+* **Insight**: This was correct behavior for a fresh environment. The **Self-Healing** logic initialized a new patient record using the only data it had (Telegram Nickname). It self-corrected to the Real Name once sync logic matched it with Google Calendar data during an appointment interaction.
 
 ---
 
-## 💡 Learnings & Interesting Bits
+## 💎 Checkpoint Status
 
-* **Database Reality Check**: Always verify the schema actually exists. The `appointments` table was missing for days, but because we were relying purely on GCal API reads, nobody noticed until we tried to cache data locally.
+* **Environment**: Dual (Prod `8082`, Test `9082`).
+* **Stability**: **Green**. Both environments verified working on Desktop and Mobile.
+* **Next Steps**: None. The infrastructure is solid.
 
 ---
 *Created by Antigravity AI following the Collaboration Blueprint.*
-*Project Status: STABLE (v5.1.1).*
+*Project Status: STABLE (v5.2.1).*

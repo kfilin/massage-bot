@@ -25,7 +25,7 @@ This document provides a detailed overview of every file and directory in the **
 | `docker-compose.yml` | **Master Controller**. The primary orchestration file for production. |
 | `Dockerfile` | **Blueprint**. Instructions to build the bot's container image. |
 | `deploy/docker-compose.prod.yml` | Production-specific Docker overrides. |
-| `deploy/docker-compose.dev.yml` | Development-specific Docker overrides. |
+| `deploy/docker-compose.test-override.yml` | **Test Env**. Overrides for isolated test environment (Ports/Net). |
 | `deploy/docker-compose.example.yml` | Template for environment-specific orchestration. |
 
 ---
@@ -75,4 +75,4 @@ This document provides a detailed overview of every file and directory in the **
 
 ---
 
-### Last updated: 2026-01-26 (Post-Cleanup Refresh)
+### Last updated: 2026-01-29 (v5.2.0 Dual Environment)

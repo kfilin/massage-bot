@@ -69,43 +69,9 @@ build_docker:
 # =====================
 # STAGE 3: DEPLOY
 # =====================
-deploy_staging:
-  stage: deploy
-  image:
-    name: bitnami/kubectl:latest
-    entrypoint: [""]
-  before_script:
-    - echo "📁 Setting up Kubernetes configuration..."
-    - mkdir -p ~/.kube
-    - echo "$KUBECONFIG_CONTENT" | base64 -d > ~/.kube/config
-    - chmod 600 ~/.kube/config
-    - echo "🔐 Creating image pull secret..."
-    - kubectl create secret docker-registry gitlab-registry --docker-server=registry.gitlab.com --docker-username=$CI_REGISTRY_USER --docker-password=$CI_REGISTRY_PASSWORD --docker-email="gitlab-ci@example.com" --dry-run=client -o yaml | kubectl apply -f -
-    - echo "✅ Kubernetes setup complete"
-  script:
-    - echo "🚀 Deploying massage-bot to Kubernetes..."
-    - kubectl apply -f k8s/
-    - echo "⏳ Waiting for deployment rollout (max 2 minutes)..."
-    - timeout 120 kubectl rollout status deployment/massage-bot
-    - echo "✅ Deployment successful!"
-    - echo ""
-    - echo "📊 FINAL DEPLOYMENT STATUS:"
-    - echo "============================"
-    - kubectl get deployments -l app=massage-bot
-    - echo ""
-    - kubectl get pods -l app=massage-bot -o wide
-    - echo ""
-    - kubectl get services -l app=massage-bot
-    - echo ""
-    - echo "🎉 Massage-Bot is now running in Kubernetes!"
-    - echo "🤖 Telegram @vera_massage_bot"
-    - echo "🏥 Health http://<pod-ip>:8080/health"
-  only:
-    - master
-  when: manual # Manual trigger since shared runners can't reach local minikube
-  timeout: 10 minutes
 
-deploy_home_server:
+# 1. Automatic: Deploy to Test Environment (Staging)
+deploy_test_environment:
   stage: deploy
   image: alpine:latest
   before_script:
@@ -119,6 +85,28 @@ deploy_home_server:
     - eval $(ssh-agent -s)
     - ssh-add ~/.ssh/id_rsa
   script:
+    - echo "🧪 Automatically deploying to Test Environment..."
+    - ssh -p 2222 kirill@$HOME_SERVER_IP "cd /opt/vera-bot-test && bash scripts/deploy_test_server.sh"
+  only:
+    - master
+
+# 2. Manual: Deploy to Production
+deploy_production:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache openssh-client
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
+    - echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+    - chmod 644 ~/.ssh/known_hosts
+    - eval $(ssh-agent -s)
+    - ssh-add ~/.ssh/id_rsa
+  script:
+    - echo "🚀 Manually deploying to PRODUCTION..."
     - ssh -p 2222 kirill@$HOME_SERVER_IP "cd /opt/vera-bot && bash scripts/deploy_home_server.sh"
   only:
     - master
+  when: manual
