@@ -107,19 +107,14 @@ func startWebAppServer(port string, secret string, botToken string, adminIDs []s
 
 	mux := http.NewServeMux()
 
-	// Redirect root to /card
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/" {
-			http.Redirect(w, r, "/card"+"?"+r.URL.RawQuery, http.StatusTemporaryRedirect)
-			return
-		}
-		http.NotFound(w, r)
-	})
 
-	mux.HandleFunc("/card", func(w http.ResponseWriter, r *http.Request) {
+
+	// Handle both root and /card with the same logic
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		// Prepare paths for query parsing (supports both root and /card)
 		id := r.URL.Query().Get("id")
 		token := r.URL.Query().Get("token")
-		initData := r.URL.Query().Get("initData") // Fallback for Menu Button
+		initData := r.URL.Query().Get("initData")
 
 		var finalID string
 		var telegramName string
