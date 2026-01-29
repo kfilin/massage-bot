@@ -107,8 +107,6 @@ func startWebAppServer(port string, secret string, botToken string, adminIDs []s
 
 	mux := http.NewServeMux()
 
-
-
 	// Handle both root and /card with the same logic
 	handler := func(w http.ResponseWriter, r *http.Request) {
 		// Prepare paths for query parsing (supports both root and /card)
@@ -266,7 +264,10 @@ func startWebAppServer(port string, secret string, botToken string, adminIDs []s
 		html := repo.GenerateHTMLRecord(patient, appts)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		fmt.Fprint(w, html)
-	})
+	}
+
+	mux.HandleFunc("/", handler)
+	mux.HandleFunc("/card", handler)
 
 	mux.HandleFunc("/cancel", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
