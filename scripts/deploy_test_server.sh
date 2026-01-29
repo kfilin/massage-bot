@@ -9,16 +9,20 @@ REPO_URL=$(git remote get-url origin 2>/dev/null || echo "https://github.com/kfi
 
 echo "🧪 Starting deployment on TEST Environment..."
 
-# 0. Ensure Directory Exists and Clone if necessary
+# 0. Ensure Directory Exists and Grid/Clone
 if [ ! -d "$APP_DIR" ]; then
     echo "📂 Creating test directory at $APP_DIR..."
     sudo mkdir -p "$APP_DIR"
     sudo chown $USER:$USER "$APP_DIR"
-    
-    echo "📥 Cloning repository..."
-    git clone "$REPO_URL" "$APP_DIR"
+fi
+
+# Ensure it's a git repo
+if [ ! -d "$APP_DIR/.git" ]; then
+    echo "📂 Directory exists but is not a git repo. Initializing..."
+    # Safe clone into current directory assuming it's empty or has negligible files
+    git clone "$REPO_URL" "$APP_DIR" 2>/dev/null || (cd "$APP_DIR" && git init && git remote add origin "$REPO_URL" && git fetch && git checkout master)
 else
-    echo "found existing directory..."
+    echo "✅ Found existing git repo..."
 fi
 
 # 1. Pull latest changes
@@ -38,6 +42,18 @@ if [ ! -f ".env" ]; then
         exit 1
     fi
 fi
+
+# 1.2 Start: Inject Docker Compose Defaults for easy CLI usage
+# This allows running 'docker compose ps' without -p or -f flags in the test directory
+if ! grep -q "COMPOSE_PROJECT_NAME" .env; then
+    echo "" >> .env
+    echo "# Docker Compose Defaults (Auto-injected by deploy script)" >> .env
+    echo "COMPOSE_PROJECT_NAME=massage-bot-test" >> .env
+fi
+if ! grep -q "COMPOSE_FILE" .env; then
+    echo "COMPOSE_FILE=docker-compose.yml:deploy/docker-compose.test-override.yml" >> .env
+fi
+# 1.2 End
 
 # 2. Build and restart containers using TEST config (Override Strategy)
 echo "🛠 Building TEST images and recreating containers..."
