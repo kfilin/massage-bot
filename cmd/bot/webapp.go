@@ -107,6 +107,15 @@ func startWebAppServer(port string, secret string, botToken string, adminIDs []s
 
 	mux := http.NewServeMux()
 
+	// Redirect root to /card
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			http.Redirect(w, r, "/card"+"?"+r.URL.RawQuery, http.StatusTemporaryRedirect)
+			return
+		}
+		http.NotFound(w, r)
+	})
+
 	mux.HandleFunc("/card", func(w http.ResponseWriter, r *http.Request) {
 		id := r.URL.Query().Get("id")
 		token := r.URL.Query().Get("token")
