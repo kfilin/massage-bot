@@ -8,7 +8,7 @@ A professional clinical ecosystem for massage therapists. Features interactive b
 
 ## 🏗️ Technical Foundation
 
-- **Version**: v5.2.1-stable (Twin Environments Active)
+- **Version**: v5.2.2-stable (Unified Twin Environments)
 - **Language**: **Go 1.24** (Alpine-based)
 - **Database**: PostgreSQL 15 (Metadata & Sync Status)
 - **Clinical Storage**: **Markdown-mirrored Filesystem** (Clinical Storage 2.0)
@@ -45,7 +45,9 @@ This project uses a dual-remote setup with automated mirroring to maintain sync 
 3. **GitLab Pipeline**: Builds the Docker image, pushes to registry, and deploys to the home server.
     - Runs tests (Go 1.24).
     - Builds the Docker image and pushes it to the GitLab Registry.
-    - Triggers the `deploy_home_server.sh` script on the target server.
+    - Triggers the `.gitlab-ci.yml` pipeline.
+    - **Auto-Deploys to Test** (`vera-bot-test`).
+    - **Waits for Manual Click** to deploy to Production.
 
 > [!NOTE]
 > Both remotes must be updated manually. Ensure changes are pushed to both **GitHub** (for tracking) and **GitLab** (to trigger the production pipeline).
@@ -82,13 +84,12 @@ This project uses a dual-remote setup with automated mirroring to maintain sync 
 
 ## 💎 Gold Standard Checkpoint
 
-- **Commit**: `6e33a0d` (v5.2.1 Stable)
+- **Commit**: `cf8f017` (v5.2.2 Unified)
 - **Date**: 2026-01-30
-- **Status**: **v5.2.1 TWIN ENV**. Production stable. Test Env fully isolated and accessible via `vera-bot-test.kfilin.icu`.
-  - TWA Root Fix (No Redirect).
-  - Android HTTP/2 Fix (`protocols h1`).
-  - Docker Compose Auto-Discovery (`.env` injection).
-- **Rollback Command**: `git reset --hard 6e33a0d`
+- **Status**: **v5.2.2 UNIFIED**. Architectures are identical.
+  - **Single Source of Truth**: Base `docker-compose.yml` defines the network (`caddy-test-net`).
+  - **Pipeline Sync**: GitLab Auto-Deploys to Staging; Manual Deploy to Prod.
+- **Rollback Command**: `git reset --hard cf8f017`
 
 ---
 

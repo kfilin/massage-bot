@@ -5,7 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [5.2.0] - 2026-01-29
+## [v5.2.2] - 2026-01-30
+
+### 🚀 Infrastructure & DevOps
+
+- **Twin Environment Unification**:
+  - **Standardized Networking**: Both Production and Test now use `caddy-test-net` as the single source of truth defined in the base `docker-compose.yml`.
+  - **Cleanup**: Removed legacy `caddy-proxy` sidecar and `bot-network` from Production override.
+  - **Result**: Production and Test containers are now structurally identical.
+- **CI/CD Pipeline Refactor**:
+  - **Target Shift**: Pipeline now automatically deploys to **Test Environment** (`deploy_test_environment`) on push to master.
+  - **Manual Production**: Added `deploy_production` job (manual trigger) for explicit promotion.
+  - **Cleanup**: Removed legacy Kubernetes job (`deploy_staging`).
+
+## [v5.2.1] - 2026-01-29
 
 ### Added
 

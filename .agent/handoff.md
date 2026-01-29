@@ -1,20 +1,25 @@
-# Handoff: Twin Environments (v5.2.1)
+# Handoff: Twin Environments Unified (v5.2.2)
 
-Current state: **v5.2.1 Dual Environment Active**.
-Production is stable.
-Test Environment is deployed at `/opt/vera-bot-test` and **verified robust** via `vera-bot-test.kfilin.icu`.
+Current state: **v5.2.2 Unified Architecture**.
+Production and Test are structurally **IDENTICAL** (sharing `caddy-test-net` base config).
+
+- **Prod**: `vera-bot.kfilin.icu` (Port 8082, Manual Deploy).
+- **Test**: `vera-bot-test.kfilin.icu` (Port 9082, Auto-Deploy via Pipeline).
 
 ## 🏁 Session Completion Summary
 
-- **TWA Fixed**: Solved "HTTP/2 Error: NO_ERROR" by enforcing `protocols h1` in Caddy.
-- **Root Logic**: WebApp now served at `/` (no redirects) for better stability.
-- **Docker Visibility**: Fixed `docker compose ps` in test folder by injecting `.env` variables.
-- **Status**: **Green**. Both environments are healthy and operational.
+- **Architecture Unification**: Removed legacy `caddy-proxy` sidecar from Production. Both environments now inherit the Base `docker-compose.yml` network configuration.
+- **Pipeline Refactor**: GitLab CI now targets the **Test Environment** automatically. Production is a manual `deploy_production` job (or SSH script).
+- **Documentation**: Created `feature-release.md` ensuring the "Twin Sync" workflow is codified.
+- **Status**: **Green**. Both environments verified live.
 
-## 🟢 FUTURE PERSPECTIVES
+## 🟢 FEATURE DEVELOPMENT READY
 
-1. **Feature Development**: Use the Test Environment (`vera-bot-test`) to safely build new features.
-2. **Monitoring**: Keep an eye on Android System WebView updates (might eventually fix the HTTP/2 bug).
+You are now perfectly set up for feature work.
+
+1. **Develop Locally** -> Push to GitHub.
+2. **Verify on Test** (Auto-deploys).
+3. **Promote to Prod** (Manual).
 
 ---
-*Current Gold Standard: `v5.2.1` (Connectivity Fixes + Developer Experience)*
+*Current Gold Standard: `v5.2.2` (Unified infra + Staging Pipeline)*
