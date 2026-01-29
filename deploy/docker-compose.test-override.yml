@@ -1,9 +1,6 @@
 services:
   massage-bot:
     container_name: massage-bot-test
-    ports:
-      - "9082:8082" # Override host port
-      - "9083:8083"
     environment:
       - HEALTH_PORT=8083
     restart: unless-stopped

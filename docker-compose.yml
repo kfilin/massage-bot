@@ -23,8 +23,8 @@ services:
       retries: 3
       start_period: 40s
     ports:
-      - "8082:8082"
-      - "8083:8083"
+      - "${HOST_WEBAPP_PORT:-8082}:8082"
+      - "${HOST_METRICS_PORT:-8083}:8083"
     volumes:
       - ./logs:/app/logs
       - ./data:/app/data
