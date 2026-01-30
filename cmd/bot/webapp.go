@@ -232,9 +232,32 @@ func startWebAppServer(port string, secret string, botToken string, adminIDs []s
 						log.Printf("Failed to update cache in background: %v", err)
 					} else {
 						log.Printf("Background sync successful for %s", finalID)
+						
+						// Name Correction Logic (Background)
+						// Ensure we use the name from the most recent appointment
+						if len(fetchedAppts) > 0 {
+							latestAppt := fetchedAppts[0] // Sorted by date desc
+							if latestAppt.CustomerName != "" && patient.Name != latestAppt.CustomerName {
+								log.Printf("Name Mismatch (Background): DB='%s', Appt='%s'. Updating...", patient.Name, latestAppt.CustomerName)
+								patient.Name = latestAppt.CustomerName
+								repo.SavePatient(patient)
+							}
+						}
 					}
 				}
 			}()
+		}
+
+		// Name Correction Logic (Blocking/Cached path)
+		// Ensure we use the name from the most recent appointment for display immediately
+		if len(appts) > 0 {
+			latestAppt := appts[0] // Sorted by date desc
+			if latestAppt.CustomerName != "" && patient.Name != latestAppt.CustomerName {
+				log.Printf("Name Mismatch: DB='%s', Appt='%s'. Updating...", patient.Name, latestAppt.CustomerName)
+				patient.Name = latestAppt.CustomerName
+				// Persist the correction
+				go repo.SavePatient(patient)
+			}
 		}
 
 		// Recalculate stats based on appts
