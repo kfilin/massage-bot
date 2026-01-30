@@ -32,4 +32,4 @@ Metrics are exposed in Prometheus format on the internal health server:
 
 - **Port**: `8083` (Changed from 8081 to avoid conflict with cadvisor)
 - **Path**: `/metrics`
-- **Dashboard**: Use the `scripts/report_metrics.sh` for a human-friendly view.
+- **Dashboard**: Use the `scripts/report_metrics.sh` for a structured console view.

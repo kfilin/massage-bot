@@ -59,3 +59,4 @@ docker-compose.override.yml
 !deploy/Caddyfile.example
 VERA_GUIDE.md
 docs/ProdArchitecture.md
+.agent/
