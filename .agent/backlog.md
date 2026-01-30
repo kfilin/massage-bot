@@ -38,5 +38,11 @@
 - **Status**: Completed (2026-01-27).
 - **Resolution**: User set up and verified Duplicati instance on the home server for incremental, encrypted backups of the `./data` directory.
 
+### 13. [IDEA] Retro Developer Mode (Easter Egg)
+
+- **Status**: Proposed.
+- **Concept**: An 8-bit retro game or interface hidden in the bot (ZX Spectrum / Atari style) to appeal to developers.
+- **Context**: Discussed in early sessions.
+
 ---
 *Last updated: 2026-01-27 00:07*

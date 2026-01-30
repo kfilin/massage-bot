@@ -62,4 +62,4 @@ services:
 
 networks:
   caddy-test-net:
-    driver: bridge
+    external: true
