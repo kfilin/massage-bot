@@ -62,6 +62,7 @@ This document provides a detailed overview of every file and directory in the **
 | `docs/USER_GUIDE_RU.md` | **Patient Guide (RU)**. Detailed Russian manual (Master version). |
 | `docs/VERA_GUIDE_RU.md` | **Therapist Guide**. Record management instructions. |
 | `docs/metrics.md` | **Monitoring Reference**. List of instrumented Prometheus metrics. |
+| `docs/ProdArchitecture.md` | **Gap Analysis**. Comparison of current Home Lab setup vs. Enterprise Best Practices. |
 
 ---
 
