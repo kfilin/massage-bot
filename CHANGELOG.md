@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v5.3.3] - 2026-01-31
+
+### Fixed
+
+- **TWA Authentication**: Implemented permanent `AUTH ERROR` diagnostics to resolve "Invalid Token" issues.
+- **Network Topology**: Isolated database traffic to a private `bot-db-net` bridge. This prevents DNS collisions between Prod and Test environments on the same host and ensures `db` hostname consistently resolves correctly.
+- **Environment Parity**: Synchronized all Git remotes (GitHub, GitLab) and updated project standards to ensure parity across Local, Test, and Production instances.
+
 ## [v5.2.3] - 2026-01-30
 
 ### Fixed
