@@ -165,6 +165,7 @@ func StartBot(
 	b.Handle("/unban", bookingHandler.HandleUnban)
 	b.Handle("/block", bookingHandler.HandleBlock)
 	b.Handle("/status", bookingHandler.HandleStatus)
+	b.Handle("/edit_name", bookingHandler.HandleEditName)
 
 	// Register file/media handlers
 	b.Handle(telebot.OnDocument, bookingHandler.HandleFileMessage)

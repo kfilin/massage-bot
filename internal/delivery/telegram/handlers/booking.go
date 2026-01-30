@@ -1426,6 +1426,39 @@ func (h *BookingHandler) HandleStatus(c telebot.Context) error {
 	return c.Send(status, telebot.ModeHTML)
 }
 
+// HandleEditName allows admins to manually update a patient's name
+func (h *BookingHandler) HandleEditName(c telebot.Context) error {
+	if !h.IsAdmin(c.Sender().ID) {
+		return c.Send("⛔ Доступ запрещен.")
+	}
+
+	args := c.Args()
+	if len(args) < 2 {
+		return c.Send("Использование: /edit_name {telegram_id} {Новое Имя}")
+	}
+
+	targetID := args[0]
+	newName := strings.Join(args[1:], " ")
+
+	// 1. Check if patient exists
+	patient, err := h.repository.GetPatient(targetID)
+	if err != nil {
+		return c.Send("❌ Пациент не найден в базе данных.")
+	}
+
+	oldName := patient.Name
+	patient.Name = newName
+
+	// 2. Save (Updates DB and Markdown)
+	if err := h.repository.SavePatient(patient); err != nil {
+		log.Printf("ERROR: Failed to save updated patient name: %v", err)
+		return c.Send("❌ Ошибка при сохранении данных.")
+	}
+
+	log.Printf("[ADMIN] Name updated for %s: %s -> %s", targetID, oldName, newName)
+	return c.Send(fmt.Sprintf("✅ Имя пациента обновлено:\n<b>Old:</b> %s\n<b>New:</b> %s", oldName, newName), telebot.ModeHTML)
+}
+
 // GenerateWebAppURL creates a signed URL for the Telegram Web App
 func (h *BookingHandler) GenerateWebAppURL(telegramID string) string {
 	if h.WebAppURL == "" || h.webAppSecret == "" {
