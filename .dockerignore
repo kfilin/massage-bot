@@ -16,4 +16,6 @@ logs/
 coverage.txt
 postgres_data/
 postgres_data_dev/
+postgres_data_test/
+postgres_data_prod/
 data/
