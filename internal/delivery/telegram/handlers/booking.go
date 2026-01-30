@@ -1444,5 +1444,7 @@ func (h *BookingHandler) GenerateWebAppURL(telegramID string) string {
 	mac.Write([]byte(telegramID))
 	token := hex.EncodeToString(mac.Sum(nil))
 
+	log.Printf("[URL_GEN] ID: %s, SecretLen: %d, Token: %s", telegramID, len(h.webAppSecret), token)
+
 	return fmt.Sprintf("%s/card?id=%s&token=%s", url, telegramID, token)
 }

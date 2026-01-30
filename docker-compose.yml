@@ -30,6 +30,7 @@ services:
       - ./data:/app/data
     networks:
       - caddy-test-net
+      - bot-db-net
     depends_on:
       db:
         condition: service_healthy
@@ -53,7 +54,7 @@ services:
       retries: 5
       start_period: 2s
     networks:
-      - caddy-test-net
+      - bot-db-net
     logging:
       driver: "json-file"
       options:
@@ -63,3 +64,5 @@ services:
 networks:
   caddy-test-net:
     external: true
+  bot-db-net:
+    driver: bridge

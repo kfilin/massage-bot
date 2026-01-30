@@ -119,6 +119,8 @@ func startWebAppServer(port string, secret string, botToken string, adminIDs []s
 
 		if id != "" && token != "" {
 			if !validateHMAC(id, token, secret) {
+				expected := generateHMAC(id, secret)
+				log.Printf("AUTH ERROR: HMAC Mismatch! ID=%s, Token=%s, Expected=%s, SecretLen=%d", id, token, expected, len(secret))
 				http.Error(w, "Invalid token", http.StatusUnauthorized)
 				return
 			}
@@ -127,7 +129,7 @@ func startWebAppServer(port string, secret string, botToken string, adminIDs []s
 			var err error
 			finalID, telegramName, err = validateInitData(initData, botToken)
 			if err != nil {
-				log.Printf("InitData validation failed: %v", err)
+				log.Printf("AUTH ERROR: InitData Validation Failed! Err: %v\nInitData: %s\nBotTokenPrefix: %s...", err, initData, botToken[:5])
 				http.Error(w, "Authentication failed", http.StatusUnauthorized)
 				return
 			}
