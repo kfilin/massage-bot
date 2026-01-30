@@ -22,27 +22,27 @@ type TimeSlot struct {
 
 // Appointment represents a booked appointment.
 type Appointment struct {
-	ID        string    `json:"id"`         // Unique identifier for the appointment (e.g., Google Calendar event ID)
-	ServiceID string    `json:"service_id"` // ID of the booked service
-	Service   Service   `json:"service"`    // Details of the booked service
-	Time      time.Time `json:"time"`       // The primary start time of the appointment (used for initial booking)
-	Duration  int       `json:"duration"`   // Duration in minutes
+	ID        string    `json:"id" db:"id"`                 // Unique identifier for the appointment (e.g., Google Calendar event ID)
+	ServiceID string    `json:"service_id" db:"service_id"` // ID of the booked service
+	Service   Service   `json:"service" db:"service"`       // Details of the booked service
+	Time      time.Time `json:"time" db:"time"`             // The primary start time of the appointment (used for initial booking)
+	Duration  int       `json:"duration" db:"duration"`     // Duration in minutes
 
 	// Fields derived from Time and Duration, used by calendar adapters
-	StartTime time.Time `json:"start_time"`
-	EndTime   time.Time `json:"end_time"`
+	StartTime time.Time `json:"start_time" db:"start_time"`
+	EndTime   time.Time `json:"end_time" db:"end_time"`
 
 	// Client/Customer related information
-	ClientID     string `json:"client_id"`      // Can be the same as ID, or a separate client-specific ID
-	ClientName   string `json:"client_name"`    // Full name of the client (from Telegram or input)
-	CustomerName string `json:"customer_name"`  // Client's name from Telegram (e.g., FirstName LastName)
-	CustomerTgID string `json:"customer_tg_id"` // Telegram User ID
+	ClientID     string `json:"client_id" db:"client_id"`         // Can be the same as ID, or a separate client-specific ID
+	ClientName   string `json:"client_name" db:"client_name"`     // Full name of the client (from Telegram or input)
+	CustomerName string `json:"customer_name" db:"customer_name"` // Client's name from Telegram (e.g., FirstName LastName)
+	CustomerTgID string `json:"customer_tg_id" db:"customer_id"`  // Telegram User ID (mapped to customer_id in DB)
 
-	Notes           string `json:"notes"`               // Any additional notes for the appointment
-	CalendarEventID string `json:"calendar_event_id"`   // ID из Google Calendar или другого репозитория
-	MeetLink        string `json:"meet_link,omitempty"` // Google Meet link for online consultations
-	Status          string `json:"status"`              // Event status (confirmed, tentative, cancelled)
-	ConfirmedAt     *time.Time `json:"confirmed_at,omitempty"`
+	Notes           string          `json:"notes" db:"notes"`                         // Any additional notes for the appointment
+	CalendarEventID string          `json:"calendar_event_id" db:"calendar_event_id"` // ID из Google Calendar или другого репозитория
+	MeetLink        string          `json:"meet_link,omitempty" db:"meet_link"`       // Google Meet link for online consultations
+	Status          string          `json:"status" db:"status"`                       // Event status (confirmed, tentative, cancelled)
+	ConfirmedAt     *time.Time      `json:"confirmed_at,omitempty"`
 	RemindersSent   map[string]bool `json:"reminders_sent,omitempty"` // Map of reminder types (72h, 24h) to sent status
 }
 
