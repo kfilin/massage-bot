@@ -166,6 +166,7 @@ func StartBot(
 	b.Handle("/block", bookingHandler.HandleBlock)
 	b.Handle("/status", bookingHandler.HandleStatus)
 	b.Handle("/edit_name", bookingHandler.HandleEditName)
+	b.Handle("/create_appointment", bookingHandler.HandleManualAppointment)
 
 	// Register file/media handlers
 	b.Handle(telebot.OnDocument, bookingHandler.HandleFileMessage)
@@ -232,7 +233,12 @@ func StartBot(
 		text := strings.TrimSpace(c.Text())
 		log.Printf("Received text: \"%s\" from user %d", text, userID)
 
-		// Priority level 1: Main menu buttons (always available)
+		// Priority level 1: Commands fallback in OnText (helps if command handlers are bypassed)
+		if strings.HasPrefix(text, "/create_appointment") {
+			return bookingHandler.HandleManualAppointment(c)
+		}
+
+		// Priority level 2: Main menu buttons (always available)
 		switch text {
 		case "🗓 Записаться":
 			return bookingHandler.HandleStart(c)

@@ -41,6 +41,7 @@ const (
 	SessionKeyAwaitingConfirmation = "awaiting_confirmation"
 	SessionKeyCategory             = "category" // New for categorized menu
 	SessionKeyIsAdminBlock         = "is_admin_block"
+	SessionKeyIsAdminManual        = "is_admin_manual"
 	SessionKeyAdminReplyingTo      = "admin_replying_to"
 )
 
@@ -220,6 +221,37 @@ func (h *BookingHandler) HandleBlock(c telebot.Context) error {
 	)
 
 	return c.Send("🔒 <b>Блокировка времени</b>\nВыберите длительность:", selector, telebot.ModeHTML)
+}
+
+// HandleManualAppointment initiates the admin manual appointment flow
+func (h *BookingHandler) HandleManualAppointment(c telebot.Context) error {
+	userID := c.Sender().ID
+
+	// Check if user is admin
+	isAdmin := false
+	userIDStr := strconv.FormatInt(userID, 10)
+	for _, id := range h.adminIDs {
+		if id == userIDStr {
+			isAdmin = true
+			break
+		}
+	}
+
+	if !isAdmin {
+		return c.Send("❌ Эта команда доступна только администраторам.")
+	}
+
+	h.sessionStorage.ClearSession(userID)
+	h.sessionStorage.Set(userID, SessionKeyIsAdminManual, true)
+
+	// If name is provided directly in command arguments, store it
+	if len(c.Args()) > 0 {
+		nameFromArgs := strings.Join(c.Args(), " ")
+		h.sessionStorage.Set(userID, SessionKeyName, nameFromArgs)
+		log.Printf("DEBUG: Manual appointment name captured from args: %s", nameFromArgs)
+	}
+
+	return h.showCategories(c)
 }
 
 // getMainMenuWithBackBtn returns the main menu with an additional "Select another date" button
@@ -647,6 +679,12 @@ func (h *BookingHandler) HandleTimeSelection(c telebot.Context) error {
 		}
 	}
 
+	// Check if this is a manual admin booking
+	if val, ok := sessionData[SessionKeyIsAdminManual].(bool); ok && val {
+		log.Printf("DEBUG: Manual admin booking detected for user %d, asking for patient name", userID)
+		return c.Send("✍️ Введите <b>имя и фамилию пациента</b> для записи:", telebot.ModeHTML)
+	}
+
 	// Check for returning patient (with at least one visit)
 	patient, errRepo := h.repository.GetPatient(strconv.FormatInt(userID, 10))
 	if errRepo == nil && patient.Name != "" && patient.TotalVisits > 0 {
@@ -704,15 +742,21 @@ func (h *BookingHandler) askForConfirmation(c telebot.Context) error {
 		return c.Send("Ошибка форматирования времени. Пожалуйста, начните /start снова.", telebot.RemoveKeyboard)
 	}
 
+	title := "<b>Пожалуйста, подтвердите вашу запись:</b>"
+	if val, ok := sessionData[SessionKeyIsAdminManual].(bool); ok && val {
+		title = "<b>Подтвердите создание ручной записи:</b>"
+	}
+
 	confirmMessage := fmt.Sprintf(
-		"<b>Пожалуйста, подтвердите вашу запись:</b>\n\n"+
+		"%s\n\n"+
 			"Услуга: <b>%s</b>\n"+
 			"Длительность: <b>%d мин</b>\n"+
 			"Цена: <b>%.0f ₺</b>\n"+
 			"Дата: <b>%s</b>\n"+
 			"Время: <b>%s</b>\n"+
-			"Имя: <b>%s</b>\n\n"+
+			"Пациент: <b>%s</b>\n\n"+
 			"Всё верно?",
+		title,
 		service.Name,
 		service.DurationMinutes,
 		service.Price,
@@ -780,6 +824,11 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 	if val, ok := session[SessionKeyIsAdminBlock].(bool); ok && val {
 		isAdminBlock = true
 	}
+	// Check if this is an Admin manual booking
+	isAdminManual := false
+	if val, ok := session[SessionKeyIsAdminManual].(bool); ok && val {
+		isAdminManual = true
+	}
 
 	// Create appointment model
 	appt := domain.Appointment{
@@ -791,6 +840,11 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 		CustomerTgID: strconv.FormatInt(userID, 10),
 		CustomerName: name,
 		Notes:        "Telegram Bot Booking",
+	}
+
+	if isAdminManual {
+		appt.CustomerTgID = "manual"
+		appt.Notes = "Manual Appointment by Admin"
 	}
 
 	if isAdminBlock {
@@ -907,11 +961,20 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 	// Clear session on successful booking
 	h.sessionStorage.ClearSession(userID)
 
-	// 3. Confirm to Patient
+	// 3. Confirm to User (Admin or Patient)
 	confirmationMsg := fmt.Sprintf("✅ <b>Запись подтверждена!</b>\n\n📅 %s\n⏰ %s\n⏳ %s\n\n⚠️ Отмена возможна за 72 часа до приема. Для отмены свяжитесь с терапевтом.",
 		appointmentTime.Format("02.01.2006"),
 		appointmentTime.Format("15:04"),
 		service.Name)
+
+	if isAdminManual {
+		confirmationMsg = fmt.Sprintf("✅ <b>Ручная запись создана!</b>\n\n📅 %s\n⏰ %s\n⏳ %s\n👤 Пациент: %s",
+			appointmentTime.Format("02.01.2006"),
+			appointmentTime.Format("15:04"),
+			service.Name, name)
+		return c.Send(confirmationMsg, h.GetMainMenu(), telebot.ModeHTML)
+	}
+
 	if appt.MeetLink != "" {
 		confirmationMsg += fmt.Sprintf("\n\n💻 <b>Ссылка на Google Meet:</b>\n%s", appt.MeetLink)
 	}
