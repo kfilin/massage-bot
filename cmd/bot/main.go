@@ -29,7 +29,7 @@ func main() {
 	// 1. Load Configuration
 	cfg := config.LoadConfig()
 	log.Println("Configuration loaded.")
-	log.Println("Bot version: v5.3.5 Clinical Edition")
+	log.Println("Bot version: v5.3.6 Clinical Edition")
 
 	// Start health server
 	go startHealthServer()
@@ -37,7 +37,9 @@ func main() {
 	// 1b. Initialize Database
 	db, err := storage.InitDB()
 	if err != nil {
-		log.Fatalf("Error initializing database: %v", err)
+		log.Printf("CRITICAL: Error initializing database: %v", err)
+		time.Sleep(5 * time.Second) // Small delay to prevent tight crash loop
+		log.Fatalf("Exiting due to database failure.")
 	}
 	patientRepo := storage.NewPostgresRepository(db, os.Getenv("DATA_DIR"))
 	patientRepo.BotVersion = "v5.1.0"

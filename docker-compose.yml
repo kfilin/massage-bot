@@ -30,7 +30,7 @@ services:
       - ./data:/app/data
     networks:
       - caddy-test-net
-      - bot-db-net
+      - massage-bot-internal
     depends_on:
       db:
         condition: service_healthy
@@ -54,7 +54,7 @@ services:
       retries: 5
       start_period: 2s
     networks:
-      - bot-db-net
+      - massage-bot-internal
     logging:
       driver: "json-file"
       options:
@@ -64,5 +64,6 @@ services:
 networks:
   caddy-test-net:
     external: true
-  bot-db-net:
+  massage-bot-internal:
+    name: massage-bot-internal
     driver: bridge
