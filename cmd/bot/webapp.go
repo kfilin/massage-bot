@@ -28,7 +28,11 @@ func generateHMAC(id string, secret string) string {
 
 func validateHMAC(id string, token string, secret string) bool {
 	expected := generateHMAC(id, secret)
-	return hmac.Equal([]byte(token), []byte(expected))
+	match := hmac.Equal([]byte(token), []byte(expected))
+	if !match {
+		log.Printf("DEBUG [validateHMAC]: Mismatch for ID=%s. Provided=%s, Expected=%s, SecretLen=%d", id, token, expected, len(secret))
+	}
+	return match
 }
 
 // validateInitData validates Telegram WebApp initData

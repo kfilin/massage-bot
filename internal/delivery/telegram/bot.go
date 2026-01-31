@@ -39,9 +39,25 @@ func StartBot(
 		Poller: &telebot.LongPoller{Timeout: 10 * time.Second},
 	}
 
-	b, err := telebot.NewBot(pref)
+	var b *telebot.Bot
+	var err error
+
+	// Resilience: Retry loop for bot initialization
+	for i := 0; i < 10; i++ {
+		b, err = telebot.NewBot(pref)
+		if err == nil {
+			break
+		}
+		log.Printf("Error creating bot (attempt %d/10): %v", i+1, err)
+		time.Sleep(time.Duration(i*2+5) * time.Second) // Exponential-ish backoff
+	}
+
 	if err != nil {
-		log.Fatalf("Error creating bot: %v", err)
+		log.Printf("CRITICAL: Failed to create bot after multiple attempts: %v", err)
+		log.Println("Suspending bot polling, but keeping process alive for WebApp.")
+		// We don't log.Fatalf here anymore to allow WebApp to still run
+		// However, most handlers depend on 'b', so we might need a way to mark bot as "offline"
+		// For now, we return to prevent panics below if 'b' is nil
 		return
 	}
 
