@@ -109,7 +109,7 @@ func main() {
 	// 7. Start the Telegram Bot
 	// Pass all initialized dependencies to the bot's start function
 	log.Println("Starting Telegram bot...")
-	telegram.StartBot(
+	go telegram.StartBot(
 		cfg.TgBotToken,
 		appointmentService,
 		sessionStorage,
@@ -120,4 +120,7 @@ func main() {
 		cfg.WebAppURL,
 		cfg.WebAppSecret,
 	)
+
+	// Block forever to keep the WebApp server running even if the Bot fails/restarts
+	select {}
 }
