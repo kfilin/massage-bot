@@ -8,7 +8,7 @@ A professional clinical ecosystem for massage therapists. Features interactive b
 
 ## 🏗️ Technical Foundation
 
-- **Version**: v5.3.6 (Hardened Startup)
+- **Version**: v5.3.7 (Resilient Startup & DNS Fix)
 - **Language**: **Go 1.24** (Alpine-based)
 - **Database**: PostgreSQL 15 (Metadata & Sync Status)
 - **Clinical Storage**: **Markdown-mirrored Filesystem** (Clinical Storage 2.0)
@@ -51,10 +51,10 @@ A fully isolated environment running on `vera-bot-test.kfilin.icu`:
 
 ## 💎 Gold Standard Checkpoint
 
-- **Commit**: `52a67d2` (DB Hardening & Stability Report)
+- **Commit**: `bf62cd0` (Stability Fix: Decoupled Startup & DNS Collision Resolved)
 - **Date**: 2026-02-01
-- **Status**: **UNSTABLE**. Internal DB connection fixed; external Telegram API connectivity failing (Crash Loop).
-- **Rollback**: `59c4f69` (v5.3.5)
+- **Status**: **STABLE**. WebApp is decoupled from Bot connection; DNS conflict fixed.
+- **Rollback**: `52a67d2` (v5.3.6)
 
 ---
 

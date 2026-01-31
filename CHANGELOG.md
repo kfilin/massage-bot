@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v5.3.7] - 2026-02-01
+
+### Fixed
+
+- **App Stability**: Permanently resolved "Invalid Token" and crash loops by decoupling the WebApp server lifespan from the Telegram Bot connection within `main.go`. The WebApp now remains online even if the Bot cannot reach the Telegram API.
+- **DNS Collision**: Resolved a critical Docker DNS conflict where Caddy round-robined requests between Production (`massage-bot`) and Test (`massage-bot-test`) containers on the shared network.
+- **Build System**: Forced cache validation in `bot.go` to prevent stale binaries from persisting in deployments.
+
+### Added
+
+- **Request Tracing**: Added debug logging to `webapp.go` middleware to trace incoming requests (Method, URL, RemoteAddr) for easier routing diagnosis.
+
 ## [v5.3.4] - 2026-01-31
 
 ### Added
