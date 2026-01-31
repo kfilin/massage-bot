@@ -48,7 +48,7 @@ func StartBot(
 		if err == nil {
 			break
 		}
-		log.Printf("Error creating bot (attempt %d/10): %v", i+1, err)
+		log.Printf("DEBUG_RETRY: Error creating bot (attempt %d/10): %v", i+1, err)
 		time.Sleep(time.Duration(i*2+5) * time.Second) // Exponential-ish backoff
 	}
 
