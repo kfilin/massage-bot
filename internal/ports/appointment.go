@@ -16,6 +16,7 @@ type AppointmentService interface {
 	GetUpcomingAppointments(ctx context.Context, timeMin, timeMax time.Time) ([]domain.Appointment, error)
 	GetCustomerAppointments(ctx context.Context, customerTgID string) ([]domain.Appointment, error)
 	GetCustomerHistory(ctx context.Context, customerTgID string) ([]domain.Appointment, error)
+	GetAllUpcomingAppointments(ctx context.Context) ([]domain.Appointment, error)
 	FindByID(ctx context.Context, appointmentID string) (*domain.Appointment, error)
 	GetTotalUpcomingCount(ctx context.Context) (int, error)
 	GetCalendarAccountInfo(ctx context.Context) (string, error)

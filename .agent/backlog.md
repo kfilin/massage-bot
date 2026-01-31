@@ -47,7 +47,7 @@
 ### 15. [DONE] Manual Appointment Creation
 
 - **Status**: Completed (2026-01-31).
-- **Resolution**: Added `/create_appointment` command for admins to book slots on behalf of clients. Implemented specialized flow that prompts for patient name and uses a `manual` tag in the system.
+- **Resolution**: Added `/create_appointment` command. Implemented unique ID tracking (`manual_<name>`) and an Admin Master View in "My Appointments" to ensure manual bookings are visible and linked to dedicated patient Med-Cards.
 - **Implementation**: [booking.go](file:///home/kirillfilin/Documents/massage-bot/internal/delivery/telegram/handlers/booking.go), [bot.go](file:///home/kirillfilin/Documents/massage-bot/internal/delivery/telegram/bot.go)
 
 ---

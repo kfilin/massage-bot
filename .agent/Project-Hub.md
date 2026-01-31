@@ -51,10 +51,10 @@ A fully isolated environment running on `vera-bot-test.kfilin.icu`:
 
 ## 💎 Gold Standard Checkpoint
 
-- **Commit**: `4672e04` (v5.3.5 Hardened Networking & Name Edit)
+- **Commit**: `7a00cd9` (Manual Appointment Creation)
 - **Date**: 2026-01-31
-- **Status**: **STABLE**. All environments aligned. Fixed DNS ghosting by using explicit container names for `DB_HOST`. Restored `/edit_name`.
-- **Rollback**: `4651d24` (v5.3.3)
+- **Status**: **STABLE**. Manual appointments implemented and pushed.
+- **Rollback**: `a9734cc` (v5.3.2)
 
 ---
 

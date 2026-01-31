@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time" // Ensure time is imported
@@ -843,7 +844,9 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 	}
 
 	if isAdminManual {
-		appt.CustomerTgID = "manual"
+		// Normalize name for unique but persistent ID (e.g., "Kirill Filin" -> "manual_kirillfilin")
+		normalized := strings.ToLower(strings.Join(strings.Fields(name), ""))
+		appt.CustomerTgID = "manual_" + normalized
 		appt.Notes = "Manual Appointment by Admin"
 	}
 
@@ -899,11 +902,11 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 	if n, ok := session[SessionKeyName].(string); ok {
 		nameInSync = n
 	}
-	patient, errSync := h.syncPatientStats(context.Background(), strconv.FormatInt(userID, 10), nameInSync)
+	patient, errSync := h.syncPatientStats(context.Background(), appt.CustomerTgID, nameInSync)
 	if errSync != nil {
 		log.Printf("WARNING: Failed to sync patient record for user %d: %v", userID, errSync)
 		// Fallback to minimal update if sync fails
-		existingPatient, errRepo := h.repository.GetPatient(strconv.FormatInt(userID, 10))
+		existingPatient, errRepo := h.repository.GetPatient(appt.CustomerTgID)
 		if errRepo == nil {
 			patient = existingPatient
 			patient.LastVisit = appointmentTime
@@ -962,17 +965,17 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 	h.sessionStorage.ClearSession(userID)
 
 	// 3. Confirm to User (Admin or Patient)
-	confirmationMsg := fmt.Sprintf("✅ <b>Запись подтверждена!</b>\n\n📅 %s\n⏰ %s\n⏳ %s\n\n⚠️ Отмена возможна за 72 часа до приема. Для отмены свяжитесь с терапевтом.",
-		appointmentTime.Format("02.01.2006"),
-		appointmentTime.Format("15:04"),
-		service.Name)
-
+	var confirmationMsg string
 	if isAdminManual {
 		confirmationMsg = fmt.Sprintf("✅ <b>Ручная запись создана!</b>\n\n📅 %s\n⏰ %s\n⏳ %s\n👤 Пациент: %s",
 			appointmentTime.Format("02.01.2006"),
 			appointmentTime.Format("15:04"),
 			service.Name, name)
-		return c.Send(confirmationMsg, h.GetMainMenu(), telebot.ModeHTML)
+	} else {
+		confirmationMsg = fmt.Sprintf("✅ <b>Запись подтверждена!</b>\n\n📅 %s\n⏰ %s\n⏳ %s\n\n⚠️ Отмена возможна за 72 часа до приема. Для отмены свяжитесь с терапевтом.",
+			appointmentTime.Format("02.01.2006"),
+			appointmentTime.Format("15:04"),
+			service.Name)
 	}
 
 	if appt.MeetLink != "" {
@@ -1104,53 +1107,81 @@ func (h *BookingHandler) HandleMyAppointments(c telebot.Context) error {
 	userID := c.Sender().ID
 	telegramID := strconv.FormatInt(userID, 10)
 
-	appts, err := h.appointmentService.GetCustomerAppointments(context.Background(), telegramID)
+	isAdmin := h.IsAdmin(userID)
+	var appts []domain.Appointment
+	var err error
+
+	if isAdmin {
+		appts, err = h.appointmentService.GetAllUpcomingAppointments(context.Background())
+	} else {
+		appts, err = h.appointmentService.GetCustomerAppointments(context.Background(), telegramID)
+	}
+
 	if err != nil {
 		log.Printf("ERROR: Failed to get appointments for user %d: %v", userID, err)
-		return c.Send("Ошибка при получении списка ваших записей. Пожалуйста, попробуйте позже.")
+		return c.Send("Ошибка при получении списка записей. Пожалуйста, попробуйте позже.")
 	}
 
 	if len(appts) == 0 {
-		return c.Send("У вас пока нет активных записей. Вы можете записаться через /start")
+		return c.Send("Активных записей не найдено.")
 	}
 
 	h.sessionStorage.ClearSession(userID)
 
-	var message string = "📋 *Ваши текущие записи:*\n\n"
+	var message string
+	if isAdmin {
+		message = "📊 <b>Общее расписание записей:</b>\n\n"
+	} else {
+		message = "📋 <b>Ваши текущие записи:</b>\n\n"
+	}
+
 	selector := &telebot.ReplyMarkup{}
 	var rows []telebot.Row
 	hasLateAppts := false
 
+	// Sort by time for display
+	sort.Slice(appts, func(i, j int) bool {
+		return appts[i].StartTime.Before(appts[j].StartTime)
+	})
+
 	for _, appt := range appts {
 		apptTime := appt.StartTime.In(domain.ApptTimeZone)
-		message += fmt.Sprintf("🗓 *%s*\n🕒 %s\n💆 %s\n",
+
+		// For admins, show who the appointment is for
+		patientInfo := ""
+		if isAdmin && appt.CustomerTgID != telegramID {
+			patientInfo = fmt.Sprintf("👤 %s\n", appt.CustomerName)
+		}
+
+		message += fmt.Sprintf("🗓 <b>%s</b>\n🕒 %s\n💆 %s\n%s",
 			apptTime.Format("02.01.2006"),
 			apptTime.Format("15:04"),
-			appt.Service.Name)
+			appt.Service.Name,
+			patientInfo)
 
 		// Smart Cancellation Logic: Only show Cancel button if more than 72 hours (3 days) remain
+		// OR if the user is an admin (admins can always cancel)
 		now := time.Now().In(domain.ApptTimeZone)
 		timeRemaining := appt.StartTime.Sub(now)
 
-		if timeRemaining > 72*time.Hour {
+		if isAdmin || timeRemaining > 72*time.Hour {
 			btn := selector.Data(fmt.Sprintf("❌ Отменить %s (%s)", apptTime.Format("02.01"), apptTime.Format("15:04")), "cancel_appt", appt.ID)
 			rows = append(rows, selector.Row(btn))
 		} else {
-			message += "⚠️ _Отмена только через терапевта_\n"
+			message += "⚠️ <i>Отмена только через терапевта</i>\n"
 			hasLateAppts = true
 		}
 		message += "\n"
 	}
 
-	if hasLateAppts {
+	if hasLateAppts && !isAdmin {
 		btnContact := selector.URL("💬 Написать терапевту", "https://t.me/VeraFethiye")
 		rows = append(rows, selector.Row(btnContact))
 	}
 
 	selector.Inline(rows...)
 
-	// Send with Inline Keyboard ONLY (no Reply Keyboard here to avoid conflicts)
-	return c.Send(message, selector, telebot.ParseMode(telebot.ModeMarkdown))
+	return c.Send(message, selector, telebot.ModeHTML)
 }
 
 // HandleCancelAppointmentCallback handles the specific cancellation of an appointment

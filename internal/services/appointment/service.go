@@ -328,6 +328,33 @@ func (s *Service) GetCustomerAppointments(ctx context.Context, customerTgID stri
 	return customerAppts, nil
 }
 
+// GetAllUpcomingAppointments returns all upcoming appointments (from -24h) for ALL customers.
+func (s *Service) GetAllUpcomingAppointments(ctx context.Context) ([]domain.Appointment, error) {
+	log.Printf("DEBUG: GetAllUpcomingAppointments called")
+
+	allAppts, err := s.repo.FindAll(ctx)
+	if err != nil {
+		if errors.Is(err, domain.ErrAppointmentNotFound) {
+			return []domain.Appointment{}, nil
+		}
+		return nil, fmt.Errorf("failed to fetch all appointments: %w", err)
+	}
+
+	now := time.Now().In(domain.ApptTimeZone)
+	cutoff := now.Add(-24 * time.Hour)
+
+	var upcomingAppts []domain.Appointment
+	for _, appt := range allAppts {
+		// Filter: Not cancelled AND (start time in future OR within last 24h)
+		if appt.Status != "cancelled" && appt.StartTime.After(cutoff) {
+			upcomingAppts = append(upcomingAppts, appt)
+		}
+	}
+
+	log.Printf("DEBUG: Found %d upcoming appointments in total", len(upcomingAppts))
+	return upcomingAppts, nil
+}
+
 // GetCustomerHistory returns ALL appointments (past and future) for a specific customer.
 func (s *Service) GetCustomerHistory(ctx context.Context, customerTgID string) ([]domain.Appointment, error) {
 	log.Printf("DEBUG: GetCustomerHistory called for customer TGID: %s", customerTgID)
