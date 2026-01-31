@@ -113,6 +113,7 @@ func startWebAppServer(port string, secret string, botToken string, adminIDs []s
 
 	// Handle both root and /card with the same logic
 	handler := func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("DEBUG [WebApp]: Incoming Request: %s %s RemoteAddr: %s", r.Method, r.URL.String(), r.RemoteAddr)
 		// Prepare paths for query parsing (supports both root and /card)
 		id := r.URL.Query().Get("id")
 		token := r.URL.Query().Get("token")
