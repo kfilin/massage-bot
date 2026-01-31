@@ -51,10 +51,10 @@ A fully isolated environment running on `vera-bot-test.kfilin.icu`:
 
 ## 💎 Gold Standard Checkpoint
 
-- **Commit**: `7a00cd9` (Manual Appointment Creation)
+- **Commit**: `59c4f69` (Manual Appointment Visibility & Master View)
 - **Date**: 2026-01-31
-- **Status**: **STABLE**. Manual appointments implemented and pushed.
-- **Rollback**: `a9734cc` (v5.3.2)
+- **Status**: **STABLE**. Manual appointments tracked uniquely; Admin master view enabled.
+- **Rollback**: `7a00cd9` (Initial Manual Flow)
 
 ---
 
