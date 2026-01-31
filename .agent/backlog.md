@@ -50,5 +50,11 @@
 - **Resolution**: Added `/create_appointment` command. Implemented unique ID tracking (`manual_<name>`) and an Admin Master View in "My Appointments" to ensure manual bookings are visible and linked to dedicated patient Med-Cards.
 - **Implementation**: [booking.go](file:///home/kirillfilin/Documents/massage-bot/internal/delivery/telegram/handlers/booking.go), [bot.go](file:///home/kirillfilin/Documents/massage-bot/internal/delivery/telegram/bot.go)
 
+### 16. [DONE] DB & Stability Hardening (v5.3.6)
+
+- **Status**: Completed (2026-02-01).
+- **Resolution**: Implemented `connect_timeout` for DB, added startup crash-loop delays, and documented external API visibility issues in a stability report.
+- **Note**: System currently healthy internally but failing to reach Telegram API.
+
 ---
-*Last updated: 2026-01-30*
+*Last updated: 2026-02-01*

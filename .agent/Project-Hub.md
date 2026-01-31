@@ -8,12 +8,12 @@ A professional clinical ecosystem for massage therapists. Features interactive b
 
 ## 🏗️ Technical Foundation
 
-- **Version**: v5.3.5-stable (Clinical & Hardened)
+- **Version**: v5.3.6 (Hardened Startup)
 - **Language**: **Go 1.24** (Alpine-based)
 - **Database**: PostgreSQL 15 (Metadata & Sync Status)
 - **Clinical Storage**: **Markdown-mirrored Filesystem** (Clinical Storage 2.0)
 - **Infrastructure**: Docker Compose on Home Server (Prod: 8082, Test: 9082).
-- **Networks**: Shared `caddy-test-net` + Isolated `bot-db-net`. **Hardened**: `DB_HOST=massage-bot-db` to prevent DNS ghosting.
+- **Networks**: Shared `caddy-test-net` + Isolated `massage-bot-internal`. **Hardened**: Named bridge for stability.
 
 ---
 
@@ -51,10 +51,10 @@ A fully isolated environment running on `vera-bot-test.kfilin.icu`:
 
 ## 💎 Gold Standard Checkpoint
 
-- **Commit**: `59c4f69` (Manual Appointment Visibility & Master View)
-- **Date**: 2026-01-31
-- **Status**: **STABLE**. Manual appointments tracked uniquely; Admin master view enabled.
-- **Rollback**: `7a00cd9` (Initial Manual Flow)
+- **Commit**: `52a67d2` (DB Hardening & Stability Report)
+- **Date**: 2026-02-01
+- **Status**: **UNSTABLE**. Internal DB connection fixed; external Telegram API connectivity failing (Crash Loop).
+- **Rollback**: `59c4f69` (v5.3.5)
 
 ---
 
