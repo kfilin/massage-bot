@@ -8,7 +8,7 @@ A professional clinical ecosystem for massage therapists. Features interactive b
 
 ## 🏗️ Technical Foundation
 
-- **Version**: v5.3.7 (Resilient Startup & DNS Fix)
+- **Version**: v5.3.8 (Monitoring Config Added)
 - **Language**: **Go 1.24** (Alpine-based)
 - **Database**: PostgreSQL 15 (Metadata & Sync Status)
 - **Clinical Storage**: **Markdown-mirrored Filesystem** (Clinical Storage 2.0)
@@ -44,17 +44,19 @@ A fully isolated environment running on `vera-bot-test.kfilin.icu`:
 
 ### 4. Backups & Metrics
 
-- **Metrics**: `./scripts/report_metrics.sh` (CLI Dashboard).
+- **Metrics**:
+  - CLI: `./scripts/report_metrics.sh`
+  - **Visual**: Grafana Dashboard + Prometheus Scrape Config in `deploy/monitoring/`.
 - **Backups**: `./scripts/backup_data.sh` (Zips `data/` directory).
 
 ---
 
 ## 💎 Gold Standard Checkpoint
 
-- **Commit**: `bf62cd0` (Stability Fix: Decoupled Startup & DNS Collision Resolved)
-- **Date**: 2026-02-01
-- **Status**: **STABLE**. WebApp is decoupled from Bot connection; DNS conflict fixed.
-- **Rollback**: `52a67d2` (v5.3.6)
+- **Commit**: `87cf74a` (Monitoring Config Added)
+- **Date**: 2026-02-02
+- **Status**: **STABLE**. Added Monitoring Configuration files.
+- **Rollback**: `bf62cd0` (v5.3.7)
 
 ---
 
