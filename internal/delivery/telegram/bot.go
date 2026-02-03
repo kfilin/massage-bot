@@ -23,6 +23,24 @@ import (
 	"gopkg.in/telebot.v3"
 )
 
+// Callback prefix constants for inline button handling
+const (
+	CallbackPrefixCategory        = "select_category|"
+	CallbackPrefixService         = "select_service|"
+	CallbackPrefixDate            = "select_date|"
+	CallbackPrefixNavigateMonth   = "navigate_month|"
+	CallbackPrefixTime            = "select_time|"
+	CallbackPrefixCancelAppt      = "cancel_appt|"
+	CallbackPrefixConfirmReminder = "confirm_appt_reminder|"
+	CallbackPrefixCancelReminder  = "cancel_appt_reminder|"
+	CallbackPrefixAdminReply      = "admin_reply|"
+	CallbackConfirmBooking        = "confirm_booking"
+	CallbackCancelBooking         = "cancel_booking"
+	CallbackBackToServices        = "back_to_services"
+	CallbackBackToDate            = "back_to_date"
+	CallbackIgnore                = "ignore"
+)
+
 // StartBot initializes and runs the Telegram bot.
 // It now receives all necessary services and configuration from the main package.
 func StartBot(
@@ -206,37 +224,37 @@ func StartBot(
 
 		// Добавляем логирование для каждой ветки if/else if
 		// Используем trimmedData для проверки префикса
-		if strings.HasPrefix(trimmedData, "select_category|") {
+		if strings.HasPrefix(trimmedData, CallbackPrefixCategory) {
 			logging.Debug("DEBUG: OnCallback: Matched 'select_category' prefix.")
 			return bookingHandler.HandleCategorySelection(c)
-		} else if strings.HasPrefix(trimmedData, "select_service|") {
+		} else if strings.HasPrefix(trimmedData, CallbackPrefixService) {
 			logging.Debug("DEBUG: OnCallback: Matched 'select_service' prefix.")
 			return bookingHandler.HandleServiceSelection(c)
-		} else if strings.HasPrefix(trimmedData, "select_date|") || strings.HasPrefix(trimmedData, "navigate_month|") || trimmedData == "back_to_services" {
+		} else if strings.HasPrefix(trimmedData, CallbackPrefixDate) || strings.HasPrefix(trimmedData, CallbackPrefixNavigateMonth) || trimmedData == CallbackBackToServices {
 			logging.Debug("DEBUG: OnCallback: Matched 'select_date', 'navigate_month' or 'back_to_services'.")
 			return bookingHandler.HandleDateSelection(c)
-		} else if strings.HasPrefix(trimmedData, "select_time|") || trimmedData == "back_to_date" {
+		} else if strings.HasPrefix(trimmedData, CallbackPrefixTime) || trimmedData == CallbackBackToDate {
 			logging.Debug("DEBUG: OnCallback: Matched 'select_time' or 'back_to_date'.")
 			return bookingHandler.HandleTimeSelection(c)
-		} else if trimmedData == "confirm_booking" {
+		} else if trimmedData == CallbackConfirmBooking {
 			logging.Debug("DEBUG: OnCallback: Matched 'confirm_booking' data.")
 			return bookingHandler.HandleConfirmBooking(c)
-		} else if trimmedData == "cancel_booking" {
+		} else if trimmedData == CallbackCancelBooking {
 			logging.Debug("DEBUG: OnCallback: Matched 'cancel_booking' data.")
 			return bookingHandler.HandleCancel(c)
-		} else if strings.HasPrefix(trimmedData, "cancel_appt|") {
+		} else if strings.HasPrefix(trimmedData, CallbackPrefixCancelAppt) {
 			logging.Debug("DEBUG: OnCallback: Matched 'cancel_appt' prefix.")
 			return bookingHandler.HandleCancelAppointmentCallback(c)
-		} else if strings.HasPrefix(trimmedData, "confirm_appt_reminder|") {
+		} else if strings.HasPrefix(trimmedData, CallbackPrefixConfirmReminder) {
 			logging.Debug("DEBUG: OnCallback: Matched 'confirm_appt_reminder' prefix.")
 			return bookingHandler.HandleReminderConfirmation(c)
-		} else if strings.HasPrefix(trimmedData, "cancel_appt_reminder|") {
+		} else if strings.HasPrefix(trimmedData, CallbackPrefixCancelReminder) {
 			logging.Debug("DEBUG: OnCallback: Matched 'cancel_appt_reminder' prefix.")
 			return bookingHandler.HandleReminderCancellation(c)
-		} else if strings.HasPrefix(trimmedData, "admin_reply|") {
+		} else if strings.HasPrefix(trimmedData, CallbackPrefixAdminReply) {
 			logging.Debug("DEBUG: OnCallback: Matched 'admin_reply' prefix.")
 			return bookingHandler.HandleAdminReplyRequest(c)
-		} else if trimmedData == "ignore" {
+		} else if trimmedData == CallbackIgnore {
 			logging.Debug("DEBUG: OnCallback: Matched 'ignore' data.")
 			return nil // Просто игнорируем кнопки-заглушки
 		}

@@ -15,16 +15,9 @@ import (
 
 var (
 	SlotDuration *time.Duration // Duration of each booking slot (e.g., 30 minutes)
-	ApptTimeZone *time.Location
 )
 
 func init() {
-	var err error
-	ApptTimeZone, err = time.LoadLocation("Europe/Istanbul")
-	if err != nil {
-		logging.Get().Fatal("Failed to load timezone 'Europe/Istanbul': %v", err)
-	}
-
 	tempDuration := 60 * time.Minute // Default slot duration is 60 minutes
 	SlotDuration = &tempDuration
 }
@@ -185,7 +178,7 @@ func (s *Service) CreateAppointment(ctx context.Context, appt *domain.Appointmen
 	}
 
 	// Ensure times are in the correct timezone for validation
-	loc := ApptTimeZone
+	loc := domain.ApptTimeZone
 	if loc == nil {
 		logging.Warn("WARNING: ApptTimeZone is nil during appointment creation validation, defaulting to Local time.")
 		loc = time.Local

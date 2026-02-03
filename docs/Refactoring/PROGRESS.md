@@ -1,8 +1,81 @@
 # Refactoring Progress Summary
 
-**Date**: 2026-02-03
-**Session**: Phase 1 Complete, Phase 4 Test Coverage (Major Progress)
-**Overall Coverage**: **12.6% → 19.5%** (+6.9 percentage points)
+**Date**: 2026-02-04 (Updated)  
+**Previous Session**: 2026-02-03 - Phase 1 Complete, Phase 4 Test Coverage (Major Progress)  
+**Current Session**: 2026-02-04 - Phase 2-3 Code Quality Fixes Complete  
+**Overall Coverage**: **19.5%** (maintained)
+
+---
+
+## 📅 SESSION 2026-02-04: Phase 2-3 Completion ✅
+
+### Phase 2: Logging Consolidation (100% Complete) ✅
+
+**Verification Results**:
+
+- ✅ No `log.Printf` calls found in codebase (already complete from previous session)
+- ✅ No `import "log"` statements found
+- ✅ All logging uses `internal/logging` package
+- ✅ `io/ioutil` already replaced with `io` and `os` packages
+
+### Phase 3: Code Quality Fixes (100% Complete) ✅
+
+#### 3.1 Removed Duplicate ApptTimeZone Constant ✅
+
+- **Files Modified**: `internal/services/appointment/service.go`, `internal/services/appointment/slot_engine.go`
+- **Change**: Removed local `ApptTimeZone` variable, now using `domain.ApptTimeZone` throughout
+- **Impact**: Single source of truth for timezone configuration
+
+#### 3.2 Fixed Error Swallowing ✅
+
+- **File Modified**: `internal/storage/postgres_repository.go` (line 156)
+- **Change**: Added error handling for `SavePatient` call
+- **Impact**: Errors now properly logged instead of silently ignored
+
+#### 3.3 Defined Callback Prefix Constants ✅
+
+- **File Modified**: `internal/delivery/telegram/bot.go`
+- **Changes**:
+  - Added 14 callback prefix constants (lines 26-42)
+  - Replaced all magic strings in callback handler
+- **Impact**: Eliminated magic strings, improved maintainability
+
+**Verification**: ✅ All tests pass, build successful, coverage maintained at 19.5%
+
+---
+
+## 📅 SESSION 2026-02-04 (CONTINUED): Phase 4 Test Coverage Expansion ✅
+
+### Phase 4: Test Coverage Expansion (100% Complete) ✅
+
+**Goal**: Increase overall coverage from 19.5% to 30%+  
+**Result**: **37.8%** (+18.3 percentage points) ✅ **EXCEEDED TARGET**
+
+#### 4.1 Storage Package Tests ✅
+
+- **File Modified**: `internal/storage/postgres_repository_test.go`
+- **Tests Added**: 10 new test cases across 3 test functions
+- **Coverage Impact**: 20.5% → **43.4%** (+22.9pp)
+
+**New Tests**:
+
+1. **TestGenerateHTMLRecord** (3 test cases)
+   - Patient with notes and future appointment
+   - Patient with empty notes
+   - Patient with past appointments only
+
+2. **TestSavePatientDocumentReader** (4 test cases)
+   - Save scan document
+   - Save image document
+   - Save voice message
+   - Save generic document
+
+3. **TestSyncFromFile** (3 test cases)
+   - Sync with file changes
+   - Sync with no changes
+   - Handle missing file
+
+**Verification**: ✅ All tests pass, storage coverage exceeds 40% target
 
 ---
 

@@ -19,7 +19,7 @@ func (s *Service) GetAvailableTimeSlots(ctx context.Context, date time.Time, dur
 	}
 
 	// Ensure the date is in the correct timezone for working hours logic
-	dateInApptTimezone := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, ApptTimeZone)
+	dateInApptTimezone := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, domain.ApptTimeZone)
 
 	// Fetch busy intervals for the entire day
 	timeMin := dateInApptTimezone
@@ -36,13 +36,13 @@ func (s *Service) GetAvailableTimeSlots(ctx context.Context, date time.Time, dur
 
 	// Iterate through the working day in 1-hour steps
 	// Note: WorkDayStartHour and WorkDayEndHour are defined in service.go constants
-	currentSlotStart := time.Date(dateInApptTimezone.Year(), dateInApptTimezone.Month(), dateInApptTimezone.Day(), domain.WorkDayStartHour, 0, 0, 0, ApptTimeZone)
-	workDayEnd := time.Date(dateInApptTimezone.Year(), dateInApptTimezone.Month(), dateInApptTimezone.Day(), domain.WorkDayEndHour, 0, 0, 0, ApptTimeZone)
+	currentSlotStart := time.Date(dateInApptTimezone.Year(), dateInApptTimezone.Month(), dateInApptTimezone.Day(), domain.WorkDayStartHour, 0, 0, 0, domain.ApptTimeZone)
+	workDayEnd := time.Date(dateInApptTimezone.Year(), dateInApptTimezone.Month(), dateInApptTimezone.Day(), domain.WorkDayEndHour, 0, 0, 0, domain.ApptTimeZone)
 
 	// Default step interval - could be configurable
 	stepInterval := 60 * time.Minute
 
-	nowInApptTimezone := s.NowFunc().In(ApptTimeZone)
+	nowInApptTimezone := s.NowFunc().In(domain.ApptTimeZone)
 
 	// Loop until the potential slot end exceeds the workday end
 	for currentSlotStart.Add(time.Duration(durationMinutes)*time.Minute).Before(workDayEnd) || currentSlotStart.Add(time.Duration(durationMinutes)*time.Minute).Equal(workDayEnd) {

@@ -153,7 +153,9 @@ func (r *PostgresRepository) GetPatient(telegramID string) (domain.Patient, erro
 		if errFile == nil && updated {
 			logging.Infof("[Sync] Discovered patient %s from Markdown file after DB miss", telegramID)
 			// Save to DB to establish record
-			r.SavePatient(p)
+			if err := r.SavePatient(p); err != nil {
+				logging.Errorf("Failed to save discovered patient %s to DB: %v", telegramID, err)
+			}
 			return p, nil
 		}
 		return p, err // Return original DB error if file also not found
