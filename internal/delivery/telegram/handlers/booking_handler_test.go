@@ -945,6 +945,3 @@ func TestHandleCancel(t *testing.T) {
 		t.Errorf("Expected 'Запись отменена' message, got %q", ctx.sentMsg)
 	}
 }
-func (m *mockRepository) DeleteAppointment(appointmentID string) error { return nil }
-
-func (m *mockRepository) DeleteAppointment(appointmentID string) error { return nil }
