@@ -2,7 +2,7 @@ name: Mirror to GitLab
 
 on:
   push:
-    branches: [disabled-mirror] # Mirror disabled; push to gitlab manually as per user request
+    branches: [master] # Mirror enabled for master branch
 
 jobs:
   mirror:
