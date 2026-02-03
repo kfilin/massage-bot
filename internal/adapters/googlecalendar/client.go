@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/kfilin/massage-bot/internal/logging"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -29,7 +30,7 @@ func NewGoogleCalendarClient() (*calendar.Service, error) {
 		log.Println("Loaded Google credentials from GOOGLE_CREDENTIALS_JSON environment variable.")
 	} else {
 		var err error
-		credsBytes, err = ioutil.ReadFile("credentials.json")
+		credsBytes, err = os.ReadFile("credentials.json")
 		if err != nil {
 			return nil, fmt.Errorf("unable to read client secret file (credentials.json) and GOOGLE_CREDENTIALS_JSON not set: %v", err)
 		}
@@ -60,16 +61,34 @@ func NewGoogleCalendarClient() (*calendar.Service, error) {
 	}
 	if err := json.Unmarshal([]byte(tokenJSON), &rawData); err == nil && rawData.RefreshTokenExpiresIn > 0 {
 		expiryDays = rawData.RefreshTokenExpiresIn / 86400
-		log.Printf("DEBUG: Detected Refresh Token expiry in %.1f days", expiryDays)
+		logging.Debugf(": Detected Refresh Token expiry in %.1f days", expiryDays)
 	} else if !token.Expiry.IsZero() {
 		expiryDays = time.Until(token.Expiry).Hours() / 24
-		log.Printf("DEBUG: Falling back to Access Token expiry: %.2f hours", expiryDays*24)
+		logging.Debugf(": Falling back to Access Token expiry: %.2f hours", expiryDays*24)
 	}
 
-	client := config.Client(ctx, token)
+	// Create the base client with the token
+	baseClient := config.Client(ctx, token)
+
+	// Wrap the transport with our RetryTransport
+	// config.Client returns a *http.Client. We need to access its Transport.
+	// We create a new client using the BaseDelay transport of the oauth client, wrapped in retry.
+	retryTransport := &RetryTransport{
+		Transport:  baseClient.Transport,
+		MaxRetries: 3,
+		BaseDelay:  500 * time.Millisecond,
+		MaxDelay:   5 * time.Second,
+	}
+
+	// Create a new client with the retry transport
+	clientWithRetry := &http.Client{
+		Transport: retryTransport,
+		Timeout:   baseClient.Timeout, // Preserve timeout from base client if any
+	}
+
 	monitoring.UpdateTokenExpiry(expiryDays)
 
-	return calendar.NewService(ctx, option.WithHTTPClient(client))
+	return calendar.NewService(ctx, option.WithHTTPClient(clientWithRetry))
 }
 
 // getToken retrieves a token from the environment variable or file, or performs initial authentication.
@@ -90,7 +109,7 @@ func getToken(config *oauth2.Config) (*oauth2.Token, error) {
 			}
 			return &tok, nil
 		}
-		log.Printf("CRITICAL: Failed to unmarshal GOOGLE_TOKEN_JSON from env: %v. Raw length: %d", err, len(tokenFromEnv))
+		logging.Infof("CRITICAL: Failed to unmarshal GOOGLE_TOKEN_JSON from env: %v. Raw length: %d", err, len(tokenFromEnv))
 	} else {
 		log.Println("DEBUG: GOOGLE_TOKEN_JSON environment variable is empty.")
 	}
@@ -101,7 +120,7 @@ func getToken(config *oauth2.Config) (*oauth2.Token, error) {
 		log.Println("Loaded Google token from data/token.json file.")
 		return tok, nil
 	}
-	log.Printf("Warning: Failed to load token from data/token.json: %v. Initiating new authentication.", err)
+	logging.Warnf("Warning: Failed to load token from data/token.json: %v. Initiating new authentication.", err)
 
 	// --- START MANUAL LISTENER FOR OAUTH CALLBACK ---
 	authCodeChan := make(chan string) // Channel to receive the authorization code
@@ -120,7 +139,7 @@ func getToken(config *oauth2.Config) (*oauth2.Token, error) {
 
 	// Start the server in a goroutine so it doesn't block
 	go func() {
-		log.Printf("Listening for OAuth callback on %s", config.RedirectURL) // Removed / for cleaner logging
+		logging.Infof("Listening for OAuth callback on %s", config.RedirectURL) // Removed / for cleaner logging
 		if err := server.ListenAndServe(); err != http.ErrServerClosed {
 			// This error means the server failed to start, e.g., port in use.
 			// It's the key to debugging your "localhost refused to connect" problem.
@@ -142,7 +161,7 @@ func getToken(config *oauth2.Config) (*oauth2.Token, error) {
 	case <-time.After(5 * time.Minute): // Timeout after 5 minutes
 		// --- FIX 1: Check error return value of server.Shutdown ---
 		if err := server.Shutdown(context.Background()); err != nil {
-			log.Printf("Error shutting down HTTP server during timeout: %v", err)
+			logging.Infof("Error shutting down HTTP server during timeout: %v", err)
 		}
 		// --- END FIX 1 ---
 		return nil, fmt.Errorf("authorization timed out. No code received within 5 minutes.")
@@ -154,7 +173,7 @@ func getToken(config *oauth2.Config) (*oauth2.Token, error) {
 		defer cancel()
 		// --- FIX 1 (applied again): Check error return value of server.Shutdown ---
 		if err := server.Shutdown(ctx); err != nil {
-			log.Printf("Error shutting down HTTP server: %v", err)
+			logging.Infof("Error shutting down HTTP server: %v", err)
 		}
 		// --- END FIX 1 ---
 	}()
@@ -188,14 +207,14 @@ func tokenFromFile(file string) (*oauth2.Token, error) {
 
 // saveToken saves a token to a file.
 func saveToken(path string, token *oauth2.Token) {
-	log.Printf("Saving credential file to: %s", path)
+	logging.Infof("Saving credential file to: %s", path)
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		log.Fatalf("Unable to cache oauth token: %v", err)
 	}
 	// --- FIX 2: Check error return value of Encode ---
 	if err := json.NewEncoder(f).Encode(token); err != nil {
-		log.Printf("Error encoding token to file: %v", err)
+		logging.Infof("Error encoding token to file: %v", err)
 	}
 	defer f.Close() // Ensure defer is after any potential error that would close f
 }

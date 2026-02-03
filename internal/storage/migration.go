@@ -1,8 +1,8 @@
 package storage
 
 import (
+	"github.com/kfilin/massage-bot/internal/logging"
 	"encoding/json"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -32,19 +32,19 @@ func MigrateJSONToPostgres(repo ports.Repository, dataDir string) error {
 
 		data, err := os.ReadFile(jsonPath)
 		if err != nil {
-			log.Printf("WARNING: Could not read patient.json for %s: %v", patientID, err)
+			logging.Warnf("ING: Could not read patient.json for %s: %v", patientID, err)
 			continue
 		}
 
 		var patient domain.Patient
 		if err := json.Unmarshal(data, &patient); err != nil {
-			log.Printf("WARNING: Could not parse patient.json for %s: %v", patientID, err)
+			logging.Warnf("ING: Could not parse patient.json for %s: %v", patientID, err)
 			continue
 		}
 
 		// Save to Postgres
 		if err := repo.SavePatient(patient); err != nil {
-			log.Printf("ERROR: Could not migrate patient %s to Postgres: %v", patientID, err)
+			logging.Errorf(": Could not migrate patient %s to Postgres: %v", patientID, err)
 			continue
 		}
 		count++
@@ -61,11 +61,11 @@ func MigrateJSONToPostgres(repo ports.Repository, dataDir string) error {
 				continue
 			}
 			if err := repo.BanUser(id); err != nil {
-				log.Printf("WARNING: Could not migrate banned user %s: %v", id, err)
+				logging.Warnf("ING: Could not migrate banned user %s: %v", id, err)
 			}
 		}
 	}
 
-	log.Printf("Migration completed: %d patients migrated.", count)
+	logging.Infof("Migration completed: %d patients migrated.", count)
 	return nil
 }

@@ -1,5 +1,6 @@
 # Config files
 config.yml
+credentials.json
 .env
 .env.local
 .env.production
@@ -13,6 +14,8 @@ config.yml
 # Binaries
 /massage-bot
 /bot
+bin/
+coverage.out
 
 # IDE
 .vscode/
@@ -43,7 +46,10 @@ verification-checklist.md
 postgres_data/
 postgres_data_test/
 postgres_data_dev/
+.postgres_data/
+.postgres_data_dev/
 telegram_api_data/
+.telegram_api_data/
 gitlab-kubeconfig-final.yaml
 *.log
 

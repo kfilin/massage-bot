@@ -2,9 +2,10 @@ package storage
 
 import (
 	"encoding/json"
-	"log"
 	"sync"
 	"time"
+
+	"github.com/kfilin/massage-bot/internal/logging"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/kfilin/massage-bot/internal/domain"
@@ -33,7 +34,7 @@ func (s *PostgresSessionStorage) loadAllSessions() {
 	}
 	err := s.db.Select(&rows, "SELECT user_id, data FROM sessions")
 	if err != nil {
-		log.Printf("ERROR: Failed to load sessions from DB: %v", err)
+		logging.Errorf(": Failed to load sessions from DB: %v", err)
 		return
 	}
 
@@ -43,12 +44,12 @@ func (s *PostgresSessionStorage) loadAllSessions() {
 	for _, row := range rows {
 		var data map[string]interface{}
 		if err := json.Unmarshal(row.Data, &data); err != nil {
-			log.Printf("WARNING: Failed to unmarshal session for user %d: %v", row.UserID, err)
+			logging.Warnf("ING: Failed to unmarshal session for user %d: %v", row.UserID, err)
 			continue
 		}
 		s.sessions[row.UserID] = s.fixSessionData(data)
 	}
-	log.Printf("Loaded %d sessions from database", len(s.sessions))
+	logging.Infof("Loaded %d sessions from database", len(s.sessions))
 }
 
 func (s *PostgresSessionStorage) fixSessionData(data map[string]interface{}) map[string]interface{} {
@@ -59,7 +60,9 @@ func (s *PostgresSessionStorage) fixSessionData(data map[string]interface{}) map
 			if m, ok := v.(map[string]interface{}); ok {
 				var svc domain.Service
 				b, _ := json.Marshal(m)
-				json.Unmarshal(b, &svc)
+				if err := json.Unmarshal(b, &svc); err != nil {
+					logging.Errorf(": Failed to unmarshal session service data: %v", err)
+				}
 				fixed[k] = svc
 			} else {
 				fixed[k] = v
@@ -91,7 +94,7 @@ func (s *PostgresSessionStorage) Set(userID int64, key string, value interface{}
 	s.mu.Unlock()
 
 	if err != nil {
-		log.Printf("ERROR: Failed to marshal session for user %d: %v", userID, err)
+		logging.Errorf(": Failed to marshal session for user %d: %v", userID, err)
 		return
 	}
 
@@ -101,7 +104,7 @@ func (s *PostgresSessionStorage) Set(userID int64, key string, value interface{}
 		ON CONFLICT (user_id) DO UPDATE SET data = EXCLUDED.data, updated_at = CURRENT_TIMESTAMP
 	`, userID, data)
 	if err != nil {
-		log.Printf("ERROR: Failed to save session to DB for user %d: %v", userID, err)
+		logging.Errorf(": Failed to save session to DB for user %d: %v", userID, err)
 	}
 }
 
@@ -118,6 +121,6 @@ func (s *PostgresSessionStorage) ClearSession(userID int64) {
 
 	_, err := s.db.Exec("DELETE FROM sessions WHERE user_id = $1", userID)
 	if err != nil {
-		log.Printf("ERROR: Failed to delete session from DB for user %d: %v", userID, err)
+		logging.Errorf(": Failed to delete session from DB for user %d: %v", userID, err)
 	}
 }

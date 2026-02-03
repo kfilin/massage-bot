@@ -7,11 +7,11 @@ import (
 
 // Service represents a massage service offered.
 type Service struct {
-	ID              string  `json:"id"` // Unique identifier for the service
-	Name            string  `json:"name"`
-	DurationMinutes int     `json:"duration_minutes"`
-	Price           float64 `json:"price"`
-	Description     string  `json:"description,omitempty"`
+	ID              string  `json:"id" db:"id"`                             // Unique identifier for the service
+	Name            string  `json:"name" db:"name"`                         // Service name
+	DurationMinutes int     `json:"duration_minutes" db:"duration"`         // Duration in minutes (db tag maps to :service.duration in queries)
+	Price           float64 `json:"price" db:"price"`                       // Service price
+	Description     string  `json:"description,omitempty" db:"description"` // Service description
 }
 
 // TimeSlot represents an available time slot for an appointment.

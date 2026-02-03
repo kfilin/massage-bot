@@ -1,6 +1,7 @@
 package reminder
 
 import (
+	"github.com/kfilin/massage-bot/internal/logging"
 	"context"
 	"fmt"
 	"log"
@@ -54,7 +55,7 @@ func (s *Service) ScanAndSendReminders(ctx context.Context) {
 
 	appts, err := s.apptService.GetUpcomingAppointments(ctx, now, timeMax)
 	if err != nil {
-		log.Printf("ERROR: Failed to fetch upcoming appointments for reminders: %v", err)
+		logging.Errorf(": Failed to fetch upcoming appointments for reminders: %v", err)
 		return
 	}
 
@@ -123,7 +124,7 @@ func (s *Service) sendReminder(appt domain.Appointment, reminderType string) {
 
 	_, err = s.bot.Send(user, msg, telebot.ModeHTML, menu)
 	if err != nil {
-		log.Printf("ERROR: Failed to send %s reminder to patient %s: %v", reminderType, appt.CustomerTgID, err)
+		logging.Errorf(": Failed to send %s reminder to patient %s: %v", reminderType, appt.CustomerTgID, err)
 		return
 	}
 

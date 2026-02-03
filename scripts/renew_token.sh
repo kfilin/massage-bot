@@ -11,9 +11,15 @@ echo "This script helps you renew the Google OAuth token for calendar integratio
 echo "Tokens expire every ~6 months. Last renewal: 2026-01-09"
 echo ""
 
-# Your credentials (update these with your actual values)
-CLIENT_ID="YOUR_CLIENT_ID_HERE"
-CLIENT_SECRET="YOUR_CLIENT_SECRET_HERE"
+# Your credentials (loaded from environment variables for security)
+if [ -z "$GOOGLE_CLIENT_ID" ] || [ -z "$GOOGLE_CLIENT_SECRET" ]; then
+    echo "❌ Error: GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set in your environment."
+    echo "Usage: GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=... ./scripts/renew_token.sh"
+    exit 1
+fi
+
+CLIENT_ID="$GOOGLE_CLIENT_ID"
+CLIENT_SECRET="$GOOGLE_CLIENT_SECRET"
 
 echo "📋 Step 1: Generate Authorization URL"
 echo "-------------------------------------"

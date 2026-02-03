@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/kfilin/massage-bot/internal/logging"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -30,7 +31,7 @@ func validateHMAC(id string, token string, secret string) bool {
 	expected := generateHMAC(id, secret)
 	match := hmac.Equal([]byte(token), []byte(expected))
 	if !match {
-		log.Printf("DEBUG [validateHMAC]: Mismatch for ID=%s. Provided=%s, Expected=%s, SecretLen=%d", id, token, expected, len(secret))
+		logging.Debugf(" [validateHMAC]: Mismatch for ID=%s. Provided=%s, Expected=%s, SecretLen=%d", id, token, expected, len(secret))
 	}
 	return match
 }
@@ -100,7 +101,7 @@ func validateInitData(initData string, botToken string) (string, string, error) 
 	return fmt.Sprintf("%d", user.ID), fullName, nil
 }
 
-func startWebAppServer(port string, secret string, botToken string, adminIDs []string, repo ports.Repository, apptService ports.AppointmentService, dataDir string) {
+func startWebAppServer(ctx context.Context, port string, secret string, botToken string, adminIDs []string, repo ports.Repository, apptService ports.AppointmentService, dataDir string) {
 	if port == "" {
 		port = "8082"
 	}
@@ -113,7 +114,7 @@ func startWebAppServer(port string, secret string, botToken string, adminIDs []s
 
 	// Handle both root and /card with the same logic
 	handler := func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("DEBUG [WebApp]: Incoming Request: %s %s RemoteAddr: %s", r.Method, r.URL.String(), r.RemoteAddr)
+		logging.Debugf(" [WebApp]: Incoming Request: %s %s RemoteAddr: %s", r.Method, r.URL.String(), r.RemoteAddr)
 		// Prepare paths for query parsing (supports both root and /card)
 		id := r.URL.Query().Get("id")
 		token := r.URL.Query().Get("token")
@@ -125,7 +126,7 @@ func startWebAppServer(port string, secret string, botToken string, adminIDs []s
 		if id != "" && token != "" {
 			if !validateHMAC(id, token, secret) {
 				expected := generateHMAC(id, secret)
-				log.Printf("AUTH ERROR: HMAC Mismatch! ID=%s, Token=%s, Expected=%s, SecretLen=%d", id, token, expected, len(secret))
+				logging.Errorf("AUTH ERROR: HMAC Mismatch! ID=%s, Token=%s, Expected=%s, SecretLen=%d", id, token, expected, len(secret))
 				http.Error(w, "Invalid token", http.StatusUnauthorized)
 				return
 			}
@@ -134,7 +135,7 @@ func startWebAppServer(port string, secret string, botToken string, adminIDs []s
 			var err error
 			finalID, telegramName, err = validateInitData(initData, botToken)
 			if err != nil {
-				log.Printf("AUTH ERROR: InitData Validation Failed! Err: %v\nInitData: %s\nBotTokenPrefix: %s...", err, initData, botToken[:5])
+				logging.Errorf("AUTH ERROR: InitData Validation Failed! Err: %v\nInitData: %s\nBotTokenPrefix: %s...", err, initData, botToken[:5])
 				http.Error(w, "Authentication failed", http.StatusUnauthorized)
 				return
 			}
@@ -177,7 +178,7 @@ func startWebAppServer(port string, secret string, botToken string, adminIDs []s
 
 		patient, err := repo.GetPatient(finalID)
 		if err != nil {
-			log.Printf("Patient %s not found in DB, attempting self-heal from GCal...", finalID)
+			logging.Infof("Patient %s not found in DB, attempting self-heal from GCal...", finalID)
 
 			name := telegramName
 			if name == "" {
@@ -198,7 +199,7 @@ func startWebAppServer(port string, secret string, botToken string, adminIDs []s
 		// 1. Try to load appointments purely from local DB for performance
 		dbAppts, err := repo.GetAppointmentHistory(finalID)
 		if err != nil {
-			log.Printf("DB Error loading history for %s: %v", finalID, err)
+			logging.Errorf("DB Error loading history for %s: %v", finalID, err)
 			dbAppts = []domain.Appointment{}
 		}
 
@@ -210,25 +211,25 @@ func startWebAppServer(port string, secret string, botToken string, adminIDs []s
 
 		if len(dbAppts) == 0 {
 			// EMPTY CACHE: Blocking Sync
-			log.Printf("Cache miss for %s. Performing blocking sync...", finalID)
+			logging.Infof("Cache miss for %s. Performing blocking sync...", finalID)
 			fetchedAppts, err := apptService.GetCustomerHistory(r.Context(), finalID)
 			if err == nil {
 				appts = fetchedAppts
 				// Save to DB immediately
 				if len(appts) > 0 {
 					if err := repo.UpsertAppointments(appts); err != nil {
-						log.Printf("Failed to cache synced appointments: %v", err)
+						logging.Infof("Failed to cache synced appointments: %v", err)
 					}
 				}
 			} else {
-				log.Printf("Failed to fetch history from GCal: %v", err)
+				logging.Infof("Failed to fetch history from GCal: %v", err)
 			}
 		} else {
 			// CACHE HIT: Fast Return + Background Sync
 			appts = dbAppts
 			go func() {
 				// Background Sync
-				log.Printf("Background syncing history for %s...", finalID)
+				logging.Infof("Background syncing history for %s...", finalID)
 				// Create a new context as the request context will be cancelled
 				bgCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 				defer cancel()
@@ -236,9 +237,9 @@ func startWebAppServer(port string, secret string, botToken string, adminIDs []s
 				fetchedAppts, err := apptService.GetCustomerHistory(bgCtx, finalID)
 				if err == nil && len(fetchedAppts) > 0 {
 					if err := repo.UpsertAppointments(fetchedAppts); err != nil {
-						log.Printf("Failed to update cache in background: %v", err)
+						logging.Infof("Failed to update cache in background: %v", err)
 					} else {
-						log.Printf("Background sync successful for %s", finalID)
+						logging.Infof("Background sync successful for %s", finalID)
 					}
 				}
 			}()
@@ -286,16 +287,16 @@ func startWebAppServer(port string, secret string, botToken string, adminIDs []s
 		token := r.URL.Query().Get("token")
 		apptID := r.URL.Query().Get("apptId")
 
-		log.Printf("DEBUG [WebApp]: Incoming /cancel - id: %s, token: %s, apptID: %s", id, token, apptID)
+		logging.Debugf(" [WebApp]: Incoming /cancel - id: %s, token: %s, apptID: %s", id, token, apptID)
 
 		if id == "" || token == "" || apptID == "" {
-			log.Printf("DEBUG [WebApp]: Missing parameters in /cancel")
+			logging.Debugf(" [WebApp]: Missing parameters in /cancel")
 			http.Error(w, "Missing parameters", http.StatusBadRequest)
 			return
 		}
 
 		if !validateHMAC(id, token, secret) {
-			log.Printf("DEBUG [WebApp]: Invalid Token for ID: %s. Provided: %s", id, token)
+			logging.Debugf(" [WebApp]: Invalid Token for ID: %s. Provided: %s", id, token)
 			http.Error(w, "Invalid token", http.StatusUnauthorized)
 			return
 		}
@@ -303,7 +304,7 @@ func startWebAppServer(port string, secret string, botToken string, adminIDs []s
 		// Security: Ensure the appointment belongs to the user
 		appt, err := apptService.FindByID(r.Context(), apptID)
 		if err != nil {
-			log.Printf("Cancel Error: Appt %s not found: %v", apptID, err)
+			logging.Errorf("Cancel Error: Appt %s not found: %v", apptID, err)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotFound)
 			json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Запись не найдена"})
@@ -311,7 +312,7 @@ func startWebAppServer(port string, secret string, botToken string, adminIDs []s
 		}
 
 		if appt.CustomerTgID != id {
-			log.Printf("Cancel Error: Appt %s (Owner: %s) access denied for User %s", apptID, appt.CustomerTgID, id)
+			logging.Errorf("Cancel Error: Appt %s (Owner: %s) access denied for User %s", apptID, appt.CustomerTgID, id)
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
 		}
@@ -330,14 +331,14 @@ func startWebAppServer(port string, secret string, botToken string, adminIDs []s
 
 		err = apptService.CancelAppointment(r.Context(), apptID)
 		if err != nil {
-			log.Printf("Cancel Error: Failed to cancel appt %s: %v", apptID, err)
+			logging.Errorf("Cancel Error: Failed to cancel appt %s: %v", apptID, err)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Не удалось отменить запись"})
 			return
 		}
 
-		log.Printf("TWA: User %s cancelled appointment %s", id, apptID)
+		logging.Infof("TWA: User %s cancelled appointment %s", id, apptID)
 
 		// NOTIFY VIA BOT
 		notificationMsg := fmt.Sprintf("⚠️ *Запись отменена!*\n\nПациент: %s\nДата: %s\nУслуга: %s",
@@ -368,7 +369,7 @@ func startWebAppServer(port string, secret string, botToken string, adminIDs []s
 			LockSystem: webdav.NewMemLS(),
 			Logger: func(r *http.Request, err error) {
 				if err != nil {
-					log.Printf("WebDAV [Err] %s %s: %v", r.Method, r.URL.Path, err)
+					logging.Errorf("WebDAV [Err] %s %s: %v", r.Method, r.URL.Path, err)
 				}
 			},
 		}
@@ -389,9 +390,9 @@ func startWebAppServer(port string, secret string, botToken string, adminIDs []s
 			user, pass, ok := r.BasicAuth()
 			if !ok || user != davUser || pass != davPass {
 				if !ok {
-					log.Printf("WebDAV [Auth Missing] %s %s from %s", r.Method, r.URL.Path, r.RemoteAddr)
+					logging.Warnf("WebDAV [Auth] Missing] %s %s from %s", r.Method, r.URL.Path, r.RemoteAddr)
 				} else {
-					log.Printf("WebDAV [Auth Denied] user=%s from %s", user, r.RemoteAddr)
+					logging.Warnf("WebDAV [Auth] Denied] user=%s from %s", user, r.RemoteAddr)
 				}
 				w.Header().Set("WWW-Authenticate", `Basic realm="Vera Bot Medical Records"`)
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -430,7 +431,7 @@ func startWebAppServer(port string, secret string, botToken string, adminIDs []s
 				return
 			}
 
-			log.Printf("WebDAV [%s] %s (User: %s)", r.Method, r.URL.Path, user)
+			logging.Infof("WebDAV [%s] %s (User: %s)", r.Method, r.URL.Path, user)
 			davHandler.ServeHTTP(w, r)
 		}
 
@@ -439,19 +440,31 @@ func startWebAppServer(port string, secret string, botToken string, adminIDs []s
 			http.Redirect(w, r, "/webdav/", http.StatusMovedPermanently)
 		})
 		mux.HandleFunc("/webdav/", webdavAuthHandler)
-		log.Printf("WebDAV server enabled at /webdav/ (User: %s)", davUser)
+		logging.Infof("WebDAV server enabled at /webdav/ (User: %s)", davUser)
 	} else {
 		log.Println("Warning: WEBDAV_USER or WEBDAV_PASSWORD not set. WebDAV disabled.")
 	}
 
-	log.Printf("Starting Web App server on :%s", port)
+	logging.Infof("Starting Web App server on :%s", port)
 	server := &http.Server{
 		Addr:    ":" + port,
 		Handler: mux,
 	}
 
-	if err := server.ListenAndServe(); err != nil {
-		log.Fatalf("Web App server failed: %v", err)
+	go func() {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Web App server failed: %v", err)
+		}
+	}()
+
+	<-ctx.Done()
+	log.Println("Shutting down Web App server...")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		logging.Infof("Web App server shutdown error: %v", err)
 	}
 }
 
@@ -466,12 +479,12 @@ func sendTelegramMessage(token, chatID, text string) {
 
 	resp, err := http.Post(apiURL, "application/json", strings.NewReader(string(payload)))
 	if err != nil {
-		log.Printf("Failed to send bot notification: %v", err)
+		logging.Infof("Failed to send bot notification: %v", err)
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("Telegram API error: %s", resp.Status)
+		logging.Infof("Telegram API error: %s", resp.Status)
 	}
 }

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,6 +14,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/kfilin/massage-bot/internal/logging"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/kfilin/massage-bot/internal/domain"
@@ -36,7 +37,7 @@ func NewPostgresRepository(db *sqlx.DB, dataDir string) *PostgresRepository {
 	}
 	patientsDir := filepath.Join(dataDir, "patients")
 	if err := os.MkdirAll(patientsDir, 0755); err != nil {
-		log.Printf("Warning: failed to create patients directory: %v", err)
+		logging.Warnf("Warning: failed to create patients directory: %v", err)
 	}
 	return &PostgresRepository{
 		db:      db,
@@ -61,7 +62,7 @@ func (r *PostgresRepository) SavePatient(p domain.Patient) error {
 			voice_transcripts = EXCLUDED.voice_transcripts,
 			current_service = EXCLUDED.current_service
 	`
-	log.Printf("DEBUG: Saving patient record for ID: %s", p.TelegramID)
+	logging.Debugf(": Saving patient record for ID: %s", p.TelegramID)
 	_, err := r.db.NamedExec(query, p)
 	if err != nil {
 		monitoring.DbErrorsTotal.WithLabelValues("save_patient").Inc()
@@ -141,7 +142,7 @@ ID: %s
 }
 
 func (r *PostgresRepository) GetPatient(telegramID string) (domain.Patient, error) {
-	log.Printf("DEBUG: Fetching patient record for ID: %s", telegramID)
+	logging.Debugf(": Fetching patient record for ID: %s", telegramID)
 	var p domain.Patient
 	err := r.db.Get(&p, "SELECT * FROM patients WHERE telegram_id = $1", telegramID)
 
@@ -150,7 +151,7 @@ func (r *PostgresRepository) GetPatient(telegramID string) (domain.Patient, erro
 		p.TelegramID = telegramID
 		updated, errFile := r.syncFromFile(&p)
 		if errFile == nil && updated {
-			log.Printf("[Sync] Discovered patient %s from Markdown file after DB miss", telegramID)
+			logging.Infof("[Sync] Discovered patient %s from Markdown file after DB miss", telegramID)
 			// Save to DB to establish record
 			r.SavePatient(p)
 			return p, nil
@@ -162,7 +163,9 @@ func (r *PostgresRepository) GetPatient(telegramID string) (domain.Patient, erro
 	updated, errFile := r.syncFromFile(&p)
 	if errFile == nil && updated {
 		// Save back to DB to keep analytics and TWA fast
-		r.db.NamedExec(`UPDATE patients SET name = :name, therapist_notes = :therapist_notes WHERE telegram_id = :telegram_id`, p)
+		if _, err := r.db.NamedExec(`UPDATE patients SET name = :name, therapist_notes = :therapist_notes WHERE telegram_id = :telegram_id`, p); err != nil {
+			logging.Errorf("ERROR: Failed to sync updated patient data to DB: %v", err)
+		}
 	}
 
 	return p, nil
@@ -219,7 +222,7 @@ func (r *PostgresRepository) syncFromFile(p *domain.Patient) (bool, error) {
 	if hasChanged {
 		p.TherapistNotes = notes
 		p.Name = name
-		log.Printf("[Sync] Updated patient %s from Markdown file (Last Mod: %v)", p.TelegramID, info.ModTime())
+		logging.Infof("[Sync] Updated patient %s from Markdown file (Last Mod: %v)", p.TelegramID, info.ModTime())
 		return true, nil
 	}
 
@@ -234,7 +237,7 @@ func (r *PostgresRepository) IsUserBanned(telegramID string, username string) (b
 		query += " OR username = $2 OR username = $3"
 		params = append(params, username, "@"+username)
 	}
-	log.Printf("DEBUG: Checking ban status for ID: %s, Username: %s", telegramID, username)
+	logging.Debugf(": Checking ban status for ID: %s, Username: %s", telegramID, username)
 	err := r.db.Get(&count, query, params...)
 	return count > 0, err
 }
@@ -250,9 +253,12 @@ func (r *PostgresRepository) UnbanUser(telegramID string) error {
 }
 
 func (r *PostgresRepository) LogEvent(patientID string, eventType string, details map[string]interface{}) error {
-	log.Printf("DEBUG: Logging analytics event: %s for patient: %s", eventType, patientID)
-	detailsJSON, _ := json.Marshal(details)
-	_, err := r.db.Exec("INSERT INTO analytics_events (patient_id, event_type, details) VALUES ($1, $2, $3)", patientID, eventType, detailsJSON)
+	logging.Debugf(": Logging analytics event: %s for patient: %s", eventType, patientID)
+	detailsJSON, err := json.Marshal(details)
+	if err != nil {
+		return fmt.Errorf("failed to marshal event details: %w", err)
+	}
+	_, err = r.db.Exec("INSERT INTO analytics_events (patient_id, event_type, details) VALUES ($1, $2, $3)", patientID, eventType, detailsJSON)
 	return err
 }
 
@@ -531,12 +537,12 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient, history []doma
 	var buf bytes.Buffer
 	tmpl, errTmpl := template.New("medicalRecord").Parse(medicalRecordTemplate)
 	if errTmpl != nil {
-		log.Printf("ERROR: Failed to parse medical record template: %v", errTmpl)
+		logging.Errorf(": Failed to parse medical record template: %v", errTmpl)
 		return "Error generating record."
 	}
 	errTmpl = tmpl.Execute(&buf, data)
 	if errTmpl != nil {
-		log.Printf("ERROR: Failed to execute medical record template: %v", errTmpl)
+		logging.Errorf(": Failed to execute medical record template: %v", errTmpl)
 		return "Error generating record."
 	}
 	return buf.String()
@@ -545,51 +551,6 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient, history []doma
 func parseTime(s string) time.Time {
 	t, _ := time.Parse("02.01.2006 15:04", s)
 	return t
-}
-
-func (r *PostgresRepository) listDocuments(telegramID string) string {
-	p, err := r.GetPatient(telegramID)
-	if err != nil {
-		return "Ошибка при загрузке данных пациента."
-	}
-	patientDir := r.getPatientDir(p)
-
-	type fileInfo struct {
-		name     string
-		relPath  string
-		modTime  time.Time
-		category string
-	}
-	var infos []fileInfo
-	filepath.Walk(patientDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
-			return nil
-		}
-		if info.Name() == fmt.Sprintf("%s.md", telegramID) {
-			return nil
-		}
-		relPath, _ := filepath.Rel(patientDir, path)
-		category := "docs"
-		if strings.Contains(relPath, "images") {
-			category = "🖼️"
-		} else if strings.Contains(relPath, "messages") {
-			category = "🎙️"
-		} else if strings.Contains(relPath, "scans") {
-			category = "🏥"
-		}
-		infos = append(infos, fileInfo{name: info.Name(), relPath: relPath, modTime: info.ModTime(), category: category})
-		return nil
-	})
-
-	if len(infos) == 0 {
-		return "Документов пока нет."
-	}
-	sort.Slice(infos, func(i, j int) bool { return infos[i].modTime.After(infos[j].modTime) })
-	var list string
-	for _, info := range infos {
-		list += fmt.Sprintf("- [%s] %s [[%s|%s]]\n", info.modTime.Format("02.01.2006"), info.category, info.relPath, info.name)
-	}
-	return list
 }
 
 func (r *PostgresRepository) SavePatientDocumentReader(telegramID string, filename string, category string, reader io.Reader) (string, error) {
@@ -609,22 +570,33 @@ func (r *PostgresRepository) SavePatientDocumentReader(telegramID string, filena
 	default:
 		targetDir = filepath.Join(patientDir, "documents")
 	}
-	os.MkdirAll(targetDir, 0755)
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create directory: %w", err)
+	}
 	filePath := filepath.Join(targetDir, filename)
-	f, _ := os.Create(filePath)
+	f, err := os.Create(filePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to create file: %w", err)
+	}
 	defer f.Close()
-	io.Copy(f, reader)
+	if _, err := io.Copy(f, reader); err != nil {
+		return "", fmt.Errorf("failed to write file content: %w", err)
+	}
 	return filePath, nil
 }
 
 func (r *PostgresRepository) MigrateFolderNames() error {
 	var patients []domain.Patient
-	r.db.Select(&patients, "SELECT * FROM patients")
+	if err := r.db.Select(&patients, "SELECT * FROM patients"); err != nil {
+		return fmt.Errorf("failed to load patients: %w", err)
+	}
 	for _, p := range patients {
 		oldDir := filepath.Join(r.dataDir, "patients", p.TelegramID)
 		newDir := r.getPatientDir(p)
 		if _, err := os.Stat(oldDir); err == nil && oldDir != newDir {
-			os.Rename(oldDir, newDir)
+			if err := os.Rename(oldDir, newDir); err != nil {
+				logging.Warnf("Warning: Failed to rename patient folder from '%s' to '%s': %v", oldDir, newDir, err)
+			}
 		}
 	}
 	return nil
@@ -639,33 +611,41 @@ func (r *PostgresRepository) SyncAll() error {
 			if strings.Contains(id, "(") {
 				id = id[strings.LastIndex(id, "(")+1 : len(id)-1]
 			}
-			r.GetPatient(id)
+			if _, err := r.GetPatient(id); err != nil {
+				logging.Warnf("Warning: Failed to sync patient %s from folder: %v", id, err)
+			}
 		}
 	}
 	var patients []domain.Patient
-	r.db.Select(&patients, "SELECT * FROM patients")
+	if err := r.db.Select(&patients, "SELECT * FROM patients"); err != nil {
+		return fmt.Errorf("failed to load patients: %w", err)
+	}
 	for _, p := range patients {
 		// --- PERMANENT SCRUB of legacy boilerplate (Clinical Edition Cleanup) ---
 		if strings.Contains(p.TherapistNotes, "## 📁 Ссылки на документы") {
 			parts := strings.Split(p.TherapistNotes, "## 📁 Ссылки на документы")
 			p.TherapistNotes = strings.TrimSpace(parts[0])
 			r.SavePatient(p) // Persists cleaned notes to DB and mirrors to Markdown
-			log.Printf("[Cleanup] Permanently scrubbed legacy section for patient %s", p.TelegramID)
+			logging.Infof("[Cleanup] Permanently scrubbed legacy section for patient %s", p.TelegramID)
 		}
 
 		filePath := filepath.Join(r.getPatientDir(p), fmt.Sprintf("%s.md", p.TelegramID))
 		if _, err := os.Stat(filePath); os.IsNotExist(err) {
-			r.saveToMarkdown(p)
+			if err := r.saveToMarkdown(p); err != nil {
+				logging.Errorf("ERROR: Failed to create missing markdown for patient %s: %v", p.TelegramID, err)
+			}
 		}
 	}
 	return nil
 }
 
 func (r *PostgresRepository) CreateBackup() (string, error) {
-	log.Printf("DEBUG: Starting database backup creation tool...")
+	logging.Debugf(": Starting database backup creation tool...")
 	timestamp := time.Now().Format("20060102_150405")
 	backupDir := filepath.Join(r.dataDir, "temp_backups")
-	os.MkdirAll(backupDir, 0755)
+	if err := os.MkdirAll(backupDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create backup directory: %w", err)
+	}
 
 	sqlFile := filepath.Join(backupDir, fmt.Sprintf("db_dump_%s.sql", timestamp))
 	zipFile := filepath.Join(r.dataDir, fmt.Sprintf("backup_%s.zip", timestamp))

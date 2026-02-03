@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"github.com/kfilin/massage-bot/internal/logging"
 	"fmt"
 	"log"
 	"os"
@@ -13,7 +14,7 @@ import (
 var DB *sqlx.DB
 
 func InitDB() (*sqlx.DB, error) {
-	log.Printf("DEBUG: Connecting to DB: host=%s, port=%s, user=%s, dbname=%s, sslmode=%s",
+	logging.Debugf(": Connecting to DB: host=%s, port=%s, user=%s, dbname=%s, sslmode=%s",
 		os.Getenv("DB_HOST"), os.Getenv("DB_PORT"), os.Getenv("DB_USER"), os.Getenv("DB_NAME"), os.Getenv("DB_SSL_MODE"))
 	connStr := fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s connect_timeout=10",
@@ -36,7 +37,7 @@ func InitDB() (*sqlx.DB, error) {
 		if err == nil {
 			break
 		}
-		log.Printf("Waiting for database connection (attempt %d/3)...", i)
+		logging.Infof("Waiting for database connection (attempt %d/3)...", i)
 		time.Sleep(2 * time.Second)
 	}
 

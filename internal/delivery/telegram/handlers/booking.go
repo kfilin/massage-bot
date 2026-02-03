@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"github.com/kfilin/massage-bot/internal/logging"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -63,7 +64,7 @@ func NewBookingHandler(as ports.AppointmentService, ss ports.SessionStorage, adm
 // HandleStart handles the /start command, greeting the user and offering services.
 func (h *BookingHandler) HandleStart(c telebot.Context) error {
 	userID := c.Sender().ID
-	log.Printf("DEBUG: Entered HandleStart for user %d", userID)
+	logging.Debugf(": Entered HandleStart for user %d", userID)
 	h.sessionStorage.ClearSession(userID)
 
 	// First, send the persistent main menu
@@ -90,7 +91,7 @@ func (h *BookingHandler) HandleStart(c telebot.Context) error {
 				TherapistNotes: fmt.Sprintf("Зарегистрирован через /start: %s", time.Now().Format("02.01.2006")),
 			})
 			if errSave != nil {
-				log.Printf("ERROR: Failed to tentatively save new patient %d: %v", userID, errSave)
+				logging.Errorf(": Failed to tentatively save new patient %d: %v", userID, errSave)
 			}
 		}
 	} else if existingPatient.Name == "" {
@@ -101,7 +102,7 @@ func (h *BookingHandler) HandleStart(c telebot.Context) error {
 			existingPatient.Name = fullName
 			errSave := h.repository.SavePatient(existingPatient)
 			if errSave != nil {
-				log.Printf("ERROR: Failed to update patient name for %d: %v", userID, errSave)
+				logging.Errorf(": Failed to update patient name for %d: %v", userID, errSave)
 			}
 		}
 	}
@@ -146,7 +147,7 @@ func (h *BookingHandler) HandleCategorySelection(c telebot.Context) error {
 
 	services, err := h.appointmentService.GetAvailableServices(context.Background())
 	if err != nil {
-		log.Printf("Error getting services: %v", err)
+		logging.Infof("Error getting services: %v", err)
 		return c.Edit("Ошибка загрузки услуг.")
 	}
 
@@ -249,7 +250,7 @@ func (h *BookingHandler) HandleManualAppointment(c telebot.Context) error {
 	if len(c.Args()) > 0 {
 		nameFromArgs := strings.Join(c.Args(), " ")
 		h.sessionStorage.Set(userID, SessionKeyName, nameFromArgs)
-		log.Printf("DEBUG: Manual appointment name captured from args: %s", nameFromArgs)
+		logging.Debugf(": Manual appointment name captured from args: %s", nameFromArgs)
 	}
 
 	return h.showCategories(c)
@@ -277,20 +278,20 @@ func (h *BookingHandler) GetMainMenu() *telebot.ReplyMarkup {
 
 // HandleServiceSelection handles the callback query for service selection.
 func (h *BookingHandler) HandleServiceSelection(c telebot.Context) error {
-	log.Printf("DEBUG: Entered HandleServiceSelection for user %d. Callback Data: '%s'", c.Sender().ID, c.Callback().Data)
+	logging.Debugf(": Entered HandleServiceSelection for user %d. Callback Data: '%s'", c.Sender().ID, c.Callback().Data)
 
 	// Callback data is "select_service|SERVICE_ID". We need to split it.
 	data := strings.TrimSpace(c.Callback().Data) // Trim spaces just in case
 	parts := strings.Split(data, "|")
 
-	log.Printf("DEBUG: HandleServiceSelection - Parsed parts: %v (length: %d)", parts, len(parts))
+	logging.Debugf(": HandleServiceSelection - Parsed parts: %v (length: %d)", parts, len(parts))
 
 	if len(parts) != 2 || parts[0] != "select_service" {
-		log.Printf("ERROR: HandleServiceSelection - Malformed service selection callback data. Expected 'select_service|ID', got: '%s'", data)
+		logging.Errorf(": HandleServiceSelection - Malformed service selection callback data. Expected 'select_service|ID', got: '%s'", data)
 		return c.Edit("Некорректный выбор услуги. Пожалуйста, попробуйте /start снова.")
 	}
 	serviceID := parts[1]
-	log.Printf("DEBUG: HandleServiceSelection - Extracted serviceID: '%s'", serviceID)
+	logging.Debugf(": HandleServiceSelection - Extracted serviceID: '%s'", serviceID)
 
 	userID := c.Sender().ID
 
@@ -332,7 +333,7 @@ func (h *BookingHandler) HandleServiceSelection(c telebot.Context) error {
 
 	services, err := h.appointmentService.GetAvailableServices(context.Background())
 	if err != nil {
-		log.Printf("Error getting services in HandleServiceSelection: %v", err)
+		logging.Infof("Error getting services in HandleServiceSelection: %v", err)
 		return c.Edit("Произошла ошибка при получении списка услуг. Пожалуйста, попробуйте /start снова.")
 	}
 
@@ -347,12 +348,12 @@ func (h *BookingHandler) HandleServiceSelection(c telebot.Context) error {
 	}
 
 	if !found {
-		log.Printf("ERROR: Service with ID '%s' not found in available services for user %d", serviceID, userID)
+		logging.Errorf(": Service with ID '%s' not found in available services for user %d", serviceID, userID)
 		return c.Edit("Выбранная услуга не найдена. Пожалуйста, выберите из предложенных.")
 	}
 
 	h.sessionStorage.Set(userID, SessionKeyService, chosenService)
-	log.Printf("DEBUG: Service selected and stored in session for user %d: %s (ID: %s)", userID, chosenService.Name, chosenService.ID)
+	logging.Debugf(": Service selected and stored in session for user %d: %s (ID: %s)", userID, chosenService.Name, chosenService.ID)
 
 	h.repository.LogEvent(strconv.FormatInt(userID, 10), "service_selected", map[string]interface{}{
 		"service_id":   chosenService.ID,
@@ -365,7 +366,7 @@ func (h *BookingHandler) HandleServiceSelection(c telebot.Context) error {
 
 // askForDate sends a calendar to the user for date selection.
 func (h *BookingHandler) askForDate(c telebot.Context, serviceName string) error {
-	log.Printf("DEBUG: Entered askForDate for user %d. Service: %s", c.Sender().ID, serviceName)
+	logging.Debugf(": Entered askForDate for user %d. Service: %s", c.Sender().ID, serviceName)
 
 	now := time.Now()
 	year, month, _ := now.Date()
@@ -383,7 +384,7 @@ func (h *BookingHandler) askForDate(c telebot.Context, serviceName string) error
 
 // generateCalendar creates an inline keyboard for month navigation and date selection.
 func (h *BookingHandler) generateCalendar(month time.Time) *telebot.ReplyMarkup {
-	log.Printf("DEBUG: Generating calendar for month: %s", month.Format("2006-01"))
+	logging.Debugf(": Generating calendar for month: %s", month.Format("2006-01"))
 	selector := &telebot.ReplyMarkup{}
 	var rows []telebot.Row
 
@@ -451,7 +452,7 @@ func (h *BookingHandler) generateCalendar(month time.Time) *telebot.ReplyMarkup 
 
 // HandleDateSelection handles the callback query for date selection or month navigation.
 func (h *BookingHandler) HandleDateSelection(c telebot.Context) error {
-	log.Printf("DEBUG: Entered HandleDateSelection for user %d. Callback Data: '%s'", c.Sender().ID, c.Callback().Data)
+	logging.Debugf(": Entered HandleDateSelection for user %d. Callback Data: '%s'", c.Sender().ID, c.Callback().Data)
 
 	data := strings.TrimSpace(c.Callback().Data) // Trim spaces
 	userID := c.Sender().ID
@@ -459,13 +460,13 @@ func (h *BookingHandler) HandleDateSelection(c telebot.Context) error {
 	if strings.HasPrefix(data, "navigate_month|") {
 		parts := strings.Split(data, "|")
 		if len(parts) != 2 || parts[0] != "navigate_month" {
-			log.Printf("ERROR: Malformed month navigation callback data: %s", data)
+			logging.Errorf(": Malformed month navigation callback data: %s", data)
 			return c.Edit("Некорректная навигация. Попробуйте снова.")
 		}
 		monthStr := parts[1]
 		selectedMonth, err := time.Parse("2006-01", monthStr)
 		if err != nil {
-			log.Printf("ERROR: Invalid month format in navigation: %s, error: %v", monthStr, err)
+			logging.Errorf(": Invalid month format in navigation: %s, error: %v", monthStr, err)
 			return c.Edit("Некорректная дата. Попробуйте снова.")
 		}
 		calendarKeyboard := h.generateCalendar(selectedMonth)
@@ -473,18 +474,18 @@ func (h *BookingHandler) HandleDateSelection(c telebot.Context) error {
 	} else if strings.HasPrefix(data, "select_date|") {
 		parts := strings.Split(data, "|")
 		if len(parts) != 2 || parts[0] != "select_date" {
-			log.Printf("ERROR: Malformed date selection callback data: %s", data)
+			logging.Errorf(": Malformed date selection callback data: %s", data)
 			return c.Edit("Некорректный выбор даты. Попробуйте /start снова.")
 		}
 		dateStr := parts[1]
 		selectedDate, err := time.Parse("2006-01-02", dateStr)
 		if err != nil {
-			log.Printf("ERROR: Invalid date format in selection: %s, error: %v", dateStr, err)
+			logging.Errorf(": Invalid date format in selection: %s, error: %v", dateStr, err)
 			return c.Edit("Некорректная дата. Попробуйте /start снова.")
 		}
 
 		h.sessionStorage.Set(userID, SessionKeyDate, selectedDate)
-		log.Printf("DEBUG: Date selected and stored in session for user %d: %s", userID, selectedDate.Format("2006-01-02"))
+		logging.Debugf(": Date selected and stored in session for user %d: %s", userID, selectedDate.Format("2006-01-02"))
 
 		// Now ask for time
 		return h.askForTime(c)
@@ -505,12 +506,12 @@ func (h *BookingHandler) HandleDateSelection(c telebot.Context) error {
 // HandleReminderConfirmation handles the patient's confirmation from a reminder
 func (h *BookingHandler) HandleReminderConfirmation(c telebot.Context) error {
 	apptID := strings.TrimPrefix(c.Callback().Data, "confirm_appt_reminder|")
-	log.Printf("DEBUG: HandleReminderConfirmation called for apptID: %s", apptID)
+	logging.Debugf(": HandleReminderConfirmation called for apptID: %s", apptID)
 
 	now := time.Now()
 	err := h.repository.SaveAppointmentMetadata(apptID, &now, nil)
 	if err != nil {
-		log.Printf("ERROR: Failed to save confirmation for appt %s: %v", apptID, err)
+		logging.Errorf(": Failed to save confirmation for appt %s: %v", apptID, err)
 		return c.Send("❌ Ошибка при подтверждении записи.")
 	}
 
@@ -532,7 +533,7 @@ func (h *BookingHandler) HandleReminderConfirmation(c telebot.Context) error {
 // HandleReminderCancellation redirects to the standard cancellation flow but from a reminder
 func (h *BookingHandler) HandleReminderCancellation(c telebot.Context) error {
 	apptID := strings.TrimPrefix(c.Callback().Data, "cancel_appt_reminder|")
-	log.Printf("DEBUG: HandleReminderCancellation called for apptID: %s", apptID)
+	logging.Debugf(": HandleReminderCancellation called for apptID: %s", apptID)
 
 	// Since we already have the ID, we can directly cancel or use the existing callback handler
 	// For consistency, let's use the existing callback handler logic
@@ -543,7 +544,7 @@ func (h *BookingHandler) HandleReminderCancellation(c telebot.Context) error {
 // HandleAdminReplyRequest initiates the process of replying to a patient via the bot
 func (h *BookingHandler) HandleAdminReplyRequest(c telebot.Context) error {
 	patientID := strings.TrimPrefix(c.Callback().Data, "admin_reply|")
-	log.Printf("DEBUG: HandleAdminReplyRequest called for patientID: %s", patientID)
+	logging.Debugf(": HandleAdminReplyRequest called for patientID: %s", patientID)
 
 	patient, err := h.repository.GetPatient(patientID)
 	if err != nil {
@@ -556,7 +557,7 @@ func (h *BookingHandler) HandleAdminReplyRequest(c telebot.Context) error {
 
 // askForTime sends available time slots to the user.
 func (h *BookingHandler) askForTime(c telebot.Context) error {
-	log.Printf("DEBUG: Entered askForTime for user %d", c.Sender().ID)
+	logging.Debugf(": Entered askForTime for user %d", c.Sender().ID)
 	userID := c.Sender().ID
 	sessionData := h.sessionStorage.Get(userID)
 
@@ -564,7 +565,7 @@ func (h *BookingHandler) askForTime(c telebot.Context) error {
 	date, okD := sessionData[SessionKeyDate].(time.Time)
 
 	if !okS || !okD {
-		log.Printf("ERROR: Missing session data for time selection for user %d. Service OK: %t, Date OK: %t", userID, okS, okD)
+		logging.Errorf(": Missing session data for time selection for user %d. Service OK: %t, Date OK: %t", userID, okS, okD)
 		h.sessionStorage.ClearSession(userID)
 		return c.Send("⚠️ Сессия истекла из-за перезагрузки бота.\nПожалуйста, начните заново командой /start", telebot.RemoveKeyboard)
 	}
@@ -577,17 +578,17 @@ func (h *BookingHandler) askForTime(c telebot.Context) error {
 	}
 	selectedDateInLoc := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, loc)
 
-	log.Printf("DEBUG: Calling GetAvailableTimeSlots for user %d with date %s and duration %d", userID, selectedDateInLoc.Format("2006-01-02"), service.DurationMinutes)
+	logging.Debugf(": Calling GetAvailableTimeSlots for user %d with date %s and duration %d", userID, selectedDateInLoc.Format("2006-01-02"), service.DurationMinutes)
 	timeSlots, err := h.appointmentService.GetAvailableTimeSlots(context.Background(), selectedDateInLoc, service.DurationMinutes)
 	if err != nil {
-		log.Printf("ERROR: Error getting available time slots for user %d: %v", userID, err)
+		logging.Errorf(": Error getting available time slots for user %d: %v", userID, err)
 		// Clean up the calendar keyboard before showing the error
 		if c.Message() != nil {
 			c.Bot().EditReplyMarkup(c.Message(), nil)
 		}
 		return c.Send("❌ Ошибка при получении слотов: " + err.Error() + "\n\nПожалуйста, начните заново: /start")
 	}
-	log.Printf("DEBUG: Received %d time slots for user %d.", len(timeSlots), userID)
+	logging.Debugf(": Received %d time slots for user %d.", len(timeSlots), userID)
 
 	if len(timeSlots) == 0 {
 		// Используем c.EditOrSend для обновления сообщения, если слотов нет
@@ -614,7 +615,7 @@ func (h *BookingHandler) askForTime(c telebot.Context) error {
 		selector, // Inline keyboard for time slots
 	)
 	if err != nil {
-		log.Printf("ERROR: Failed to edit message with time slots: %v", err)
+		logging.Errorf(": Failed to edit message with time slots: %v", err)
 		// Если не удалось отредактировать (например, сообщение слишком старое), отправляем новое.
 		// В этом случае ReplyKeyboard также будет в этом сообщении.
 		return c.Send(
@@ -631,7 +632,7 @@ func (h *BookingHandler) askForTime(c telebot.Context) error {
 
 // HandleTimeSelection handles the callback query for time slot selection.
 func (h *BookingHandler) HandleTimeSelection(c telebot.Context) error {
-	log.Printf("DEBUG: Entered HandleTimeSelection for user %d. Callback Data: '%s'", c.Sender().ID, c.Callback().Data)
+	logging.Debugf(": Entered HandleTimeSelection for user %d. Callback Data: '%s'", c.Sender().ID, c.Callback().Data)
 
 	data := strings.TrimSpace(c.Callback().Data) // Trim spaces
 	userID := c.Sender().ID
@@ -648,7 +649,7 @@ func (h *BookingHandler) HandleTimeSelection(c telebot.Context) error {
 
 	parts := strings.Split(data, "|")
 	if len(parts) != 2 || parts[0] != "select_time" {
-		log.Printf("ERROR: Malformed time selection callback data: %s", data)
+		logging.Errorf(": Malformed time selection callback data: %s", data)
 		return c.Edit("Некорректный выбор времени. Пожалуйста, попробуйте /start снова.")
 	}
 	timeStr := parts[1] // e.g., "15:04"
@@ -656,17 +657,17 @@ func (h *BookingHandler) HandleTimeSelection(c telebot.Context) error {
 	// Validate time format. We expect "HH:MM"
 	_, err := time.Parse("15:04", timeStr)
 	if err != nil {
-		log.Printf("ERROR: Invalid time format in selection: %s, error: %v", timeStr, err)
+		logging.Errorf(": Invalid time format in selection: %s, error: %v", timeStr, err)
 		return c.Edit("Некорректное время. Пожалуйста, попробуйте /start снова.")
 	}
 	h.sessionStorage.Set(userID, SessionKeyTime, timeStr)
-	log.Printf("DEBUG: Time selected and stored in session for user %d: %s", userID, timeStr)
+	logging.Debugf(": Time selected and stored in session for user %d: %s", userID, timeStr)
 
 	// Удаляем инлайн-клавиатуру со слотами времени из предыдущего сообщения
 	if c.Message() != nil {
 		_, err := c.Bot().EditReplyMarkup(c.Message(), nil) // Pass nil to remove inline keyboard
 		if err != nil {
-			log.Printf("WARNING: Failed to remove inline keyboard from message %d: %v", c.Message().ID, err)
+			logging.Warnf("ING: Failed to remove inline keyboard from message %d: %v", c.Message().ID, err)
 		}
 	}
 
@@ -675,14 +676,14 @@ func (h *BookingHandler) HandleTimeSelection(c telebot.Context) error {
 	if service, ok := sessionData[SessionKeyService].(domain.Service); ok {
 		if strings.HasPrefix(service.ID, "block_") {
 			h.sessionStorage.Set(userID, SessionKeyName, "Admin")
-			log.Printf("DEBUG: Block service detected, skipping name input for user %d", userID)
+			logging.Debugf(": Block service detected, skipping name input for user %d", userID)
 			return h.askForConfirmation(c)
 		}
 	}
 
 	// Check if this is a manual admin booking
 	if val, ok := sessionData[SessionKeyIsAdminManual].(bool); ok && val {
-		log.Printf("DEBUG: Manual admin booking detected for user %d, asking for patient name", userID)
+		logging.Debugf(": Manual admin booking detected for user %d, asking for patient name", userID)
 		return c.Send("✍️ Введите <b>имя и фамилию пациента</b> для записи:", telebot.ModeHTML)
 	}
 
@@ -690,7 +691,7 @@ func (h *BookingHandler) HandleTimeSelection(c telebot.Context) error {
 	patient, errRepo := h.repository.GetPatient(strconv.FormatInt(userID, 10))
 	if errRepo == nil && patient.Name != "" && patient.TotalVisits > 0 {
 		h.sessionStorage.Set(userID, SessionKeyName, patient.Name)
-		log.Printf("DEBUG: Returning patient %d detected (Name: %s), skipping name input", userID, patient.Name)
+		logging.Debugf(": Returning patient %d detected (Name: %s), skipping name input", userID, patient.Name)
 		return h.askForConfirmation(c)
 	}
 
@@ -701,7 +702,7 @@ func (h *BookingHandler) HandleTimeSelection(c telebot.Context) error {
 
 // HandleNameInput handles the user's name input (regular text message).
 func (h *BookingHandler) HandleNameInput(c telebot.Context) error {
-	log.Printf("DEBUG: Entered HandleNameInput for user %d. Text: '%s'", c.Sender().ID, c.Text())
+	logging.Debugf(": Entered HandleNameInput for user %d. Text: '%s'", c.Sender().ID, c.Text())
 
 	userID := c.Sender().ID
 	userName := strings.TrimSpace(c.Text())
@@ -711,7 +712,7 @@ func (h *BookingHandler) HandleNameInput(c telebot.Context) error {
 	}
 
 	h.sessionStorage.Set(userID, SessionKeyName, userName)
-	log.Printf("DEBUG: Name stored in session for user %d: %s", userID, userName)
+	logging.Debugf(": Name stored in session for user %d: %s", userID, userName)
 
 	// All data collected, ask for confirmation
 	return h.askForConfirmation(c)
@@ -719,7 +720,7 @@ func (h *BookingHandler) HandleNameInput(c telebot.Context) error {
 
 // askForConfirmation asks the user to confirm the booking details.
 func (h *BookingHandler) askForConfirmation(c telebot.Context) error {
-	log.Printf("DEBUG: Entered askForConfirmation for user %d", c.Sender().ID)
+	logging.Debugf(": Entered askForConfirmation for user %d", c.Sender().ID)
 
 	userID := c.Sender().ID
 	sessionData := h.sessionStorage.Get(userID)
@@ -730,7 +731,7 @@ func (h *BookingHandler) askForConfirmation(c telebot.Context) error {
 	name, okN := sessionData[SessionKeyName].(string)
 
 	if !okS || !okD || !okT || !okN {
-		log.Printf("ERROR: Missing session data for confirmation for user %d: service=%t, date=%t, time=%t, name=%t", userID, okS, okD, okT, okN)
+		logging.Errorf(": Missing session data for confirmation for user %d: service=%t, date=%t, time=%t, name=%t", userID, okS, okD, okT, okN)
 		h.sessionStorage.ClearSession(userID)
 		return c.Send("Ошибка сессии. Пожалуйста, начните /start снова.", telebot.RemoveKeyboard)
 	}
@@ -738,7 +739,7 @@ func (h *BookingHandler) askForConfirmation(c telebot.Context) error {
 	// Combine date and time string into a time.Time object for display
 	appointmentTime, err := time.Parse("2006-01-02 15:04", fmt.Sprintf("%s %s", date.Format("2006-01-02"), timeStr))
 	if err != nil {
-		log.Printf("ERROR: Failed to parse appointment time for user %d: %v", userID, err)
+		logging.Errorf(": Failed to parse appointment time for user %d: %v", userID, err)
 		h.sessionStorage.ClearSession(userID)
 		return c.Send("Ошибка форматирования времени. Пожалуйста, начните /start снова.", telebot.RemoveKeyboard)
 	}
@@ -775,21 +776,21 @@ func (h *BookingHandler) askForConfirmation(c telebot.Context) error {
 
 	// Set session flag indicating awaiting confirmation (keep for fallback/cleanup)
 	h.sessionStorage.Set(userID, SessionKeyAwaitingConfirmation, true)
-	log.Printf("DEBUG: Set SessionKeyAwaitingConfirmation for user %d to true.", userID)
+	logging.Debugf(": Set SessionKeyAwaitingConfirmation for user %d to true.", userID)
 
 	return c.Send(confirmMessage, selector, telebot.ModeHTML)
 }
 
 // HandleConfirmBooking handles the confirmation of a booking.
 func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
-	log.Printf("DEBUG: Entered HandleConfirmBooking for user %d", c.Sender().ID)
+	logging.Debugf(": Entered HandleConfirmBooking for user %d", c.Sender().ID)
 
 	userID := c.Sender().ID
 	sessionData := h.sessionStorage.Get(userID)
 
 	// Clear awaiting confirmation flag
 	h.sessionStorage.Set(userID, SessionKeyAwaitingConfirmation, false)
-	log.Printf("DEBUG: Cleared SessionKeyAwaitingConfirmation for user %d.", userID)
+	logging.Debugf(": Cleared SessionKeyAwaitingConfirmation for user %d.", userID)
 
 	service, okS := sessionData[SessionKeyService].(domain.Service)
 	date, okD := sessionData[SessionKeyDate].(time.Time)
@@ -797,7 +798,7 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 	name, okN := sessionData[SessionKeyName].(string)
 
 	if !okS || !okD || !okT || !okN {
-		log.Printf("Session data missing for user %d during confirmation: service=%t, date=%t, time=%t, name=%t", userID, okS, okD, okT, okN)
+		logging.Infof("Session data missing for user %d during confirmation: service=%t, date=%t, time=%t, name=%t", userID, okS, okD, okT, okN)
 		h.sessionStorage.ClearSession(userID)
 		return c.Send("Ошибка сессии. Пожалуйста, начните /start снова.", telebot.RemoveKeyboard)
 	}
@@ -805,7 +806,7 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 	// Combine date and time string into a time.Time object
 	appointmentTime, err := time.Parse("2006-01-02 15:04", fmt.Sprintf("%s %s", date.Format("2006-01-02"), timeStr))
 	if err != nil {
-		log.Printf("Failed to parse appointment time for user %d during confirmation: %v", userID, err)
+		logging.Infof("Failed to parse appointment time for user %d during confirmation: %v", userID, err)
 		h.sessionStorage.ClearSession(userID)
 		return c.Send("Ошибка форматирования времени. Пожалуйста, начните /start снова.", telebot.RemoveKeyboard)
 	}
@@ -860,7 +861,7 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 	// Save to Google Calendar (and internal DB via adapter)
 	_, err = h.appointmentService.CreateAppointment(context.Background(), &appt)
 	if err != nil {
-		log.Printf("Error creating appointment: %v", err)
+		logging.Infof("Error creating appointment: %v", err)
 		if strings.Contains(err.Error(), "slot is not available") {
 			return c.Send("❌ К сожалению, это время уже занято. Пожалуйста, выберите другое время.", telebot.RemoveKeyboard)
 		}
@@ -904,7 +905,7 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 	}
 	patient, errSync := h.syncPatientStats(context.Background(), appt.CustomerTgID, nameInSync)
 	if errSync != nil {
-		log.Printf("WARNING: Failed to sync patient record for user %d: %v", userID, errSync)
+		logging.Warnf("ING: Failed to sync patient record for user %d: %v", userID, errSync)
 		// Fallback to minimal update if sync fails
 		existingPatient, errRepo := h.repository.GetPatient(appt.CustomerTgID)
 		if errRepo == nil {
@@ -914,7 +915,7 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 			h.repository.SavePatient(patient)
 		}
 	} else {
-		log.Printf("Patient record synced for user %d (TotalVisits: %d)", userID, patient.TotalVisits)
+		logging.Infof("Patient record synced for user %d (TotalVisits: %d)", userID, patient.TotalVisits)
 		// Record patient loyalty metric
 		if patient.TotalVisits <= 1 {
 			monitoring.AppointmentTypeTotal.WithLabelValues("first_visit").Inc()
@@ -1047,11 +1048,11 @@ func (h *BookingHandler) syncPatientStats(ctx context.Context, telegramID string
 
 // HandleCancel handles the "Отменить запись" (Cancel booking) button
 func (h *BookingHandler) HandleCancel(c telebot.Context) error {
-	log.Printf("DEBUG: Entered HandleCancel for user %d", c.Sender().ID)
+	logging.Debugf(": Entered HandleCancel for user %d", c.Sender().ID)
 	userID := c.Sender().ID
 	// Clear awaiting confirmation flag
 	h.sessionStorage.Set(userID, SessionKeyAwaitingConfirmation, false)
-	log.Printf("DEBUG: Cleared SessionKeyAwaitingConfirmation for user %d (via cancel).", userID)
+	logging.Debugf(": Cleared SessionKeyAwaitingConfirmation for user %d (via cancel).", userID)
 
 	h.sessionStorage.ClearSession(userID)
 	// Remove keyboard and send confirmation
@@ -1118,7 +1119,7 @@ func (h *BookingHandler) HandleMyAppointments(c telebot.Context) error {
 	}
 
 	if err != nil {
-		log.Printf("ERROR: Failed to get appointments for user %d: %v", userID, err)
+		logging.Errorf(": Failed to get appointments for user %d: %v", userID, err)
 		return c.Send("Ошибка при получении списка записей. Пожалуйста, попробуйте позже.")
 	}
 
@@ -1193,7 +1194,7 @@ func (h *BookingHandler) HandleCancelAppointmentCallback(c telebot.Context) erro
 	}
 
 	appointmentID := parts[1]
-	log.Printf("DEBUG: HandleCancelAppointmentCallback for ID: %s", appointmentID)
+	logging.Debugf(": HandleCancelAppointmentCallback for ID: %s", appointmentID)
 
 	// Get appointment details BEFORE deleting for block check
 	appt, _ := h.appointmentService.FindByID(context.Background(), appointmentID)
@@ -1201,7 +1202,7 @@ func (h *BookingHandler) HandleCancelAppointmentCallback(c telebot.Context) erro
 	if appt != nil {
 		now := time.Now().In(domain.ApptTimeZone)
 		if appt.StartTime.Sub(now) < 72*time.Hour {
-			log.Printf("BLOCKED: Late cancellation attempt for user %s, appt %s", appt.CustomerTgID, appt.ID)
+			logging.Infof("BLOCKED: Late cancellation attempt for user %s, appt %s", appt.CustomerTgID, appt.ID)
 			return c.Respond(&telebot.CallbackResponse{
 				Text:      "⛔ До записи меньше 3 дней!\nАвтоматическая отмена невозможна.\nПожалуйста, напишите терапевту напрямую.",
 				ShowAlert: true,
@@ -1211,7 +1212,7 @@ func (h *BookingHandler) HandleCancelAppointmentCallback(c telebot.Context) erro
 
 	err := h.appointmentService.CancelAppointment(context.Background(), appointmentID)
 	if err != nil {
-		log.Printf("ERROR: Failed to cancel appointment %s: %v", appointmentID, err)
+		logging.Errorf(": Failed to cancel appointment %s: %v", appointmentID, err)
 		return c.Respond(&telebot.CallbackResponse{Text: "Не удалось отменить запись. Возможно, она уже отменена."})
 	}
 
@@ -1302,13 +1303,13 @@ func (h *BookingHandler) HandleFileMessage(c telebot.Context) error {
 
 	statusMsg, err := c.Bot().Send(c.Recipient(), "⏳ Загружаю и сохраняю ваш файл...")
 	if err != nil {
-		log.Printf("ERROR: Failed to send status message: %v", err)
+		logging.Errorf(": Failed to send status message: %v", err)
 	}
 
 	// Get file from Telegram servers
 	fileReader, err := c.Bot().File(&telebot.File{FileID: fileID})
 	if err != nil {
-		log.Printf("ERROR: Failed to download file from Telegram: %v", err)
+		logging.Errorf(": Failed to download file from Telegram: %v", err)
 		c.Bot().Delete(statusMsg)
 		return c.Send("❌ Ошибка при загрузке файла. Возможно, он слишком большой для Telegram-бота (лимит 50МБ).\n\nПопробуйте отправить файл меньшего размера или ссылкой.")
 	}
@@ -1328,7 +1329,7 @@ func (h *BookingHandler) HandleFileMessage(c telebot.Context) error {
 	// Save to storage using Reader for efficiency
 	_, err = h.repository.SavePatientDocumentReader(telegramID, fileName, category, fileReader)
 	if err != nil {
-		log.Printf("ERROR: Failed to save patient document: %v", err)
+		logging.Errorf(": Failed to save patient document: %v", err)
 		c.Bot().Delete(statusMsg)
 		return c.Send("❌ Ошибка при сохранении файла на сервере.")
 	}
@@ -1354,7 +1355,7 @@ func (h *BookingHandler) HandleFileMessage(c telebot.Context) error {
 			h.repository.SavePatient(patient)
 			c.Send("✅ Аудио расшифровано и сохранено в архиве записей.")
 		} else {
-			log.Printf("ERROR: Transcription failed for user %d: %v", userID, err)
+			logging.Errorf(": Transcription failed for user %d: %v", userID, err)
 			c.Send("⚠️ Аудио сохранено, но не удалось его расшифровать.")
 		}
 	} else {
@@ -1400,7 +1401,7 @@ func (h *BookingHandler) HandleBackup(c telebot.Context) error {
 
 	zipPath, err := h.repository.CreateBackup()
 	if err != nil {
-		log.Printf("ERROR: Failed to create backup: %v", err)
+		logging.Errorf(": Failed to create backup: %v", err)
 		return c.Send("❌ Ошибка при создании резервной копии.")
 	}
 
@@ -1420,7 +1421,7 @@ func (h *BookingHandler) HandleBackup(c telebot.Context) error {
 func (h *BookingHandler) BotNotify(b *telebot.Bot, to int64, message string, opts ...interface{}) {
 	_, err := b.Send(&telebot.User{ID: to}, message, append([]interface{}{telebot.ModeHTML}, opts...)...)
 	if err != nil {
-		log.Printf("ERROR: Failed to send notification to admin %d: %v", to, err)
+		logging.Errorf(": Failed to send notification to admin %d: %v", to, err)
 	}
 }
 
@@ -1481,13 +1482,13 @@ func (h *BookingHandler) HandleStatus(c telebot.Context) error {
 	uptime := time.Since(monitoring.StartTime)
 	totalAppts, err := h.appointmentService.GetTotalUpcomingCount(context.Background())
 	if err != nil {
-		log.Printf("ERROR: Failed to get total upcoming count in status: %v", err)
+		logging.Errorf(": Failed to get total upcoming count in status: %v", err)
 		totalAppts = 0 // Fallback
 	}
 
 	accountInfo, err := h.appointmentService.GetCalendarAccountInfo(context.Background())
 	if err != nil {
-		log.Printf("ERROR: Failed to get calendar account info: %v", err)
+		logging.Errorf(": Failed to get calendar account info: %v", err)
 		accountInfo = "Unknown"
 	}
 
@@ -1545,11 +1546,11 @@ func (h *BookingHandler) HandleEditName(c telebot.Context) error {
 
 	// 2. Save (Updates DB and Markdown)
 	if err := h.repository.SavePatient(patient); err != nil {
-		log.Printf("ERROR: Failed to save updated patient name: %v", err)
+		logging.Errorf(": Failed to save updated patient name: %v", err)
 		return c.Send("❌ Ошибка при сохранении данных.")
 	}
 
-	log.Printf("[ADMIN] Name updated for %s: %s -> %s", targetID, oldName, newName)
+	logging.Infof("[ADMIN] Name updated for %s: %s -> %s", targetID, oldName, newName)
 	return c.Send(fmt.Sprintf("✅ Имя пациента обновлено:\n<b>Old:</b> %s\n<b>New:</b> %s", oldName, newName), telebot.ModeHTML)
 }
 
@@ -1571,7 +1572,7 @@ func (h *BookingHandler) GenerateWebAppURL(telegramID string) string {
 	mac.Write([]byte(telegramID))
 	token := hex.EncodeToString(mac.Sum(nil))
 
-	log.Printf("[URL_GEN] ID: %s, SecretLen: %d, Token: %s", telegramID, len(h.webAppSecret), token)
+	logging.Infof("[URL_GEN] ID: %s, SecretLen: %d, Token: %s", telegramID, len(h.webAppSecret), token)
 
 	return fmt.Sprintf("%s/card?id=%s&token=%s", url, telegramID, token)
 }

@@ -11,6 +11,20 @@ import (
 var (
 	// --- Technical Metrics ---
 
+	FreeBusyCacheHits = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "vera_freebusy_cache_hits_total",
+			Help: "Total number of FreeBusy cache hits",
+		},
+	)
+
+	FreeBusyCacheMisses = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "vera_freebusy_cache_misses_total",
+			Help: "Total number of FreeBusy cache misses",
+		},
+	)
+
 	ApiRequestsTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "vera_api_requests_total",

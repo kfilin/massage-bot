@@ -3,12 +3,12 @@ package googlecalendar
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/kfilin/massage-bot/internal/domain" // Импортируем domain
+	"github.com/kfilin/massage-bot/internal/logging"
 	"github.com/kfilin/massage-bot/internal/monitoring"
 	"github.com/kfilin/massage-bot/internal/ports"
 	"google.golang.org/api/calendar/v3"
@@ -24,7 +24,7 @@ type adapter struct {
 // It now accepts the Google Calendar ID from configuration.
 func NewAdapter(client *calendar.Service, calendarID string) ports.AppointmentRepository {
 	if calendarID == "" {
-		log.Println("Warning: Google Calendar ID is empty, defaulting to 'primary'. Ensure GOOGLE_CALENDAR_ID is set in config.")
+		logging.Warn("Warning: Google Calendar ID is empty, defaulting to 'primary'. Ensure GOOGLE_CALENDAR_ID is set in config.")
 		calendarID = "primary" // Fallback to primary if empty, though config should handle this
 	}
 	return &adapter{
@@ -99,7 +99,7 @@ func (a *adapter) Create(ctx context.Context, appt *domain.Appointment) (*domain
 		}
 	}
 
-	log.Printf("SUCCESS: Event created in '%s': %s (ID: %s) Link: %s Meet: %s",
+	logging.Infof("SUCCESS: Event created in '%s': %s (ID: %s) Link: %s Meet: %s",
 		a.calendarID, createdEvent.Summary, createdEvent.Id, createdEvent.HtmlLink, appt.MeetLink)
 
 	return appt, nil
@@ -132,7 +132,7 @@ func (a *adapter) ListCalendars(ctx context.Context) ([]string, error) {
 
 // GetFreeBusy fetches busy time intervals from Google Calendar using the FreeBusy API.
 func (a *adapter) GetFreeBusy(ctx context.Context, timeMin, timeMax time.Time) ([]domain.TimeSlot, error) {
-	log.Printf("DEBUG: Querying FreeBusy from %s to %s for calendar %s", timeMin.Format(time.RFC3339), timeMax.Format(time.RFC3339), a.calendarID)
+	logging.Debugf("DEBUG: Querying FreeBusy from %s to %s for calendar %s", timeMin.Format(time.RFC3339), timeMax.Format(time.RFC3339), a.calendarID)
 	request := &calendar.FreeBusyRequest{
 		TimeMin: timeMin.Format(time.RFC3339),
 		TimeMax: timeMax.Format(time.RFC3339),
@@ -159,8 +159,16 @@ func (a *adapter) GetFreeBusy(ctx context.Context, timeMin, timeMax time.Time) (
 	var busySlots []domain.TimeSlot
 	if cal, ok := resp.Calendars[a.calendarID]; ok {
 		for _, b := range cal.Busy {
-			s, _ := time.Parse(time.RFC3339, b.Start)
-			e, _ := time.Parse(time.RFC3339, b.End)
+			s, err := time.Parse(time.RFC3339, b.Start)
+			if err != nil {
+				logging.Warnf("Warning: failed to parse freebusy start time '%s': %v", b.Start, err)
+				continue
+			}
+			e, err := time.Parse(time.RFC3339, b.End)
+			if err != nil {
+				logging.Warnf("Warning: failed to parse freebusy end time '%s': %v", b.End, err)
+				continue
+			}
 			busySlots = append(busySlots, domain.TimeSlot{
 				Start: s,
 				End:   e,
@@ -168,7 +176,7 @@ func (a *adapter) GetFreeBusy(ctx context.Context, timeMin, timeMax time.Time) (
 		}
 	}
 
-	log.Printf("DEBUG: FreeBusy query for %s returned %d busy intervals: %v", a.calendarID, len(busySlots), busySlots)
+	logging.Debugf(": FreeBusy query for %s returned %d busy intervals: %v", a.calendarID, len(busySlots), busySlots)
 	return busySlots, nil
 }
 
@@ -208,18 +216,18 @@ func (a *adapter) FindEvents(ctx context.Context, timeMin, timeMax *time.Time) (
 		return nil, fmt.Errorf("failed to list calendar events from '%s': %w", a.calendarID, err)
 	}
 
-	log.Printf("DEBUG: Found %d total items in calendar '%s'", len(events.Items), a.calendarID)
+	logging.Debugf(": Found %d total items in calendar '%s'", len(events.Items), a.calendarID)
 	var appointments []domain.Appointment
 	for _, event := range events.Items {
 		// SKIP TRANSPARENT (FREE) EVENTS
 		if event.Transparency == "transparent" {
-			log.Printf("DEBUG: Skipping transparent (FREE) event: %s", event.Summary)
+			logging.Debugf("DEBUG: Skipping transparent (FREE) event: %s", event.Summary)
 			continue
 		}
 
 		appt, err := eventToAppointment(event)
 		if err != nil {
-			log.Printf("Warning: failed to convert event %s ('%s') to appointment: %v", event.Id, event.Summary, err)
+			logging.Warnf("Warning: failed to convert event %s ('%s') to appointment: %v", event.Id, event.Summary, err)
 			continue
 		}
 		appointments = append(appointments, *appt)

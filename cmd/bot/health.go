@@ -1,10 +1,13 @@
 package main
 
 import (
+	"github.com/kfilin/massage-bot/internal/logging"
+	"context"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -24,12 +27,13 @@ func liveHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, `{"status": "live", "service": "massage-bot"}`)
 }
 
-func startHealthServer() {
-	http.HandleFunc("/health", healthHandler)
-	http.HandleFunc("/ready", readyHandler)
-	http.HandleFunc("/live", liveHandler)
-	http.HandleFunc("/metrics", promhttp.Handler().ServeHTTP)
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+func startHealthServer(ctx context.Context) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/health", healthHandler)
+	mux.HandleFunc("/ready", readyHandler)
+	mux.HandleFunc("/live", liveHandler)
+	mux.HandleFunc("/metrics", promhttp.Handler().ServeHTTP)
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(w, `{"service": "massage-bot", "endpoints": ["/health", "/ready", "/live"]}`)
 	})
@@ -40,8 +44,24 @@ func startHealthServer() {
 		port = "8083"
 	}
 
-	log.Printf("Starting health server on :%s", port)
-	if err := http.ListenAndServe(":"+port, nil); err != nil {
-		log.Fatalf("Health server failed to start: %v", err)
+	server := &http.Server{
+		Addr:    ":" + port,
+		Handler: mux,
+	}
+
+	logging.Infof("Starting health server on :%s", port)
+
+	go func() {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Health server failed to start: %v", err)
+		}
+	}()
+
+	<-ctx.Done()
+	log.Println("Shutting down Health server...")
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		logging.Infof("Health server shutdown error: %v", err)
 	}
 }

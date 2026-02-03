@@ -3,7 +3,8 @@ package telegram
 import (
 	"context"
 	"fmt"
-	"log"
+
+	// "log" // Replaced by internal/logging
 	"os"
 	"path/filepath"
 	"strconv"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/kfilin/massage-bot/internal/delivery/telegram/handlers"
 	"github.com/kfilin/massage-bot/internal/domain"
+	"github.com/kfilin/massage-bot/internal/logging"
 	"github.com/kfilin/massage-bot/internal/monitoring"
 	"github.com/kfilin/massage-bot/internal/ports" // Import ports for interfaces
 	"github.com/kfilin/massage-bot/internal/services/reminder"
@@ -24,6 +26,7 @@ import (
 // StartBot initializes and runs the Telegram bot.
 // It now receives all necessary services and configuration from the main package.
 func StartBot(
+	ctx context.Context,
 	token string,
 	appointmentService ports.AppointmentService,
 	sessionStorage ports.SessionStorage,
@@ -48,13 +51,13 @@ func StartBot(
 		if err == nil {
 			break
 		}
-		log.Printf("DEBUG_RETRY: Error creating bot (attempt %d/10): %v", i+1, err)
+		logging.Debugf("DEBUG_RETRY: Error creating bot (attempt %d/10): %v", i+1, err)
 		time.Sleep(time.Duration(i*2+5) * time.Second) // Exponential-ish backoff
 	}
 
 	if err != nil {
-		log.Printf("CRITICAL: Failed to create bot after multiple attempts: %v", err)
-		log.Println("Suspending bot polling, but keeping process alive for WebApp.")
+		logging.Errorf("CRITICAL: Failed to create bot after multiple attempts: %v", err)
+		logging.Info("Suspending bot polling, but keeping process alive for WebApp.")
 		// We don't log.Fatalf here anymore to allow WebApp to still run
 		// However, most handlers depend on 'b', so we might need a way to mark bot as "offline"
 		// For now, we return to prevent panics below if 'b' is nil
@@ -81,7 +84,7 @@ func StartBot(
 	// Retrieve therapist ID from environment
 	therapistID := os.Getenv("TG_THERAPIST_ID")
 	if therapistID == "" {
-		log.Println("WARNING: TG_THERAPIST_ID not set in environment.")
+		logging.Warn("WARNING: TG_THERAPIST_ID not set in environment.")
 	}
 
 	bookingHandler := handlers.NewBookingHandler(appointmentService, sessionStorage, finalAdminIDs, therapistID, trans, repo, webAppURL, webAppSecret)
@@ -99,10 +102,10 @@ func StartBot(
 			defer ticker.Stop()
 
 			for range ticker.C {
-				log.Printf("[BackupWorker] Starting scheduled daily backup for Admin %s...", adminTelegramID)
+				logging.Infof("[BackupWorker] Starting scheduled daily backup for Admin %s...", adminTelegramID)
 				zipPath, err := repo.CreateBackup()
 				if err != nil {
-					log.Printf("[BackupWorker] FAILED to create scheduled backup: %v", err)
+					logging.Errorf("[BackupWorker] FAILED to create scheduled backup: %v", err)
 					continue
 				}
 
@@ -115,7 +118,7 @@ func StartBot(
 					}
 					_, err = b.Send(&telebot.User{ID: adminIntID}, doc, telebot.ModeHTML)
 					if err != nil {
-						log.Printf("[BackupWorker] FAILED to send scheduled backup: %v", err)
+						logging.Errorf("[BackupWorker] FAILED to send scheduled backup: %v", err)
 					}
 				}
 				// Cleanup temporary zip to save server disk space
@@ -133,7 +136,7 @@ func StartBot(
 			telegramID := strconv.FormatInt(c.Sender().ID, 10)
 			username := c.Sender().Username
 			if banned, _ := repo.IsUserBanned(telegramID, username); banned {
-				log.Printf("BLOCKED (Middleware): Banned user %s (@%s) tried to access bot.", telegramID, username)
+				logging.Warnf("BLOCKED (Middleware): Banned user %s (@%s) tried to access bot.", telegramID, username)
 
 				// SHADOW BAN: Polite "No spots available" message
 				shadowBanMsg := "К сожалению, на данный момент свободных мест для записи нет. Попробуйте позже."
@@ -155,7 +158,7 @@ func StartBot(
 		return func(c telebot.Context) error {
 			if c.Message() != nil {
 				text := c.Message().Text
-				log.Printf("DEBUG: Incoming Message from %d (%s): %s", c.Sender().ID, c.Sender().Username, text)
+				logging.Debugf("DEBUG: Incoming Message from %d (%s): %s", c.Sender().ID, c.Sender().Username, text)
 				if strings.HasPrefix(text, "/") {
 					command := strings.Split(text, " ")[0]
 					monitoring.BotCommandsTotal.WithLabelValues(command).Inc()
@@ -163,7 +166,7 @@ func StartBot(
 					monitoring.BotCommandsTotal.WithLabelValues("text_message").Inc()
 				}
 			} else if c.Callback() != nil {
-				log.Printf("DEBUG: Incoming Callback from %d (%s): %s", c.Sender().ID, c.Sender().Username, c.Callback().Data)
+				logging.Debugf("DEBUG: Incoming Callback from %d (%s): %s", c.Sender().ID, c.Sender().Username, c.Callback().Data)
 				monitoring.BotCommandsTotal.WithLabelValues("callback").Inc()
 			}
 			return next(c)
@@ -176,7 +179,6 @@ func StartBot(
 	b.Handle("/myappointments", bookingHandler.HandleMyAppointments)
 	b.Handle("/upload", bookingHandler.HandleUploadCommand)
 	b.Handle("/backup", bookingHandler.HandleBackup)
-	b.Handle("/ban", bookingHandler.HandleBan)
 	b.Handle("/ban", bookingHandler.HandleBan)
 	b.Handle("/unban", bookingHandler.HandleUnban)
 	b.Handle("/block", bookingHandler.HandleBlock)
@@ -193,53 +195,53 @@ func StartBot(
 
 	// Обработчик для всех inline-кнопок
 	b.Handle(telebot.OnCallback, func(c telebot.Context) error {
-		log.Printf("DEBUG: Entered OnCallback handler.")
+		logging.Debugf(": Entered OnCallback handler.")
 
 		data := c.Callback().Data
 		// Обрезаем пробелы в начале и конце строки данных колбэка
 		trimmedData := strings.TrimSpace(data)
-		log.Printf("Received callback: '%s' (trimmed: '%s') from user %d", data, trimmedData, c.Sender().ID)
+		logging.Debugf("Received callback: '%s' (trimmed: '%s') from user %d", data, trimmedData, c.Sender().ID)
 
 		defer c.Respond() // Важно: Respond() должен быть вызван, чтобы убрать "часики" с кнопки
 
 		// Добавляем логирование для каждой ветки if/else if
 		// Используем trimmedData для проверки префикса
 		if strings.HasPrefix(trimmedData, "select_category|") {
-			log.Printf("DEBUG: OnCallback: Matched 'select_category' prefix.")
+			logging.Debug("DEBUG: OnCallback: Matched 'select_category' prefix.")
 			return bookingHandler.HandleCategorySelection(c)
 		} else if strings.HasPrefix(trimmedData, "select_service|") {
-			log.Printf("DEBUG: OnCallback: Matched 'select_service' prefix.")
+			logging.Debug("DEBUG: OnCallback: Matched 'select_service' prefix.")
 			return bookingHandler.HandleServiceSelection(c)
 		} else if strings.HasPrefix(trimmedData, "select_date|") || strings.HasPrefix(trimmedData, "navigate_month|") || trimmedData == "back_to_services" {
-			log.Printf("DEBUG: OnCallback: Matched 'select_date', 'navigate_month' or 'back_to_services'.")
+			logging.Debug("DEBUG: OnCallback: Matched 'select_date', 'navigate_month' or 'back_to_services'.")
 			return bookingHandler.HandleDateSelection(c)
 		} else if strings.HasPrefix(trimmedData, "select_time|") || trimmedData == "back_to_date" {
-			log.Printf("DEBUG: OnCallback: Matched 'select_time' or 'back_to_date'.")
+			logging.Debug("DEBUG: OnCallback: Matched 'select_time' or 'back_to_date'.")
 			return bookingHandler.HandleTimeSelection(c)
 		} else if trimmedData == "confirm_booking" {
-			log.Printf("DEBUG: OnCallback: Matched 'confirm_booking' data.")
+			logging.Debug("DEBUG: OnCallback: Matched 'confirm_booking' data.")
 			return bookingHandler.HandleConfirmBooking(c)
 		} else if trimmedData == "cancel_booking" {
-			log.Printf("DEBUG: OnCallback: Matched 'cancel_booking' data.")
+			logging.Debug("DEBUG: OnCallback: Matched 'cancel_booking' data.")
 			return bookingHandler.HandleCancel(c)
 		} else if strings.HasPrefix(trimmedData, "cancel_appt|") {
-			log.Printf("DEBUG: OnCallback: Matched 'cancel_appt' prefix.")
+			logging.Debug("DEBUG: OnCallback: Matched 'cancel_appt' prefix.")
 			return bookingHandler.HandleCancelAppointmentCallback(c)
 		} else if strings.HasPrefix(trimmedData, "confirm_appt_reminder|") {
-			log.Printf("DEBUG: OnCallback: Matched 'confirm_appt_reminder' prefix.")
+			logging.Debug("DEBUG: OnCallback: Matched 'confirm_appt_reminder' prefix.")
 			return bookingHandler.HandleReminderConfirmation(c)
 		} else if strings.HasPrefix(trimmedData, "cancel_appt_reminder|") {
-			log.Printf("DEBUG: OnCallback: Matched 'cancel_appt_reminder' prefix.")
+			logging.Debug("DEBUG: OnCallback: Matched 'cancel_appt_reminder' prefix.")
 			return bookingHandler.HandleReminderCancellation(c)
 		} else if strings.HasPrefix(trimmedData, "admin_reply|") {
-			log.Printf("DEBUG: OnCallback: Matched 'admin_reply' prefix.")
+			logging.Debug("DEBUG: OnCallback: Matched 'admin_reply' prefix.")
 			return bookingHandler.HandleAdminReplyRequest(c)
 		} else if trimmedData == "ignore" {
-			log.Printf("DEBUG: OnCallback: Matched 'ignore' data.")
+			logging.Debug("DEBUG: OnCallback: Matched 'ignore' data.")
 			return nil // Просто игнорируем кнопки-заглушки
 		}
 
-		log.Printf("DEBUG: OnCallback: No specific callback prefix matched for data: '%s'", trimmedData)
+		logging.Warnf("DEBUG: OnCallback: No specific callback prefix matched for data: '%s'", trimmedData)
 		return c.Send("Неизвестное действие с кнопкой. Пожалуйста, начните /start снова.")
 	})
 
@@ -247,7 +249,7 @@ func StartBot(
 	b.Handle(telebot.OnText, func(c telebot.Context) error {
 		userID := c.Sender().ID
 		text := strings.TrimSpace(c.Text())
-		log.Printf("Received text: \"%s\" from user %d", text, userID)
+		logging.Debugf("Received text: \"%s\" from user %d", text, userID)
 
 		// Priority level 1: Commands fallback in OnText (helps if command handlers are bypassed)
 		if strings.HasPrefix(text, "/create_appointment") {
@@ -270,7 +272,7 @@ func StartBot(
 
 		// Priority level 2: Admin Replying to Patient
 		if replyingToID, ok := session[handlers.SessionKeyAdminReplyingTo].(string); ok && replyingToID != "" {
-			log.Printf("DEBUG: OnText: Admin %d is replying to patient %s.", userID, replyingToID)
+			logging.Debugf("DEBUG: OnText: Admin %d is replying to patient %s.", userID, replyingToID)
 
 			patientID, _ := strconv.ParseInt(replyingToID, 10, 64)
 			patientUser := &telebot.User{ID: patientID}
@@ -279,7 +281,7 @@ func StartBot(
 			replyMsg := fmt.Sprintf("📩 <b>Сообщение от Веры:</b>\n\n%s", text)
 			_, err := b.Send(patientUser, replyMsg, telebot.ModeHTML)
 			if err != nil {
-				log.Printf("ERROR: Failed to deliver admin reply to patient %s: %v", replyingToID, err)
+				logging.Errorf("ERROR: Failed to deliver admin reply to patient %s: %v", replyingToID, err)
 				return c.Send("❌ Не удалось доставить сообщение пациенту.")
 			}
 
@@ -298,17 +300,17 @@ func StartBot(
 
 		// Priority level 3: Confirmation flow
 		if awaitingConfirmation, ok := session[handlers.SessionKeyAwaitingConfirmation].(bool); ok && awaitingConfirmation {
-			log.Printf("DEBUG: OnText: Bot is awaiting confirmation for user %d.", userID)
+			logging.Debugf("DEBUG: OnText: Bot is awaiting confirmation for user %d.", userID)
 			cleanText := strings.ToLower(text)
 			switch cleanText {
 			case "подтвердить", "да", "д", "yes", "y", "ok", "ок":
-				log.Printf("DEBUG: OnText: Matched confirmation text '%s' for user %d.", cleanText, userID)
+				logging.Debugf("DEBUG: OnText: Matched confirmation text '%s' for user %d.", cleanText, userID)
 				return bookingHandler.HandleConfirmBooking(c)
 			case "отменить запись", "нет", "н", "no", "n", "отмена":
-				log.Printf("DEBUG: OnText: Matched cancellation text '%s' for user %d.", cleanText, userID)
+				logging.Debugf("DEBUG: OnText: Matched cancellation text '%s' for user %d.", cleanText, userID)
 				return bookingHandler.HandleCancel(c)
 			default:
-				log.Printf("DEBUG: OnText: Invalid text input '%s' while awaiting confirmation for user %d.", text, userID)
+				logging.Warnf("DEBUG: OnText: Invalid text input '%s' while awaiting confirmation for user %d.", text, userID)
 				return c.Send("Пожалуйста, используйте кнопки под сообщением или напишите 'Да' для подтверждения.")
 			}
 		}
@@ -316,25 +318,25 @@ func StartBot(
 		// Priority level 4: Standard flow (Name input, etc.)
 		switch text {
 		case "Подтвердить": // Safety fallback
-			log.Printf("DEBUG: OnText: Matched 'Подтвердить' (unexpectedly outside confirmation flow).")
+			logging.Debugf("DEBUG: OnText: Matched 'Подтвердить' (unexpectedly outside confirmation flow).")
 			return bookingHandler.HandleConfirmBooking(c)
 		case "Отменить запись":
-			log.Printf("DEBUG: OnText: Matched 'Отменить запись'.")
+			logging.Debugf("DEBUG: OnText: Matched 'Отменить запись'.")
 			return bookingHandler.HandleCancel(c)
 		case "Выбрать другую дату", "⬅️ Выбрать другую дату":
-			log.Printf("DEBUG: OnText: Matched 'Выбрать другую дату'.")
+			logging.Debugf("DEBUG: OnText: Matched 'Выбрать другую дату'.")
 			sessionStorage.Set(userID, handlers.SessionKeyDate, nil)
 			return bookingHandler.HandleStart(c) // Перезапускаем процесс, чтобы показать календарь
 		default:
-			log.Printf("DEBUG: OnText: Default case (assuming name input or initial service text).")
+			logging.Debugf(": OnText: Default case (assuming name input or initial service text).")
 			if _, ok := session[handlers.SessionKeyService].(domain.Service); !ok {
-				log.Printf("DEBUG: OnText: SessionKeyService not set. Asking to select service.")
+				logging.Debugf("DEBUG: OnText: SessionKeyService not set. Asking to select service.")
 				return c.Send("Пожалуйста, выберите услугу, используя предложенные кнопки.")
 			} else if _, ok := session[handlers.SessionKeyName].(string); !ok {
-				log.Printf("DEBUG: OnText: SessionKeyName not set. Assuming name input.")
+				logging.Debugf("DEBUG: OnText: SessionKeyName not set. Assuming name input.")
 				return bookingHandler.HandleNameInput(c)
 			} else {
-				log.Printf("DEBUG: OnText: All session data present, unknown text input. Forwarding to admins.")
+				logging.Debugf("DEBUG: OnText: All session data present, unknown text input. Forwarding to admins.")
 
 				// Provide polite feedback to user
 				c.Send("Ваше сообщение получено и передано Вере.")
@@ -379,6 +381,13 @@ func StartBot(
 	})
 
 	// Исправлен некорректный вывод имени бота при старте
-	log.Printf("Telegram bot started as @%s", b.Me.Username)
+	// Handle graceful shutdown
+	go func() {
+		<-ctx.Done()
+		logging.Info("Stopping Telegram bot...")
+		b.Stop()
+	}()
+
+	logging.Infof("Telegram bot started as @%s", b.Me.Username)
 	b.Start()
 }
