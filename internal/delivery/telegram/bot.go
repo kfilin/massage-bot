@@ -84,21 +84,24 @@ func StartBot(
 
 	// Set menu button for quick TWA access
 	if webAppURL != "" {
-		menuButton := &telebot.MenuButton{
-			Type: telebot.MenuButtonWebApp,
-			Text: "Открыть карту", // "Open Card" in Russian
-			WebApp: &telebot.WebApp{
-				URL: webAppURL,
+		// Use raw API call to avoid nil pointer issues with SetMenuButton
+		params := map[string]interface{}{
+			"menu_button": map[string]interface{}{
+				"type": "web_app",
+				"text": "Открыть карту",
+				"web_app": map[string]string{
+					"url": webAppURL,
+				},
 			},
 		}
-
-		// Set for all users (nil chat means default for all private chats)
-		if err := b.SetMenuButton(nil, menuButton); err != nil {
+		
+		if _, err := b.Raw("setChatMenuButton", params); err != nil {
 			logging.Warnf("Failed to set menu button: %v", err)
 		} else {
 			logging.Info("Menu button configured successfully")
 		}
 	}
+
 
 	// Ensure Admin ID is in the allowed list for notifications
 	// Use a map to deduplicate IDs ensuring no double notifications
