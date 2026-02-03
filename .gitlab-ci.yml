@@ -1,6 +1,24 @@
 stages:
+  - test
   - deploy
 
+variables:
+  GO_VERSION: "1.23"
+
+# =====================
+# STAGE 1: TESTS
+# =====================
+run-tests:
+  stage: test
+  image: golang:1.23
+  script:
+    - go vet ./...
+    - go test -v ./...
+    - go test -race -short ./...
+
+# =====================
+# STAGE 2: DEPLOY (TEST & PROD)
+# =====================
 deploy-test:
   stage: deploy
   image: alpine:latest
@@ -13,7 +31,26 @@ deploy-test:
     - ssh-keyscan -p 2222 $HOME_SERVER_IP >> ~/.ssh/known_hosts
     - chmod 644 ~/.ssh/known_hosts
   script:
-    - echo "🚀 Deploying to Test Server via GitLab CI..."
-    - ssh -p 2222 kirill@$HOME_SERVER_IP "cd /opt/vera-bot-test && git pull origin master && bash scripts/deploy_test_server.sh"
+    - echo "🧪 Automatically deploying to TEST Environment..."
+    - ssh -p 2222 kirill@$HOME_SERVER_IP "cd /opt/vera-bot-test && git fetch origin master && git reset --hard origin/master && bash scripts/deploy_test_server.sh"
+  only:
+    - master
+
+deploy-production:
+  stage: deploy
+  image: alpine:latest
+  needs: ["run-tests"] # Only allow prod if tests pass
+  when: manual # Manual trigger only
+  before_script:
+    - "which ssh-agent || ( apk add --update openssh )"
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - ssh-keyscan -p 2222 $HOME_SERVER_IP >> ~/.ssh/known_hosts
+    - chmod 644 ~/.ssh/known_hosts
+  script:
+    - echo "🚀 Manually deploying to PRODUCTION Environment..."
+    - ssh -p 2222 kirill@$HOME_SERVER_IP "cd /opt/vera-bot && git fetch origin master && git reset --hard origin/master && bash scripts/deploy_home_server.sh"
   only:
     - master
