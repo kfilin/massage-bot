@@ -276,7 +276,12 @@ func (a *adapter) Delete(ctx context.Context, id string) error {
 	monitoring.ApiLatency.WithLabelValues("google", "delete_event").Observe(duration)
 
 	if err != nil {
-		if isNotFound(err) {
+		if isNotFound(err) || isGone(err) {
+			if isGone(err) {
+				// If it's already "gone" (410), that means it's deleted. We can consider this a success.
+				logging.Infof("Event %s was already deleted (410 Gone). treating as success.", id)
+				return nil
+			}
 			return domain.ErrAppointmentNotFound
 		}
 		return fmt.Errorf("failed to delete calendar event: %w", err)
@@ -290,6 +295,13 @@ func isNotFound(err error) bool {
 	// Check the status code. 404 is typically "not found"
 	if gErr, ok := err.(*googleapi.Error); ok {
 		return gErr.Code == http.StatusNotFound
+	}
+	return false
+}
+
+func isGone(err error) bool {
+	if gErr, ok := err.(*googleapi.Error); ok {
+		return gErr.Code == http.StatusGone
 	}
 	return false
 }
