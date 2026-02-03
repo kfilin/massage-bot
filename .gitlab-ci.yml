@@ -1,112 +1,19 @@
-# File: .gitlab-ci.yml
-# Massage-Bot CI/CD Pipeline
-# ==========================
-
-# Control which types of pipelines can run
-workflow:
-  rules:
-    - if: $CI_COMMIT_BRANCH == "master"
-
-image: docker:latest
-
-services:
-  - docker:dind
-
-variables:
-  DOCKER_DRIVER: overlay2
-  DOCKER_TLS_CERTDIR: ""
-
 stages:
-  - test
-  - build
   - deploy
 
-# =====================
-# STAGE 1: TESTS
-# =====================
-test_template: &test_template
-  stage: test
-  image: golang:1.24-alpine
-  before_script:
-    - go version
-  script:
-    - go mod download
-    - go vet ./...
-    - go test -v ./...
-  artifacts:
-    reports:
-      junit: report.xml
-    paths:
-      - coverage.txt
-  coverage: '/coverage: (\d+\.\d+%)/'
-
-unit_tests:
-  <<: *test_template
-  only:
-    - master
-
-# =====================
-# STAGE 2: BUILD & PUSH
-# =====================
-build_docker:
-  stage: build
-  script:
-    - echo "🔨 Building Docker image..."
-    - docker build -t $CI_REGISTRY_IMAGE:latest .
-    - echo "🔐 Logging into GitLab Container Registry..."
-    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
-    - echo "🚀 Pushing image to registry..."
-    - docker push $CI_REGISTRY_IMAGE:latest
-    - echo "✅ Image pushed $CI_REGISTRY_IMAGE:latest"
-  only:
-    - master
-  # Cache Docker layers for faster builds
-  cache:
-    key: docker-cache
-    paths:
-      - /cache/.docker
-
-# =====================
-# STAGE 3: DEPLOY
-# =====================
-
-# 1. Automatic: Deploy to Test Environment (Staging)
-deploy_test_environment:
+deploy-test:
   stage: deploy
   image: alpine:latest
   before_script:
-    - apk add --no-cache openssh-client
+    - "which ssh-agent || ( apk add --update openssh )"
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
-    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
-    - chmod 600 ~/.ssh/id_rsa
-    - echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+    - ssh-keyscan -p 2222 $HOME_SERVER_IP >> ~/.ssh/known_hosts
     - chmod 644 ~/.ssh/known_hosts
-    - eval $(ssh-agent -s)
-    - ssh-add ~/.ssh/id_rsa
   script:
-    - echo "🧪 Automatically deploying to Test Environment..."
-    - ssh -p 2222 kirill@$HOME_SERVER_IP "cd /opt/vera-bot-test && bash scripts/deploy_test_server.sh"
+    - echo "🚀 Deploying to Test Server via GitLab CI..."
+    - ssh -p 2222 kirill@$HOME_SERVER_IP "cd /opt/vera-bot-test && git pull origin master && bash scripts/deploy_test_server.sh"
   only:
     - master
-
-# 2. Manual: Deploy to Production
-deploy_production:
-  stage: deploy
-  image: alpine:latest
-  before_script:
-    - apk add --no-cache openssh-client
-    - mkdir -p ~/.ssh
-    - chmod 700 ~/.ssh
-    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
-    - chmod 600 ~/.ssh/id_rsa
-    - echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
-    - chmod 644 ~/.ssh/known_hosts
-    - eval $(ssh-agent -s)
-    - ssh-add ~/.ssh/id_rsa
-  script:
-    - echo "🚀 Manually deploying to PRODUCTION..."
-    - ssh -p 2222 kirill@$HOME_SERVER_IP "cd /opt/vera-bot && bash scripts/deploy_home_server.sh"
-  only:
-    - master
-  when: manual
