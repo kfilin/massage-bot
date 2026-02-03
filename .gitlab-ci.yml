@@ -1,5 +1,6 @@
 stages:
   - test
+  - build
   - deploy
 
 variables:
@@ -17,7 +18,21 @@ run-tests:
     - go test -race -short ./...
 
 # =====================
-# STAGE 2: DEPLOY (TEST & PROD)
+# STAGE 2: BUILD
+# =====================
+build-image:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - echo "🏗 Building Docker image..."
+    - docker build -t massage-bot:latest .
+    # Note: We aren't pushing to a registry yet (using local build on server),
+    # but this stage validates the Dockerfile itself is buildable.
+
+# =====================
+# STAGE 3: DEPLOY (TEST & PROD)
 # =====================
 deploy-test:
   stage: deploy
