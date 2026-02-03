@@ -178,3 +178,7 @@ func TestHandleBlock(t *testing.T) {
 		})
 	}
 }
+
+func (m *mockRepository) DeleteAppointment(appointmentID string) error {
+	return nil
+}

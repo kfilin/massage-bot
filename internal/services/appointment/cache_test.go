@@ -49,7 +49,7 @@ func (m *MockRepoForCache) SyncAll() error                                      
 
 func TestService_FreeBusyCache(t *testing.T) {
 	mockRepo := new(MockRepoForCache)
-	svc := NewService(mockRepo)
+	svc := NewService(mockRepo, nil)
 	ctx := context.Background()
 
 	// Setup time range
@@ -76,7 +76,7 @@ func TestService_FreeBusyCache(t *testing.T) {
 
 func TestService_CacheInvalidation_OnCreate(t *testing.T) {
 	mockRepo := new(MockRepoForCache)
-	svc := NewService(mockRepo)
+	svc := NewService(mockRepo, nil)
 	ctx := context.Background()
 	now := time.Now()
 	// Use tomorrow for both warm-up and creation to ensures cache hit and valid future appointment

@@ -25,6 +25,7 @@ type Repository interface {
 	MigrateFolderNames() error
 	GetAppointmentHistory(telegramID string) ([]domain.Appointment, error)
 	UpsertAppointments(appts []domain.Appointment) error
+	DeleteAppointment(appointmentID string) error
 
 	// Appointment Metadata (Reminders/Confirmations)
 	SaveAppointmentMetadata(apptID string, confirmedAt *time.Time, remindersSent map[string]bool) error

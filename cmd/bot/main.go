@@ -68,7 +68,7 @@ func main() {
 	logging.Info("Appointment repository (Google Calendar adapter) initialized.")
 
 	// 4. Initialize AppointmentService (business logic)
-	appointmentService := appointment.NewService(appointmentRepo)
+	appointmentService := appointment.NewService(appointmentRepo, patientRepo)
 	logging.Info("Appointment service initialized.")
 
 	// 5. Initialize SessionStorage (using PostgreSQL persistence)

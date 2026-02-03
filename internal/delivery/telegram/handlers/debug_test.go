@@ -47,3 +47,7 @@ func TestAdminLogic(t *testing.T) {
 		t.Logf("Success: User ID %d IS recognized as admin.", userID)
 	}
 }
+
+func (m *mockRepository) DeleteAppointment(appointmentID string) error {
+	return nil
+}

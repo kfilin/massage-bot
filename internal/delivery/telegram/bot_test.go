@@ -245,6 +245,10 @@ func (m *mockRepository) GetAppointmentMetadata(apptID string) (*time.Time, map[
 	return nil, make(map[string]bool), nil
 }
 
+func (m *mockRepository) DeleteAppointment(appointmentID string) error {
+	return nil
+}
+
 // mockTranscriptionService implements ports.TranscriptionService
 type mockTranscriptionService struct{}
 

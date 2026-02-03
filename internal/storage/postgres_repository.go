@@ -761,3 +761,25 @@ func (r *PostgresRepository) GetAppointmentMetadata(apptID string) (*time.Time, 
 
 	return row.ConfirmedAt, remindersSent, nil
 }
+
+// DeleteAppointment deletes an appointment from the database by ID
+func (r *PostgresRepository) DeleteAppointment(appointmentID string) error {
+	query := `DELETE FROM appointments WHERE id = $1`
+	result, err := r.db.Exec(query, appointmentID)
+	if err != nil {
+		return fmt.Errorf("failed to delete appointment from database: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		logging.Debugf("DeleteAppointment: No rows deleted for appointment ID %s (may not exist in DB)", appointmentID)
+	} else {
+		logging.Debugf("DeleteAppointment: Successfully deleted appointment ID %s from database", appointmentID)
+	}
+
+	return nil
+}

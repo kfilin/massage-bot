@@ -92,7 +92,7 @@ func (m *mockRepo) ListCalendars(ctx context.Context) ([]string, error) {
 
 func TestService_FindByID(t *testing.T) {
 	repo := newMockRepo()
-	svc := NewService(repo)
+	svc := NewService(repo, nil)
 	existingAppt := &domain.Appointment{ID: "123", CustomerName: "Alice"}
 	repo.appointments["123"] = existingAppt
 
@@ -121,7 +121,7 @@ func TestService_FindByID(t *testing.T) {
 
 func TestService_CancelAppointment(t *testing.T) {
 	repo := newMockRepo()
-	svc := NewService(repo)
+	svc := NewService(repo, nil)
 	repo.appointments["valid"] = &domain.Appointment{ID: "valid"}
 
 	tests := []struct {
@@ -146,7 +146,7 @@ func TestService_CancelAppointment(t *testing.T) {
 
 func TestService_Getters(t *testing.T) {
 	repo := newMockRepo()
-	svc := NewService(repo)
+	svc := NewService(repo, nil)
 	ctx := context.Background()
 
 	// Available Services
@@ -229,7 +229,7 @@ func TestService_Getters(t *testing.T) {
 
 func TestService_CreateAppointment(t *testing.T) {
 	repo := newMockRepo()
-	svc := NewServiceWithMetrics(repo, &NoOpCollector{})
+	svc := NewServiceWithMetrics(repo, nil, &NoOpCollector{})
 
 	// Mock Now: 2023-10-25 10:00 (Wed)
 	mockNow := time.Date(2023, 10, 25, 10, 0, 0, 0, time.UTC)

@@ -34,6 +34,9 @@ type Service struct {
 	fbCache   map[string]freeBusyEntry
 
 	metrics MetricsCollector
+
+	// Database repository for local caching
+	dbRepo ports.Repository
 }
 
 type freeBusyEntry struct {
@@ -44,9 +47,10 @@ type freeBusyEntry struct {
 const cacheTTL = 2 * time.Minute
 
 // NewService creates a new appointment service with default dependencies.
-func NewService(repo ports.AppointmentRepository) *Service {
+func NewService(repo ports.AppointmentRepository, dbRepo ports.Repository) *Service {
 	return &Service{
 		repo:    repo,
+		dbRepo:  dbRepo,
 		NowFunc: time.Now, // Default to standard time.Now()
 		fbCache: make(map[string]freeBusyEntry),
 		metrics: NewPrometheusCollector(), // Default to Prometheus
@@ -54,9 +58,10 @@ func NewService(repo ports.AppointmentRepository) *Service {
 }
 
 // NewServiceWithMetrics creates a new appointment service with a custom metrics collector.
-func NewServiceWithMetrics(repo ports.AppointmentRepository, metrics MetricsCollector) *Service {
+func NewServiceWithMetrics(repo ports.AppointmentRepository, dbRepo ports.Repository, metrics MetricsCollector) *Service {
 	return &Service{
 		repo:    repo,
+		dbRepo:  dbRepo,
 		NowFunc: time.Now,
 		fbCache: make(map[string]freeBusyEntry),
 		metrics: metrics,
@@ -268,6 +273,14 @@ func (s *Service) CancelAppointment(ctx context.Context, appointmentID string) e
 		return fmt.Errorf("failed to delete appointment in repository: %w", err)
 	}
 	logging.Debugf("DEBUG: Appointment %s successfully cancelled.", appointmentID)
+
+	// Also delete from local database to prevent it from reappearing in TWA
+	if s.dbRepo != nil {
+		if err := s.dbRepo.DeleteAppointment(appointmentID); err != nil {
+			logging.Warnf("WARNING: Failed to delete appointment %s from local database: %v", appointmentID, err)
+			// Don't return error - appointment is already deleted from GCal
+		}
+	}
 
 	// Record cancellation metric
 	s.metrics.RecordAppointmentCancelled()
