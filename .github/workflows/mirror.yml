@@ -14,34 +14,18 @@ jobs:
           fetch-depth: 0
       - name: Mirror to GitLab
         env:
-          SSH_PRIVATE_KEY: ${{ secrets.GITLAB_SSH_PRIVATE_KEY }}
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
         run: |
           set -euo pipefail
 
-          if [ -z "${SSH_PRIVATE_KEY:-}" ]; then
-            echo "ERROR: GITLAB_SSH_PRIVATE_KEY is empty or not set"
+          if [ -z "${GITLAB_TOKEN:-}" ]; then
+            echo "ERROR: GITLAB_TOKEN is empty or not set"
             exit 1
           fi
 
-          mkdir -p ~/.ssh
-          # Write key preserving literal \n sequences if present
-          printf '%b' "$SSH_PRIVATE_KEY" > ~/.ssh/gitlab_key
-          chmod 600 ~/.ssh/gitlab_key
+          echo "=== Git Push via HTTPS ==="
+          git remote add gitlab https://oauth2:${GITLAB_TOKEN}@gitlab.com/kfilin/massage-bot.git || \
+            git remote set-url gitlab https://oauth2:${GITLAB_TOKEN}@gitlab.com/kfilin/massage-bot.git
 
-          # show derived public key so you can compare it with GitLab (safe to print)
-          echo "Derived public key from provided private key:"
-          ssh-keygen -y -f ~/.ssh/gitlab_key || { echo "Invalid private key"; exit 1; }
-
-          # add GitLab host key and use only our identity
-          ssh-keyscan -H gitlab.com >> ~/.ssh/known_hosts
-          export GIT_SSH_COMMAND="ssh -i ~/.ssh/gitlab_key -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes"
-
-          echo "=== SSH verbose test (authentication details follow) ==="
-          # Use -v to get authentication debug (will show why key was rejected)
-          ssh -vT git@gitlab.com || true
-
-          echo "=== Git Push ==="
-          git remote add gitlab git@gitlab.com:kfilin/massage-bot.git || git remote set-url gitlab git@gitlab.com:kfilin/massage-bot.git
-
-          # Try normal push first, fall back to forced push
           git push -v gitlab master || git push -v --force gitlab master
+          echo "Mirror complete!"
