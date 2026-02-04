@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v5.4.0] - 2026-02-04
+
+### Added
+
+- **Menu Button**: Added "Открыть карту" (Open Card) button for quick one-click access to the Telegram Web App directly from the bot's chat interface.
+
+### Fixed
+
+- **TWA Cancellation**: Fixed critical bug where cancelled appointments would reappear on patient cards after page refresh. Root cause was that cancellations only deleted from Google Calendar but not from the local database cache.
+- **Repository Interface**: Added `DeleteAppointment` method to properly remove cancelled appointments from both Google Calendar AND the local database.
+- **Menu Button Panic**: Fixed nil pointer dereference in SetMenuButton by using raw API call instead of telebot library method.
+
+### Changed
+
+- **Service Architecture**: Updated `appointment.Service` to include database repository for proper appointment lifecycle management.
+- **Test Coverage**: Expanded to **37.8%** overall (up from 19.5%, +18.3pp), exceeding the 30% target.
+
 ## [v5.3.7] - 2026-02-01
 
 ### Fixed

@@ -8,7 +8,7 @@ A professional clinical ecosystem for massage therapists. Features interactive b
 
 ## 🏗️ Technical Foundation
 
-- **Version**: v5.3.8 (Monitoring Config Added)
+- **Version**: v5.4.0 (TWA Bug Fixes & Menu Button)
 - **Language**: **Go 1.24** (Alpine-based)
 - **Database**: PostgreSQL 15 (Metadata & Sync Status)
 - **Clinical Storage**: **Markdown-mirrored Filesystem** (Clinical Storage 2.0)
@@ -53,10 +53,10 @@ A fully isolated environment running on `vera-bot-test.kfilin.icu`:
 
 ## 💎 Gold Standard Checkpoint
 
-- **Commit**: `87cf74a` (Monitoring Config Added)
-- **Date**: 2026-02-02
-- **Status**: **STABLE**. Added Monitoring Configuration files.
-- **Rollback**: `bf62cd0` (v5.3.7)
+- **Commit**: `1702a74` (TWA Bug Fixes & Menu Button)
+- **Date**: 2026-02-04
+- **Status**: **STABLE**. Fixed TWA cancellation bug, added menu button for quick TWA access.
+- **Rollback**: `87cf74a` (v5.3.8)
 
 ---
 

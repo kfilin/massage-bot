@@ -2,16 +2,23 @@
 
 # Developer Handoff
 
-**Current Status**: 🟢 STABLE (v5.3.7)
-**Last Commit**: `bf62cd0`
+**Current Status**: 🟢 STABLE (v5.4.0)
+**Last Commit**: `1702a74`
 
 ## ⚠️ Critical Context
 
-- **Docker Network**: Production and Test containers MUST NOT share the same Service Name alias on `caddy-test-net`. Currently, Test is STOPPED to prevent collision.
-- **Bot Startup**: The bot now starts asynchronously. Logs showing `DEBUG_RETRY` are NORMAL during network outages; do not panic if you see them. The WebApp remains functional.
+- **TWA Bug Fixed**: Cancelled appointments no longer reappear on patient cards. The fix deletes from both Google Calendar AND the local database.
+- **Menu Button Active**: Users now have a blue "Открыть карту" button for quick TWA access.
+- **Docker Network**: Production and Test containers MUST NOT share the same Service Name alias on `caddy-test-net`.
+
+## 📌 Session Accomplishments
+
+1. **Fixed TWA Cancellation Bug**: Added `DeleteAppointment` to Repository interface and PostgresRepository. Updated `CancelAppointment` to delete from local database.
+2. **Added Menu Button**: Implemented via raw API call (`setChatMenuButton`) to avoid telebot library nil pointer bug.
+3. **Test Coverage**: Expanded from 19.5% to 37.8% (+18.3pp), exceeding 30% target.
 
 ## 📌 Next Actions
 
-1. **Test Environment**: Rename the service in `docker-compose.test-override.yml` to fully avoid DNS collisions before restarting it.
-2. **Monitoring**: Keep an eye on `docker logs -f massage-bot` for `Incoming Request` logs to confirm traffic flow remains stable.
-3. **Clean Up**: Check `.agent/reports` and archive old stability reports.
+1. **Monitor**: Verify menu button appears for all users in production.
+2. **Test TWA**: Confirm cancelled appointments stay cancelled after refresh.
+3. **Optional**: Add tests for `internal/delivery/telegram/bot.go` and reminder service.
