@@ -45,6 +45,11 @@ data_test/
 verification-checklist.md
 docs/
 scripts/
+DEVELOPER.md
+USER_GUIDE.md
+USER_GUIDE_RU.md
+metrics.md
+VERA_GUIDE*.md
 postgres_data/
 postgres_data_test/
 postgres_data_dev/
