@@ -1,21 +1,43 @@
 # Docker ignore file
 .git
 .gitignore
+.dockerignore
 .agent/
 .gemini/
+
+# Documentation and Scripts
+docs/
+scripts/
 README.md
+CHANGELOG.md
+LICENSE
+USER_GUIDE.md
+USER_GUIDE_RU.md
+metrics.md
+DEVELOPER.md
+
+# Build and Development
 Dockerfile
-.dockerignore
+Makefile
 vendor/
 tmp/
+bin/
+*.test
+coverage.*
+verification-checklist.md
+
+# Logs and Data
 logs/
 *.log
-.env
-.env.local
-*.test
-coverage.txt
-postgres_data/
-postgres_data_dev/
-postgres_data_test/
-postgres_data_prod/
 data/
+data_test/
+postgres_data*/
+.postgres_data*/
+telegram_api_data*/
+.telegram_api_data*/
+
+# Secrets and Configs
+.env*
+config.yml
+credentials.json
+gitlab-kubeconfig-final.yaml

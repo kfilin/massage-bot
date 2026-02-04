@@ -43,6 +43,8 @@ data_test/
 .agent/
 .gemini/
 verification-checklist.md
+docs/
+scripts/
 postgres_data/
 postgres_data_test/
 postgres_data_dev/
@@ -63,5 +65,3 @@ docker-compose.override.yml
 !deploy/docker-compose.example.yml
 !deploy/docker-compose.test.yml
 !deploy/Caddyfile.example
-VERA_GUIDE.md
-docs/ProdArchitecture.md
