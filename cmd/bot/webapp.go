@@ -300,6 +300,10 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 			return
 		}
 
+		// DEBUG: Show secret info for troubleshooting
+		expected := generateHMAC(id, secret)
+		logging.Infof("[CANCEL_DEBUG] ID: %s, SecretLen: %d, ProvidedToken: %s, ExpectedToken: %s", id, len(secret), token, expected)
+
 		if !validateHMAC(id, token, secret) {
 			logging.Debugf(" [WebApp]: Invalid Token for ID: %s. Provided: %s", id, token)
 			w.Header().Set("Content-Type", "application/json")
