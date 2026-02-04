@@ -17,22 +17,17 @@ jobs:
           SSH_PRIVATE_KEY: ${{ secrets.GITLAB_SSH_PRIVATE_KEY }}
         run: |
           mkdir -p ~/.ssh
-          printf "%s\n" "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
+          # Ensure key ends with a literal newline
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/gitlab_key
+          if ! [ -s ~/.ssh/gitlab_key ]; then echo "Secret is empty!"; exit 1; fi
+          
+          chmod 600 ~/.ssh/gitlab_key
           ssh-keyscan -H gitlab.com >> ~/.ssh/known_hosts
           
-          echo "=== Debug Info ==="
-          echo "Key Fingerprint:"
-          ssh-keygen -l -f ~/.ssh/id_rsa
+          echo "=== SSH Connection Test ==="
+          # Testing connection ignoring common agent issues
+          SSH_AUTH_SOCK="" ssh -i ~/.ssh/gitlab_key -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -T git@gitlab.com || true
           
-          echo ""
-          echo "DERIVED PUBLIC KEY (Compare this to the one in GitLab):"
-          ssh-keygen -y -f ~/.ssh/id_rsa
-          echo "=== End Debug Info ==="
-          
-          echo ""
-          echo "Connecting to GitLab..."
-          SSH_AUTH_SOCK="" ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -T git@gitlab.com || true
-          
+          echo "=== Git Push ==="
           git remote add gitlab git@gitlab.com:kfilin/massage-bot.git || git remote set-url gitlab git@gitlab.com:kfilin/massage-bot.git
-          GIT_SSH_COMMAND="ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no" git push --force gitlab HEAD:master
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/gitlab_key -o StrictHostKeyChecking=no -o IdentitiesOnly=yes" git push --force gitlab HEAD:master
