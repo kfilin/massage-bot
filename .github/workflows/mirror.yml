@@ -17,14 +17,22 @@ jobs:
           SSH_PRIVATE_KEY: ${{ secrets.GITLAB_SSH_PRIVATE_KEY }}
         run: |
           mkdir -p ~/.ssh
-          # Use printf to ensure a trailing newline is present, which SSH requires
           printf "%s\n" "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H gitlab.com >> ~/.ssh/known_hosts
           
-          echo "=== SSH Connection Test ==="
+          echo "=== Debug Info ==="
+          echo "Key Fingerprint:"
+          ssh-keygen -l -f ~/.ssh/id_rsa
+          
+          echo ""
+          echo "DERIVED PUBLIC KEY (Compare this to the one in GitLab):"
+          ssh-keygen -y -f ~/.ssh/id_rsa
+          echo "=== End Debug Info ==="
+          
+          echo ""
+          echo "Connecting to GitLab..."
           SSH_AUTH_SOCK="" ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -T git@gitlab.com || true
           
-          echo "=== Git Push ==="
           git remote add gitlab git@gitlab.com:kfilin/massage-bot.git || git remote set-url gitlab git@gitlab.com:kfilin/massage-bot.git
           GIT_SSH_COMMAND="ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no" git push --force gitlab HEAD:master
