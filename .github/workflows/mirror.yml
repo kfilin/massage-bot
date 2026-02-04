@@ -2,7 +2,8 @@ name: Mirror to GitLab
 
 on:
   push:
-    branches: [master] # Mirror enabled for master branch
+    branches: [master]
+  workflow_dispatch:
 
 jobs:
   mirror:
@@ -19,5 +20,9 @@ jobs:
           echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H gitlab.com >> ~/.ssh/known_hosts
+          
+          echo "Testing SSH connection to GitLab..."
+          SSH_AUTH_SOCK="" ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -T git@gitlab.com || true
+          
           git remote add gitlab git@gitlab.com:kfilin/massage-bot.git || git remote set-url gitlab git@gitlab.com:kfilin/massage-bot.git
           GIT_SSH_COMMAND="ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no" git push --force gitlab HEAD:master
