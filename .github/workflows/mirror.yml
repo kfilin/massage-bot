@@ -16,18 +16,32 @@ jobs:
         env:
           SSH_PRIVATE_KEY: ${{ secrets.GITLAB_SSH_PRIVATE_KEY }}
         run: |
+          set -euo pipefail
+
+          if [ -z "${SSH_PRIVATE_KEY:-}" ]; then
+            echo "ERROR: GITLAB_SSH_PRIVATE_KEY is empty or not set"
+            exit 1
+          fi
+
           mkdir -p ~/.ssh
-          echo "$SSH_PRIVATE_KEY" > ~/.ssh/gitlab_key
+          # Write key preserving literal \n sequences if present
+          printf '%b' "$SSH_PRIVATE_KEY" > ~/.ssh/gitlab_key
           chmod 600 ~/.ssh/gitlab_key
+
+          # show derived public key so you can compare it with GitLab (safe to print)
+          echo "Derived public key from provided private key:"
+          ssh-keygen -y -f ~/.ssh/gitlab_key || { echo "Invalid private key"; exit 1; }
+
+          # add GitLab host key and use only our identity
           ssh-keyscan -H gitlab.com >> ~/.ssh/known_hosts
-          
-          export GIT_SSH_COMMAND="ssh -i ~/.ssh/gitlab_key -o StrictHostKeyChecking=no -o IdentitiesOnly=yes"
-          
-          echo "=== SSH Test ==="
-          ssh -T git@gitlab.com || true
-          
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/gitlab_key -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes"
+
+          echo "=== SSH verbose test (authentication details follow) ==="
+          # Use -v to get authentication debug (will show why key was rejected)
+          ssh -vT git@gitlab.com || true
+
           echo "=== Git Push ==="
           git remote add gitlab git@gitlab.com:kfilin/massage-bot.git || git remote set-url gitlab git@gitlab.com:kfilin/massage-bot.git
-          
-          # Try standard push first, fall back to force if needed
+
+          # Try normal push first, fall back to forced push
           git push -v gitlab master || git push -v --force gitlab master
