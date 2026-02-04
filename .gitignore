@@ -44,7 +44,7 @@ data_test/
 .gemini/
 verification-checklist.md
 docs/
-scripts/
+# scripts/ - REMOVED: deploy scripts need to be tracked
 DEVELOPER.md
 USER_GUIDE.md
 USER_GUIDE_RU.md
