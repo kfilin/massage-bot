@@ -1,7 +1,8 @@
-name: Test Runner Availability
+name: Test
 on: [push, workflow_dispatch]
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - run: echo "GitHub Runner is Working!"
+      - name: Hello
+        run: echo "Runner is alive"
