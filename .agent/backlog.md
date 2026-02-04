@@ -57,4 +57,69 @@
 - **Note**: System currently healthy internally but failing to reach Telegram API.
 
 ---
-*Last updated: 2026-02-01*
+
+## 🎨 TWA UI/UX Improvements (Added 2026-02-04)
+
+### 17. [DONE] Quick Wins - Dark Mode, Animations, Loading States
+
+- **Status**: Completed in v5.4.0.
+- **Resolution**: Added dark mode support, section fade-in animations, button loading states, and visual differentiation for upcoming vs history sections.
+
+### 18. [TODO] Stat Cards - Information Density
+
+- **Priority**: High
+- On mobile, stat cards stack vertically taking too much space
+- "Обновлено" is less useful than showing "Next Appointment"  
+- **Idea**: Combine first visit + total visits in one card
+
+### 19. [TODO] Accessibility Improvements
+
+- **Priority**: High
+- Add `aria-labels` on interactive elements
+- Add `:focus-visible` styles for keyboard navigation
+- Improve contrast ratios for muted text
+
+### 20. [TODO] Empty States Enhancement
+
+- **Priority**: High
+- Current "Документов пока нет" is plain text
+- **Idea**: Add icon/illustration and call-to-action
+
+### 21. [TODO] History List Pagination
+
+- **Priority**: Medium
+- If patient has 50+ visits, page gets very long
+- **Idea**: "Show more" button or virtual scrolling
+
+### 22. [TODO] Visual Hierarchy Enhancement
+
+- **Priority**: Medium
+- Voice Transcripts section could have distinct styling
+- Documents section could show file type icons
+
+### 23. [TODO] Success Feedback
+
+- **Priority**: Medium
+- After successful cancellation, show success toast/banner before reload
+- Add subtle success animation
+
+### 24. [TODO] Offline Support
+
+- **Priority**: Low
+- Add service worker for offline viewing of cached data
+- Show "offline" indicator when disconnected
+
+### 25. [TODO] Print Optimization
+
+- **Priority**: Low
+- Add `@media print` styles for proper printing
+- Hide interactive elements in print view
+
+### 26. [TODO] Performance Optimization
+
+- **Priority**: Low
+- Lazy load history items below the fold
+- Consider skeleton loading states for slow connections
+
+---
+*Last updated: 2026-02-04*
