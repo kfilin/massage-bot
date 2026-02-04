@@ -66,36 +66,40 @@ jobs:
   # =====================
   # STAGE 3: DEPLOY
   # =====================
-  deploy-test:
-    name: Deploy to Test (Staging)
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.HOME_SERVER_IP }}
-          username: kirill
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 2222
-          script: |
-            echo "🧪 Automatically deploying to Test Environment..."
-            cd /opt/vera-bot-test && bash scripts/deploy_test_server.sh
-
-  deploy-production:
-    name: Deploy to Production
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' # Manual trigger only
-    steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.HOME_SERVER_IP }}
-          username: kirill
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 2222
-          script: |
-            echo "🚀 Manually deploying to PRODUCTION..."
-            cd /opt/vera-bot && bash scripts/deploy_home_server.sh
+  # NOTE: Deploy stages disabled - GitLab CI/CD handles all deployments.
+  # The mirror.yml workflow syncs code to GitLab, which then triggers deploys.
+  # Keeping this commented for reference.
+  #
+  # deploy-test:
+  #   name: Deploy to Test (Staging)
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+  #   steps:
+  #     - name: Deploy via SSH
+  #       uses: appleboy/ssh-action@v1.0.0
+  #       with:
+  #         host: ${{ secrets.HOME_SERVER_IP }}
+  #         username: kirill
+  #         key: ${{ secrets.SSH_PRIVATE_KEY }}
+  #         port: 2222
+  #         script: |
+  #           echo "🧪 Automatically deploying to Test Environment..."
+  #           cd /opt/vera-bot-test && bash scripts/deploy_test_server.sh
+  #
+  # deploy-production:
+  #   name: Deploy to Production
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   if: github.event_name == 'workflow_dispatch' # Manual trigger only
+  #   steps:
+  #     - name: Deploy via SSH
+  #       uses: appleboy/ssh-action@v1.0.0
+  #       with:
+  #         host: ${{ secrets.HOME_SERVER_IP }}
+  #         username: kirill
+  #         key: ${{ secrets.SSH_PRIVATE_KEY }}
+  #         port: 2222
+  #         script: |
+  #           echo "🚀 Manually deploying to PRODUCTION..."
+  #           cd /opt/vera-bot && bash scripts/deploy_home_server.sh

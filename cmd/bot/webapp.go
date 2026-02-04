@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/kfilin/massage-bot/internal/logging"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -15,6 +14,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/kfilin/massage-bot/internal/logging"
 
 	"github.com/kfilin/massage-bot/internal/domain"
 	"github.com/kfilin/massage-bot/internal/ports"
@@ -279,7 +280,9 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 
 	mux.HandleFunc("/cancel", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Method not allowed"})
 			return
 		}
 
@@ -291,13 +294,17 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 
 		if id == "" || token == "" || apptID == "" {
 			logging.Debugf(" [WebApp]: Missing parameters in /cancel")
-			http.Error(w, "Missing parameters", http.StatusBadRequest)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Missing parameters"})
 			return
 		}
 
 		if !validateHMAC(id, token, secret) {
 			logging.Debugf(" [WebApp]: Invalid Token for ID: %s. Provided: %s", id, token)
-			http.Error(w, "Invalid token", http.StatusUnauthorized)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Недействительный токен"})
 			return
 		}
 
@@ -313,7 +320,9 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 
 		if appt.CustomerTgID != id {
 			logging.Errorf("Cancel Error: Appt %s (Owner: %s) access denied for User %s", apptID, appt.CustomerTgID, id)
-			http.Error(w, "Forbidden", http.StatusForbidden)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Доступ запрещен"})
 			return
 		}
 
