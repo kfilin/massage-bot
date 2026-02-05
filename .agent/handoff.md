@@ -2,41 +2,33 @@
 
 ## Current Status
 
-**Version**: v5.5.0 (GitLab CI/CD + TWA InitData Auth)  
-**Commit**: `1962a7b`  
+**Version**: v5.5.0 (Admin TWA Enhancements + HMAC Fix)
 **Date**: 2026-02-05
 
 ## Critical Context
 
-### CI/CD Flow (NEW)
+### 1. Admin TWA (NEW)
 
-1. Push to GitHub → triggers `ci.yml` (tests only) + `mirror.yml` (syncs to GitLab)
-2. GitLab receives push → triggers full pipeline (test → build → deploy)
-3. GitHub deploys **disabled** - GitLab handles all deployments
+- **Features**: List all patients (autoload on empty query) + Override 72h cancellation rule.
+- **Bot Integration**: Added `/patients` command for quick access.
 
-### TWA Authentication (FIXED)
+### 2. Ops Improvements (FIXED)
 
-- Cancel uses `window.Telegram.WebApp.initData` (not URL tokens)
-- Validated server-side with `validateInitData()` using bot token
-- Session-based, never expires - immune to deploy-related token issues
+- **Invalid Token**: Fixed HMAC whitespace mismatch. Backend and Frontend now trim IDs.
+- **Documentation**: `Collaboration-Blueprint.md` consolidated to "Gold Standard". `files.md` updated.
 
-### Required Secrets
+## Next Steps
 
-- **GitHub**: `GITLAB_TOKEN` (GitLab PAT with `write_repository` scope)
-- **GitLab**: `HOME_SERVER_IP`, `SSH_PRIVATE_KEY` (for deploy SSH)
-
-## Technical Debt
-
-1. DB logs very verbose - consider `log_statement=none` for production
-2. TWA UI improvements backlogged (IDs 18-26 in `backlog.md`)
+1. Monitor "Invalid Token" errors in logs (should be zero now).
+2. Begin addressing **TWA UI Improvements** in Backlog (IDs 18-26).
+3. Consider DB log verbosity reduction.
 
 ## Quick Commands
 
 ```bash
-# Deploy
-./scripts/deploy_home_server.sh    # Production
-./scripts/deploy_test_server.sh    # Test
-
 # Verify
 make test && go build ./...
+
+# Bot Admin
+/patients   # List recent patients in bot
 ```
