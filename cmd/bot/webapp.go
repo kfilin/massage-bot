@@ -279,52 +279,55 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 	mux.HandleFunc("/card", handler)
 
 	mux.HandleFunc("/cancel", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
 		if r.Method != http.MethodPost {
-			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Method not allowed"})
 			return
 		}
 
-		id := r.URL.Query().Get("id")
-		token := r.URL.Query().Get("token")
-		apptID := r.URL.Query().Get("apptId")
+		// Parse JSON body
+		var reqBody struct {
+			InitData string `json:"initData"`
+			ApptID   string `json:"apptId"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+			logging.Debugf(" [WebApp]: Failed to parse /cancel body: %v", err)
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Invalid request"})
+			return
+		}
 
-		logging.Debugf(" [WebApp]: Incoming /cancel - id: %s, token: %s, apptID: %s", id, token, apptID)
-
-		if id == "" || token == "" || apptID == "" {
+		if reqBody.InitData == "" || reqBody.ApptID == "" {
 			logging.Debugf(" [WebApp]: Missing parameters in /cancel")
-			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Missing parameters"})
 			return
 		}
 
-		// DEBUG: Show secret info for troubleshooting
-		expected := generateHMAC(id, secret)
-		logging.Infof("[CANCEL_DEBUG] ID: %s, SecretLen: %d, ProvidedToken: %s, ExpectedToken: %s", id, len(secret), token, expected)
-
-		if !validateHMAC(id, token, secret) {
-			logging.Debugf(" [WebApp]: Invalid Token for ID: %s. Provided: %s", id, token)
-			w.Header().Set("Content-Type", "application/json")
+		// Validate using Telegram's native initData (bulletproof, never expires)
+		userID, userName, err := validateInitData(reqBody.InitData, botToken)
+		if err != nil {
+			logging.Debugf(" [WebApp]: initData validation failed: %v", err)
 			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Недействительный токен"})
+			json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Сессия недействительна. Закройте и откройте мед-карту заново."})
 			return
 		}
 
+		logging.Debugf(" [WebApp]: Validated cancel request from user %s (%s)", userID, userName)
+
 		// Security: Ensure the appointment belongs to the user
-		appt, err := apptService.FindByID(r.Context(), apptID)
+		appt, err := apptService.FindByID(r.Context(), reqBody.ApptID)
 		if err != nil {
-			logging.Errorf("Cancel Error: Appt %s not found: %v", apptID, err)
-			w.Header().Set("Content-Type", "application/json")
+			logging.Errorf("Cancel Error: Appt %s not found: %v", reqBody.ApptID, err)
 			w.WriteHeader(http.StatusNotFound)
 			json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Запись не найдена"})
 			return
 		}
 
-		if appt.CustomerTgID != id {
-			logging.Errorf("Cancel Error: Appt %s (Owner: %s) access denied for User %s", apptID, appt.CustomerTgID, id)
-			w.Header().Set("Content-Type", "application/json")
+		if appt.CustomerTgID != userID {
+			logging.Errorf("Cancel Error: Appt %s (Owner: %s) access denied for User %s", reqBody.ApptID, appt.CustomerTgID, userID)
 			w.WriteHeader(http.StatusForbidden)
 			json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Доступ запрещен"})
 			return
@@ -333,7 +336,6 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 		// Enforce 72h rule
 		now := time.Now().In(domain.ApptTimeZone)
 		if appt.StartTime.Sub(now) < 72*time.Hour {
-			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{
 				"status": "error",
@@ -342,16 +344,15 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 			return
 		}
 
-		err = apptService.CancelAppointment(r.Context(), apptID)
+		err = apptService.CancelAppointment(r.Context(), reqBody.ApptID)
 		if err != nil {
-			logging.Errorf("Cancel Error: Failed to cancel appt %s: %v", apptID, err)
-			w.Header().Set("Content-Type", "application/json")
+			logging.Errorf("Cancel Error: Failed to cancel appt %s: %v", reqBody.ApptID, err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Не удалось отменить запись"})
 			return
 		}
 
-		logging.Infof("TWA: User %s cancelled appointment %s", id, apptID)
+		logging.Infof("TWA: User %s cancelled appointment %s", userID, reqBody.ApptID)
 
 		// NOTIFY VIA BOT
 		notificationMsg := fmt.Sprintf("⚠️ *Запись отменена!*\n\nПациент: %s\nДата: %s\nУслуга: %s",
@@ -365,9 +366,8 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 		// 2. Notify Patient (Push confirmation)
 		patientMsg := fmt.Sprintf("✅ *Вы успешно отменили запись:*\n\n📅 %s\n💆 %s\n\nЖдем вас в другой раз!",
 			appt.StartTime.In(domain.ApptTimeZone).Format("02.01.2006 15:04"), appt.Service.Name)
-		sendTelegramMessage(botToken, id, patientMsg)
+		sendTelegramMessage(botToken, userID, patientMsg)
 
-		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
 

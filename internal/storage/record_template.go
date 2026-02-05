@@ -24,9 +24,6 @@ const medicalRecordTemplate = `
 
         async function cancelAppointment(apptId, btn) {
             const tg = window.Telegram.WebApp;
-            const url = new URL(window.location.href);
-            const id = url.searchParams.get('id');
-            const token = url.searchParams.get('token');
 
             // Add loading state to button
             if (btn) {
@@ -35,11 +32,17 @@ const medicalRecordTemplate = `
             }
 
             try {
-                const resp = await fetch("/cancel?id=" + id + "&token=" + token + "&apptId=" + apptId, { 
+                // Use Telegram's native initData for auth (never expires)
+                const resp = await fetch("/cancel", { 
                     method: "POST",
                     headers: {
+                        "Content-Type": "application/json",
                         "ngrok-skip-browser-warning": "true"
-                    }
+                    },
+                    body: JSON.stringify({
+                        initData: tg.initData,
+                        apptId: apptId
+                    })
                 });
                 const result = await resp.json();
                 
@@ -51,7 +54,7 @@ const medicalRecordTemplate = `
                         btn.classList.remove('loading');
                         btn.textContent = 'Отменить';
                     }
-                    tg.showAlert("Ошибка: " + (result.error || "Не удалось отменить запись. Возможно, до приема менее 72 часов."));
+                    tg.showAlert("Ошибка: " + (result.error || "Не удалось отменить запись."));
                 }
             } catch (e) {
                 // Remove loading state on network error
@@ -62,6 +65,7 @@ const medicalRecordTemplate = `
                 tg.showAlert("Ошибка сети при отмене записи.");
             }
         }
+
 
         function updateCountdown() {
             const nextUnix = {{.NextApptUnix}};
