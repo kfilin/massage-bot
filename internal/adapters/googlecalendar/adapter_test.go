@@ -90,7 +90,9 @@ func TestAdapter_Create(t *testing.T) {
 					End:     &calendar.EventDateTime{DateTime: time.Now().Add(time.Hour).Format(time.RFC3339)},
 					Status:  "confirmed",
 				}
-				json.NewEncoder(w).Encode(resp)
+				if err := json.NewEncoder(w).Encode(resp); err != nil {
+					t.Errorf("Failed to encode response: %v", err)
+				}
 			},
 			wantErr: false,
 			checkID: true,
@@ -159,7 +161,9 @@ func TestAdapter_FindByID(t *testing.T) {
 					End:     &calendar.EventDateTime{DateTime: time.Now().Add(time.Hour).Format(time.RFC3339)},
 					Status:  "confirmed",
 				}
-				json.NewEncoder(w).Encode(resp)
+				if err := json.NewEncoder(w).Encode(resp); err != nil {
+					t.Errorf("Failed to encode response: %v", err)
+				}
 			},
 			wantErr:  false,
 			wantName: "John Doe",
@@ -270,7 +274,9 @@ func TestAdapter_FindAll(t *testing.T) {
 						},
 					},
 				}
-				json.NewEncoder(w).Encode(resp)
+				if err := json.NewEncoder(w).Encode(resp); err != nil {
+					t.Errorf("Failed to encode response: %v", err)
+				}
 			},
 			wantErr:   false,
 			wantCount: 2,
@@ -281,7 +287,7 @@ func TestAdapter_FindAll(t *testing.T) {
 				resp := &calendar.Events{
 					Items: []*calendar.Event{},
 				}
-				json.NewEncoder(w).Encode(resp)
+				_ = json.NewEncoder(w).Encode(resp)
 			},
 			wantErr:   false,
 			wantCount: 0,
@@ -340,7 +346,7 @@ func TestAdapter_FindEvents(t *testing.T) {
 						},
 					},
 				}
-				json.NewEncoder(w).Encode(resp)
+				_ = json.NewEncoder(w).Encode(resp)
 			},
 			wantErr:   false,
 			wantCount: 1,
@@ -353,7 +359,7 @@ func TestAdapter_FindEvents(t *testing.T) {
 				resp := &calendar.Events{
 					Items: []*calendar.Event{},
 				}
-				json.NewEncoder(w).Encode(resp)
+				_ = json.NewEncoder(w).Encode(resp)
 			},
 			wantErr:   false,
 			wantCount: 0,
@@ -412,7 +418,7 @@ func TestAdapter_GetFreeBusy(t *testing.T) {
 						},
 					},
 				}
-				json.NewEncoder(w).Encode(resp)
+				_ = json.NewEncoder(w).Encode(resp)
 			},
 			wantErr:   false,
 			wantSlots: 2,
@@ -427,7 +433,7 @@ func TestAdapter_GetFreeBusy(t *testing.T) {
 						},
 					},
 				}
-				json.NewEncoder(w).Encode(resp)
+				_ = json.NewEncoder(w).Encode(resp)
 			},
 			wantErr:   false,
 			wantSlots: 0,
@@ -471,7 +477,7 @@ func TestAdapter_GetAccountInfo(t *testing.T) {
 					Id:      "primary",
 					Summary: "Test Calendar",
 				}
-				json.NewEncoder(w).Encode(resp)
+				_ = json.NewEncoder(w).Encode(resp)
 			},
 			wantErr:   false,
 			wantEmail: "Test Calendar",
@@ -521,7 +527,7 @@ func TestAdapter_ListCalendars(t *testing.T) {
 						{Id: "calendar2@example.com", Summary: "Calendar 2"},
 					},
 				}
-				json.NewEncoder(w).Encode(resp)
+				_ = json.NewEncoder(w).Encode(resp)
 			},
 			wantErr:   false,
 			wantCount: 2,
@@ -532,7 +538,7 @@ func TestAdapter_ListCalendars(t *testing.T) {
 				resp := &calendar.CalendarList{
 					Items: []*calendar.CalendarListEntry{},
 				}
-				json.NewEncoder(w).Encode(resp)
+				_ = json.NewEncoder(w).Encode(resp)
 			},
 			wantErr:   false,
 			wantCount: 0,

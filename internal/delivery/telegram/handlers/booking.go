@@ -69,11 +69,19 @@ func (h *BookingHandler) HandleStart(c telebot.Context) error {
 	h.sessionStorage.ClearSession(userID)
 
 	// First, send the persistent main menu
-	c.Send("💆 Добро пожаловать!", h.GetMainMenu())
+	// Send welcome message
+	if err := c.Send("💆 Добро пожаловать!", h.GetMainMenu()); err != nil {
+		logging.Warnf("Failed to send welcome message: %v", err)
+	}
 
 	h.sessionStorage.Set(userID, SessionKeyIsAdminBlock, false)
 
-	h.repository.LogEvent(strconv.FormatInt(userID, 10), "start_bot", nil)
+	// Async analytics
+	go func() {
+		if err := h.repository.LogEvent(strconv.FormatInt(userID, 10), "start_bot", nil); err != nil {
+			logging.Warnf("Failed to log start_bot event: %v", err)
+		}
+	}()
 
 	// Tentatively register patient if not exists to capture Telegram name
 	existingPatient, err := h.repository.GetPatient(strconv.FormatInt(userID, 10))
@@ -356,10 +364,15 @@ func (h *BookingHandler) HandleServiceSelection(c telebot.Context) error {
 	h.sessionStorage.Set(userID, SessionKeyService, chosenService)
 	logging.Debugf(": Service selected and stored in session for user %d: %s (ID: %s)", userID, chosenService.Name, chosenService.ID)
 
-	h.repository.LogEvent(strconv.FormatInt(userID, 10), "service_selected", map[string]interface{}{
-		"service_id":   chosenService.ID,
-		"service_name": chosenService.Name,
-	})
+	go func() {
+		if err := h.repository.LogEvent(strconv.FormatInt(userID, 10), "service_selected", map[string]interface{}{
+			"service_id":   chosenService.ID,
+			"service_name": chosenService.Name,
+			"price":        chosenService.Price,
+		}); err != nil {
+			logging.Warnf("Failed to log service_selected event: %v", err)
+		}
+	}()
 
 	// Ask for date
 	return h.askForDate(c, chosenService.Name)
@@ -585,7 +598,9 @@ func (h *BookingHandler) askForTime(c telebot.Context) error {
 		logging.Errorf(": Error getting available time slots for user %d: %v", userID, err)
 		// Clean up the calendar keyboard before showing the error
 		if c.Message() != nil {
-			c.Bot().EditReplyMarkup(c.Message(), nil)
+			if _, err := c.Bot().EditReplyMarkup(c.Message(), nil); err != nil {
+				logging.Warnf("Failed to remove inline keyboard: %v", err)
+			}
 		}
 		return c.Send("❌ Ошибка при получении слотов: " + err.Error() + "\n\nПожалуйста, начните заново: /start")
 	}
@@ -611,6 +626,11 @@ func (h *BookingHandler) askForTime(c telebot.Context) error {
 	replyKeyboard := h.getMainMenuWithBackBtn()
 
 	// Редактируем предыдущее сообщение (календарь) с новой инлайн-клавиатурой (слоты времени)
+	_, err = c.Bot().EditReplyMarkup(c.Message(), nil)
+	if err != nil {
+		logging.Warnf("Failed to clear previous markup: %v", err)
+	}
+
 	err = c.Edit(
 		fmt.Sprintf("Отлично, доступны следующие временные слоты для '%s' %s:", service.Name, date.Format("02.01.2006")),
 		selector, // Inline keyboard for time slots
@@ -913,7 +933,9 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 			patient = existingPatient
 			patient.LastVisit = appointmentTime
 			patient.TotalVisits++
-			h.repository.SavePatient(patient)
+			if err := h.repository.SavePatient(patient); err != nil {
+				logging.Errorf("Failed to save patient fallback: %v", err)
+			}
 		}
 	} else {
 		logging.Infof("Patient record synced for user %d (TotalVisits: %d)", userID, patient.TotalVisits)
@@ -925,13 +947,15 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 		}
 
 		// Log analytics event
-		h.repository.LogEvent(patient.TelegramID, "booking_confirmed", map[string]interface{}{
+		if err := h.repository.LogEvent(patient.TelegramID, "booking_confirmed", map[string]interface{}{
 			"service_id":     service.ID,
 			"service_name":   service.Name,
 			"time":           appointmentTime.Format(time.RFC3339),
 			"is_admin_block": isAdminBlock,
 			"visit_count":    patient.TotalVisits,
-		})
+		}); err != nil {
+			logging.Warnf("Failed to log booking_confirmed event: %v", err)
+		}
 	}
 
 	// 1. Notify Admin(s)
@@ -1256,11 +1280,17 @@ func (h *BookingHandler) HandleCancelAppointmentCallback(c telebot.Context) erro
 		}
 
 		// Robust sync after cancellation
-		h.syncPatientStats(context.Background(), appt.CustomerTgID, appt.CustomerName)
+		if _, err := h.syncPatientStats(context.Background(), appt.CustomerTgID, appt.CustomerName); err != nil {
+			logging.Warnf("Failed to sync patient stats after cancellation: %v", err)
+		}
 	}
 
-	c.Respond(&telebot.CallbackResponse{Text: "Запись успешно отменена!"})
-	c.Edit("✅ Ваша запись успешно отменена и удалена из календаря.")
+	if err := c.Respond(&telebot.CallbackResponse{Text: "Запись успешно отменена!"}); err != nil {
+		logging.Warnf("Failed to respond to callback: %v", err)
+	}
+	if err := c.Edit("✅ Ваша запись успешно отменена и удалена из календаря."); err != nil {
+		logging.Warnf("Failed to edit cancellation message: %v", err)
+	}
 
 	return h.HandleMyAppointments(c)
 }
@@ -1339,7 +1369,11 @@ func (h *BookingHandler) HandleFileMessage(c telebot.Context) error {
 	fileReader, err := c.Bot().File(&telebot.File{FileID: fileID})
 	if err != nil {
 		logging.Errorf(": Failed to download file from Telegram: %v", err)
-		c.Bot().Delete(statusMsg)
+		if statusMsg != nil {
+			if err := c.Bot().Delete(statusMsg); err != nil {
+				logging.Warnf("Failed to delete status message: %v", err)
+			}
+		}
 		return c.Send("❌ Ошибка при загрузке файла. Возможно, он слишком большой для Telegram-бота (лимит 50МБ).\n\nПопробуйте отправить файл меньшего размера или ссылкой.")
 	}
 	defer fileReader.Close()
@@ -1359,36 +1393,54 @@ func (h *BookingHandler) HandleFileMessage(c telebot.Context) error {
 	_, err = h.repository.SavePatientDocumentReader(telegramID, fileName, category, fileReader)
 	if err != nil {
 		logging.Errorf(": Failed to save patient document: %v", err)
-		c.Bot().Delete(statusMsg)
+		if statusMsg != nil {
+			if err := c.Bot().Delete(statusMsg); err != nil {
+				logging.Warnf("Failed to delete status message: %v", err)
+			}
+		}
 		return c.Send("❌ Ошибка при сохранении файла на сервере.")
 	}
 
-	c.Bot().Delete(statusMsg)
+	if statusMsg != nil {
+		if err := c.Bot().Delete(statusMsg); err != nil {
+			logging.Warnf("Failed to delete status message: %v", err)
+		}
+	}
 
 	// Special handling for voice: Transcribe and append to notes
 	if voice := msg.Voice; voice != nil {
 		transMsg, _ := c.Bot().Send(c.Recipient(), "📝 Расшифровываю ваше аудио-сообщение...")
 
 		// We need a fresh reader or the content of the file
-		fileReader, _ := c.Bot().File(&telebot.File{FileID: fileID})
+		fileReader, _ = c.Bot().File(&telebot.File{FileID: fileID})
 		transcript, err := h.transcriptionService.Transcribe(context.Background(), fileReader, fileName)
 
 		if transMsg != nil {
-			c.Bot().Delete(transMsg)
+			if err := c.Bot().Delete(transMsg); err != nil {
+				logging.Warnf("Failed to delete transcription status message: %v", err)
+			}
 		}
 
 		if err == nil && transcript != "" {
 			// Save transcripts to dedicated field instead of clinical notes
 			prefix := fmt.Sprintf("\n\n[🎙 %s]: ", time.Now().Format("02.01.2006 15:04"))
 			patient.VoiceTranscripts += prefix + transcript
-			h.repository.SavePatient(patient)
-			c.Send("✅ Аудио расшифровано и сохранено в архиве записей.")
+			if err := h.repository.SavePatient(patient); err != nil {
+				logging.Errorf("Failed to save transcript to patient record: %v", err)
+			}
+			if err := c.Send("✅ Аудио расшифровано и сохранено в архиве записей."); err != nil {
+				logging.Warnf("Failed to send success message: %v", err)
+			}
 		} else {
 			logging.Errorf(": Transcription failed for user %d: %v", userID, err)
-			c.Send("⚠️ Аудио сохранено, но не удалось его расшифровать.")
+			if err := c.Send("⚠️ Аудио сохранено, но не удалось его расшифровать."); err != nil {
+				logging.Warnf("Failed to send warning message: %v", err)
+			}
 		}
 	} else {
-		c.Send(fmt.Sprintf("✅ Файл '%s' успешно сохранен в вашу медицинскую карту!", fileName))
+		if err := c.Send(fmt.Sprintf("✅ Файл '%s' успешно сохранен в вашу медицинскую карту!", fileName)); err != nil {
+			logging.Warnf("Failed to send file saved message: %v", err)
+		}
 	}
 
 	// Notify admins with HTML to avoid parsing errors with underscores in filenames
@@ -1426,7 +1478,9 @@ func (h *BookingHandler) HandleBackup(c telebot.Context) error {
 		return c.Send("⛔ У вас нет прав для выполнения этой команды.")
 	}
 
-	c.Send("📦 Подготавливаю резервную копию данных...")
+	if err := c.Send("📦 Подготавливаю резервную копию данных..."); err != nil {
+		logging.Warnf("Failed to send backup status: %v", err)
+	}
 
 	zipPath, err := h.repository.CreateBackup()
 	if err != nil {

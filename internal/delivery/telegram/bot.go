@@ -94,14 +94,13 @@ func StartBot(
 				},
 			},
 		}
-		
+
 		if _, err := b.Raw("setChatMenuButton", params); err != nil {
 			logging.Warnf("Failed to set menu button: %v", err)
 		} else {
 			logging.Info("Menu button configured successfully")
 		}
 	}
-
 
 	// Ensure Admin ID is in the allowed list for notifications
 	// Use a map to deduplicate IDs ensuring no double notifications
@@ -241,7 +240,11 @@ func StartBot(
 		trimmedData := strings.TrimSpace(data)
 		logging.Debugf("Received callback: '%s' (trimmed: '%s') from user %d", data, trimmedData, c.Sender().ID)
 
-		defer c.Respond() // Важно: Respond() должен быть вызван, чтобы убрать "часики" с кнопки
+		defer func() {
+			if err := c.Respond(); err != nil {
+				logging.Warnf("Failed to respond to callback: %v", err)
+			}
+		}() // Важно: Respond() должен быть вызван, чтобы убрать "часики" с кнопки
 
 		// Добавляем логирование для каждой ветки if/else if
 		// Используем trimmedData для проверки префикса
@@ -329,7 +332,9 @@ func StartBot(
 			if err == nil {
 				prefix := fmt.Sprintf("\n\n[👩‍⚕️ Вера %s]: ", time.Now().In(domain.ApptTimeZone).Format("02.01.2006 15:04"))
 				patient.TherapistNotes += prefix + text
-				repo.SavePatient(patient)
+				if err := repo.SavePatient(patient); err != nil {
+					logging.Errorf("Failed to save admin reply to patient record: %v", err)
+				}
 			}
 
 			// Clear state
@@ -378,7 +383,9 @@ func StartBot(
 				logging.Debugf("DEBUG: OnText: All session data present, unknown text input. Forwarding to admins.")
 
 				// Provide polite feedback to user
-				c.Send("Ваше сообщение получено и передано Вере.")
+				if err := c.Send("Ваше сообщение получено и передано Вере."); err != nil {
+					logging.Warnf("Failed to send confirmation to patient: %v", err)
+				}
 
 				// Forward to all admins
 				telegramID := strconv.FormatInt(c.Sender().ID, 10)
@@ -395,7 +402,9 @@ func StartBot(
 				if err == nil {
 					prefix := fmt.Sprintf("\n\n[💬 Пациент %s]: ", time.Now().In(domain.ApptTimeZone).Format("02.01.2006 15:04"))
 					patient.TherapistNotes += prefix + text
-					repo.SavePatient(patient)
+					if err := repo.SavePatient(patient); err != nil {
+						logging.Errorf("Failed to save patient message: %v", err)
+					}
 				}
 
 				// Add link to med-card and Reply button

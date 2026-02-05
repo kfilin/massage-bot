@@ -368,7 +368,7 @@ func TestHandleStart(t *testing.T) {
 
 			// Setup Repo state
 			if tt.patientExists {
-				mockRepo.SavePatient(domain.Patient{
+				_ = mockRepo.SavePatient(domain.Patient{
 					TelegramID: "87654321",
 					Name:       "Existing Patient",
 				})
@@ -671,7 +671,7 @@ func TestHandleTimeSelection(t *testing.T) {
 			},
 			setupRepo: func(r *mockRepository) {
 				// New patient
-				r.SavePatient(domain.Patient{TelegramID: "12345678", TotalVisits: 0})
+				_ = r.SavePatient(domain.Patient{TelegramID: "12345678", TotalVisits: 0})
 			},
 			wantSendMsg: "Пожалуйста, введите ваше имя и фамилию",
 			wantErr:     false,
@@ -701,7 +701,7 @@ func TestHandleTimeSelection(t *testing.T) {
 				s.Set(userID, "date", time.Now())
 			},
 			setupRepo: func(r *mockRepository) {
-				r.SavePatient(domain.Patient{TelegramID: "12345678", Name: "Ivan", TotalVisits: 5})
+				_ = r.SavePatient(domain.Patient{TelegramID: "12345678", Name: "Ivan", TotalVisits: 5})
 			},
 			wantSendMsg: "Всё верно?", // expected from askForConfirmation
 			wantErr:     false,
@@ -803,7 +803,7 @@ func TestHandleConfirmBooking(t *testing.T) {
 				s.Set(userID, "name", "John Doe")
 			},
 			setupRepo: func(r *mockRepository) {
-				r.SavePatient(domain.Patient{TelegramID: "12345678", Name: "John Doe"})
+				_ = r.SavePatient(domain.Patient{TelegramID: "12345678", Name: "John Doe"})
 			},
 			setupApptService: func(s *mockAppointmentService) {
 				s.createAppointmentFunc = func(ctx context.Context, appointment *domain.Appointment) (*domain.Appointment, error) {
@@ -814,7 +814,7 @@ func TestHandleConfirmBooking(t *testing.T) {
 				}
 			},
 			wantCreateApptCalled: true,
-			wantSendMsg:          "Запись подтверждена",
+			wantSendMsg:          "ЗАПИСЬ ПОДТВЕРЖДЕНА",
 			wantErr:              false,
 		},
 		{

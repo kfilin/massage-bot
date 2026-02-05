@@ -59,7 +59,7 @@ func TestAdminHandlers(t *testing.T) {
 			args:          []string{"123456"},
 			adminIDs:      []string{adminID},
 			setupRepo: func(r *mockRepository) {
-				r.BanUser("123456")
+				_ = r.BanUser("123456")
 			},
 			wantMsg: "разблокирован",
 			wantErr: false,

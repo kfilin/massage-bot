@@ -283,7 +283,7 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 
 		if r.Method != http.MethodPost {
 			w.WriteHeader(http.StatusMethodNotAllowed)
-			json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Method not allowed"})
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Method not allowed"})
 			return
 		}
 
@@ -295,14 +295,14 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 		if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
 			logging.Debugf(" [WebApp]: Failed to parse /cancel body: %v", err)
 			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Invalid request"})
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Invalid request"})
 			return
 		}
 
 		if reqBody.InitData == "" || reqBody.ApptID == "" {
 			logging.Debugf(" [WebApp]: Missing parameters in /cancel")
 			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Missing parameters"})
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Missing parameters"})
 			return
 		}
 
@@ -311,7 +311,7 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 		if err != nil {
 			logging.Debugf(" [WebApp]: initData validation failed: %v", err)
 			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Сессия недействительна. Закройте и откройте мед-карту заново."})
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Сессия недействительна. Закройте и откройте мед-карту заново."})
 			return
 		}
 
@@ -322,14 +322,14 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 		if err != nil {
 			logging.Errorf("Cancel Error: Appt %s not found: %v", reqBody.ApptID, err)
 			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Запись не найдена"})
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Запись не найдена"})
 			return
 		}
 
 		if appt.CustomerTgID != userID {
 			logging.Errorf("Cancel Error: Appt %s (Owner: %s) access denied for User %s", reqBody.ApptID, appt.CustomerTgID, userID)
 			w.WriteHeader(http.StatusForbidden)
-			json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Доступ запрещен"})
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Доступ запрещен"})
 			return
 		}
 
@@ -337,7 +337,7 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 		now := time.Now().In(domain.ApptTimeZone)
 		if appt.StartTime.Sub(now) < 72*time.Hour {
 			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
+			_ = json.NewEncoder(w).Encode(map[string]string{
 				"status": "error",
 				"error":  "До приема менее 72 часов. Пожалуйста, напишите терапевту напрямую.",
 			})
@@ -348,7 +348,7 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 		if err != nil {
 			logging.Errorf("Cancel Error: Failed to cancel appt %s: %v", reqBody.ApptID, err)
 			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Не удалось отменить запись"})
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Не удалось отменить запись"})
 			return
 		}
 
@@ -368,7 +368,7 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 			appt.StartTime.In(domain.ApptTimeZone).Format("02.01.2006 15:04"), appt.Service.Name)
 		sendTelegramMessage(botToken, userID, patientMsg)
 
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
 
 	// WebDAV Handler for Obsidian Sync

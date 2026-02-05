@@ -829,7 +829,9 @@ func TestSyncFromFile(t *testing.T) {
 	}
 
 	patientDir := repo.getPatientDir(patient)
-	os.MkdirAll(patientDir, 0755)
+	if err := os.MkdirAll(patientDir, 0755); err != nil {
+		t.Fatalf("Failed to create patient dir: %v", err)
+	}
 
 	// Create markdown file with updated content
 	mdContent := `---
@@ -899,7 +901,9 @@ func TestSyncFromFile_NoChanges(t *testing.T) {
 
 	// Create markdown file with same content
 	patientDir := repo.getPatientDir(patient)
-	os.MkdirAll(patientDir, 0755)
+	if err := os.MkdirAll(patientDir, 0755); err != nil {
+		t.Fatalf("Failed to create patient dir: %v", err)
+	}
 
 	mdContent := fmt.Sprintf(`---
 Name: %s
@@ -912,7 +916,9 @@ ID: %s
 `, patient.Name, patient.TelegramID, patient.Name, patient.TherapistNotes)
 
 	mdPath := filepath.Join(patientDir, "123456789.md")
-	os.WriteFile(mdPath, []byte(mdContent), 0644)
+	if err := os.WriteFile(mdPath, []byte(mdContent), 0644); err != nil {
+		t.Fatalf("Failed to write md file: %v", err)
+	}
 
 	// Test syncing
 	updated, err := repo.syncFromFile(&patient)

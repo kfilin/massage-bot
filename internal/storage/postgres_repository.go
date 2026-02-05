@@ -475,7 +475,7 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient, history []doma
 	initGroup("Others")
 
 	patientDir := r.getPatientDir(p)
-	filepath.Walk(patientDir, func(path string, info os.FileInfo, err error) error {
+	walkErr := filepath.Walk(patientDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
 			return nil
 		}
@@ -527,6 +527,9 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient, history []doma
 		}
 		return nil
 	})
+	if walkErr != nil {
+		logging.Warnf("Failed to walk patient directory: %v", walkErr)
+	}
 
 	// Add only populated groups
 	order := []string{"Scans", "Photos", "Videos", "Voice Messages", "Texts", "Others"}
@@ -627,7 +630,9 @@ func (r *PostgresRepository) SyncAll() error {
 		if strings.Contains(p.TherapistNotes, "## 📁 Ссылки на документы") {
 			parts := strings.Split(p.TherapistNotes, "## 📁 Ссылки на документы")
 			p.TherapistNotes = strings.TrimSpace(parts[0])
-			r.SavePatient(p) // Persists cleaned notes to DB and mirrors to Markdown
+			if err := r.SavePatient(p); err != nil {
+				logging.Errorf("Failed to save patient during cleanup: %v", err)
+			} // Persists cleaned notes to DB and mirrors to Markdown
 			logging.Infof("[Cleanup] Permanently scrubbed legacy section for patient %s", p.TelegramID)
 		}
 

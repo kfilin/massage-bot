@@ -1,12 +1,13 @@
 package reminder
 
 import (
-	"github.com/kfilin/massage-bot/internal/logging"
 	"context"
 	"fmt"
 	"log"
 	"strconv"
 	"time"
+
+	"github.com/kfilin/massage-bot/internal/logging"
 
 	"github.com/kfilin/massage-bot/internal/domain"
 	"github.com/kfilin/massage-bot/internal/ports"
@@ -133,5 +134,7 @@ func (s *Service) sendReminder(appt domain.Appointment, reminderType string) {
 		sentMap = make(map[string]bool)
 	}
 	sentMap[reminderType] = true
-	s.repo.SaveAppointmentMetadata(appt.ID, confirmedAt, sentMap)
+	if err := s.repo.SaveAppointmentMetadata(appt.ID, confirmedAt, sentMap); err != nil {
+		logging.Errorf("Failed to save appointment metadata: %v", err)
+	}
 }

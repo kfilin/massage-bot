@@ -63,12 +63,16 @@ func TestService_FreeBusyCache(t *testing.T) {
 	mockRepo.On("GetFreeBusy", mock.Anything, mock.Anything, mock.Anything).Return([]domain.TimeSlot{}, nil).Once()
 
 	// Act 1: First call
-	_, err := svc.GetAvailableTimeSlots(ctx, testDate, 60)
-	assert.NoError(t, err)
+	// Warm up cache
+	if _, err := svc.GetAvailableTimeSlots(ctx, testDate, 60); err != nil {
+		t.Fatalf("Failed to warm up cache: %v", err)
+	}
 
 	// Act 2: Second call (Should be CACHED, so NO new call to GetFreeBusy on MockRepo)
-	_, err = svc.GetAvailableTimeSlots(ctx, testDate, 60)
-	assert.NoError(t, err)
+	// Act 2: Second call (Should be CACHED, so NO new call to GetFreeBusy on MockRepo)
+	if _, err := svc.GetAvailableTimeSlots(ctx, testDate, 60); err != nil {
+		t.Fatalf("Failed to get slots from cache: %v", err)
+	}
 
 	// Verify that repo was only called once
 	mockRepo.AssertExpectations(t)
@@ -85,7 +89,9 @@ func TestService_CacheInvalidation_OnCreate(t *testing.T) {
 
 	// 1. Fill Cache (Expect 1 call)
 	mockRepo.On("GetFreeBusy", mock.Anything, mock.Anything, mock.Anything).Return([]domain.TimeSlot{}, nil).Once()
-	svc.GetAvailableTimeSlots(ctx, testDate, 60)
+	// Ignoring the error here as the test focuses on cache invalidation, not initial cache fill success.
+	// If the initial fill fails, subsequent steps might also fail, but for this test, we assume it succeeds.
+	_, _ = svc.GetAvailableTimeSlots(ctx, testDate, 60)
 
 	// 2. Create Appointment -> Should invalidate
 	newAppt := &domain.Appointment{
