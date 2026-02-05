@@ -558,6 +558,10 @@ func parseTime(s string) time.Time {
 	return t
 }
 
+func (r *PostgresRepository) GenerateAdminSearchPage() string {
+	return adminSearchTemplate
+}
+
 func (r *PostgresRepository) SavePatientDocumentReader(telegramID string, filename string, category string, reader io.Reader) (string, error) {
 	p, err := r.GetPatient(telegramID)
 	if err != nil {
@@ -787,4 +791,24 @@ func (r *PostgresRepository) DeleteAppointment(appointmentID string) error {
 	}
 
 	return nil
+}
+
+// SearchPatients finds patients by name or Telegram ID matching the query
+func (r *PostgresRepository) SearchPatients(query string) ([]domain.Patient, error) {
+	var patients []domain.Patient
+	// Case-insensitive search on name, or exact match on telegram_id
+	sqlQuery := `
+		SELECT * FROM patients 
+		WHERE name ILIKE $1 OR telegram_id = $2
+		ORDER BY name ASC
+		LIMIT 20
+	`
+	// Match anything containing the query string for name
+	searchPattern := "%" + query + "%"
+
+	err := r.db.Select(&patients, sqlQuery, searchPattern, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search patients: %w", err)
+	}
+	return patients, nil
 }

@@ -157,6 +157,7 @@ type mockRepository struct {
 	isUserBannedFunc   func(telegramID string, username string) (bool, error)
 	savePatientFunc    func(patient domain.Patient) error
 	getPatientFunc     func(telegramID string) (domain.Patient, error)
+	searchPatientsFunc func(query string) ([]domain.Patient, error)
 }
 
 func newMockRepository() *mockRepository {
@@ -185,6 +186,13 @@ func (m *mockRepository) GetPatient(telegramID string) (domain.Patient, error) {
 	return domain.Patient{TelegramID: telegramID}, nil
 }
 
+func (m *mockRepository) SearchPatients(query string) ([]domain.Patient, error) {
+	if m.searchPatientsFunc != nil {
+		return m.searchPatientsFunc(query)
+	}
+	return []domain.Patient{}, nil
+}
+
 func (m *mockRepository) IsUserBanned(telegramID string, username string) (bool, error) {
 	if m.isUserBannedFunc != nil {
 		return m.isUserBannedFunc(telegramID, username)
@@ -208,6 +216,10 @@ func (m *mockRepository) LogEvent(patientID string, eventType string, details ma
 
 func (m *mockRepository) GenerateHTMLRecord(patient domain.Patient, history []domain.Appointment) string {
 	return "<html>Mock Record</html>"
+}
+
+func (m *mockRepository) GenerateAdminSearchPage() string {
+	return "<html>Mock Search Page</html>"
 }
 
 func (m *mockRepository) SavePatientDocumentReader(telegramID string, filename string, category string, r io.Reader) (string, error) {

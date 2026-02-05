@@ -334,3 +334,92 @@ const medicalRecordTemplate = `
 </body>
 </html>
 `
+
+const adminSearchTemplate = `
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Админ Панель: Поиск Пациента</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 20px; background-color: var(--tg-theme-bg-color, #fff); color: var(--tg-theme-text-color, #000); }
+        .container { max-width: 600px; margin: 0 auto; }
+        h1 { font-size: 20px; margin-bottom: 20px; }
+        .search-box { display: flex; gap: 10px; margin-bottom: 20px; }
+        input { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; }
+        button { padding: 12px 20px; background-color: var(--tg-theme-button-color, #3390ec); color: var(--tg-theme-button-text-color, #fff); border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; }
+        .results { display: flex; flex-direction: column; gap: 10px; }
+        .patient-card { padding: 15px; background: var(--tg-theme-secondary-bg-color, #f5f5f5); border-radius: 10px; cursor: pointer; transition: transform 0.1s; }
+        .patient-card:active { transform: scale(0.98); }
+        .patient-name { font-weight: bold; font-size: 16px; }
+        .patient-info { font-size: 13px; color: var(--tg-theme-hint-color, #888); margin-top: 4px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Поиск Пациента</h1>
+        <div class="search-box">
+            <input type="text" id="query" placeholder="Имя или ID..." onkeypress="handleEnter(event)">
+            <button onclick="search()">Найти</button>
+        </div>
+        <div id="results" class="results"></div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+
+        function handleEnter(e) {
+            if (e.key === 'Enter') search();
+        }
+
+        async function search() {
+            const query = document.getElementById('query').value;
+            if (!query) return;
+
+            const btn = document.querySelector('button');
+            const originalText = btn.innerText;
+            btn.innerText = '⌛';
+            
+            try {
+                const resp = await fetch('/api/search?q=' + encodeURIComponent(query), {
+                    headers: { 'X-Telegram-Init-Data': tg.initData }
+                });
+                const data = await resp.json();
+                
+                const container = document.getElementById('results');
+                container.innerHTML = '';
+
+                if (!data || data.length === 0) {
+                    container.innerHTML = '<div style="text-align:center;color:#888">Ничего не найдено</div>';
+                    return;
+                }
+
+                data.forEach(p => {
+                    const el = document.createElement('div');
+                    el.className = 'patient-card';
+                    el.onclick = () => viewPatient(p.telegram_id);
+                    el.innerHTML = '<div class="patient-name">' + p.name + '</div>' +
+                        '<div class="patient-info">ID: ' + p.telegram_id + ' • Визитов: ' + p.total_visits + '</div>';
+                    container.appendChild(el);
+                });
+            } catch (e) {
+                alert('Ошибка поиска: ' + e.message);
+            } finally {
+                btn.innerText = originalText;
+            }
+        }
+
+        function viewPatient(id) {
+            // Reload page with ID param to view their card
+            const url = new URL(window.location.href);
+            url.searchParams.set('id', id);
+            // We keep initData/token if present
+            window.location.href = url.toString();
+        }
+    </script>
+</body>
+</html>
+`
