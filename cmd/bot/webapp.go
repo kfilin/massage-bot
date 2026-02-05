@@ -329,7 +329,7 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 			// repo.SavePatient(patient)
 		}
 
-		html := repo.GenerateHTMLRecord(patient, appts)
+		html := repo.GenerateHTMLRecord(patient, appts, isAdmin)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		fmt.Fprint(w, html)
 	}
@@ -399,6 +399,7 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 		for _, id := range adminIDs {
 			if id == userID {
 				isAdmin = true
+				isAdmin = true
 				break
 			}
 		}
@@ -408,10 +409,7 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 		}
 
 		query := r.URL.Query().Get("q")
-		if query == "" {
-			json.NewEncoder(w).Encode([]interface{}{})
-			return
-		}
+		// If query is empty, allow listing (SearchPatients handles empty query by matching all)
 
 		patients, err := repo.SearchPatients(query)
 		if err != nil {
@@ -427,6 +425,8 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 			TotalVisits int    `json:"total_visits"`
 		}
 		var results []patResult
+		// Limit default list if query is empty to prevent overload?
+		// SearchPatients already limits to 20.
 		for _, p := range patients {
 			results = append(results, patResult{
 				TelegramID:  p.TelegramID,
@@ -493,9 +493,18 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 			return
 		}
 
-		// Enforce 72h rule
+		// Check if user is admin
+		isAdmin := false
+		for _, adminID := range adminIDs {
+			if adminID == userID {
+				isAdmin = true
+				break
+			}
+		}
+
+		// Enforce 72h rule (unless Admin)
 		now := time.Now().In(domain.ApptTimeZone)
-		if appt.StartTime.Sub(now) < 72*time.Hour {
+		if !isAdmin && appt.StartTime.Sub(now) < 72*time.Hour {
 			w.WriteHeader(http.StatusBadRequest)
 			_ = json.NewEncoder(w).Encode(map[string]string{
 				"status": "error",

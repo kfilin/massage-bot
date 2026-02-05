@@ -377,8 +377,8 @@ const adminSearchTemplate = `
 
         async function search() {
             const query = document.getElementById('query').value;
-            if (!query) return;
-
+            // if (!query) return; // Allow empty query for list all
+            
             const btn = document.querySelector('button');
             const originalText = btn.innerText;
             btn.innerText = '⌛';
@@ -411,6 +411,9 @@ const adminSearchTemplate = `
                 btn.innerText = originalText;
             }
         }
+        
+        // Auto-load list on start
+        window.addEventListener('DOMContentLoaded', search);
 
         function viewPatient(id) {
             // Reload page with ID param to view their card

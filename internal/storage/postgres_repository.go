@@ -346,7 +346,7 @@ func (r *PostgresRepository) mdToHTML(md string) template.HTML {
 	return template.HTML(h)
 }
 
-func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient, history []domain.Appointment) string {
+func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient, history []domain.Appointment, isAdmin bool) string {
 	type docGroup struct {
 		Name   string
 		Count  int
@@ -381,6 +381,7 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient, history []doma
 		RecentVisits       []visitInfo
 		FutureAppointments []futureInfo
 		NextApptUnix       int64
+		IsAdmin            bool
 	}
 
 	getCalLink := func(t time.Time, service string) string {
@@ -408,6 +409,7 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient, history []doma
 		LastVisit:          p.LastVisit.Format("02.01.2006 15:04"),
 		FirstVisitLink:     getCalLink(p.FirstVisit, p.CurrentService),
 		ShowFirstVisitLink: p.FirstVisit.After(time.Now()),
+		IsAdmin:            isAdmin,
 	}
 
 	// Identify Future Appointments and Next Appointment for Countdown
@@ -433,7 +435,7 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient, history []doma
 				ID:        a.ID,
 				Date:      a.StartTime.In(domain.ApptTimeZone).Format("02.01.2006 15:04"),
 				Service:   a.Service.Name,
-				CanCancel: a.StartTime.Sub(now) > 72*time.Hour,
+				CanCancel: isAdmin || a.StartTime.Sub(now) > 72*time.Hour,
 			})
 		}
 	}

@@ -290,7 +290,7 @@ func (m *mockRepository) LogEvent(patientID string, eventType string, details ma
 	return nil
 }
 
-func (m *mockRepository) GenerateHTMLRecord(patient domain.Patient, history []domain.Appointment) string {
+func (m *mockRepository) GenerateHTMLRecord(patient domain.Patient, history []domain.Appointment, isAdmin bool) string {
 	return "<html>Mock Record</html>"
 }
 

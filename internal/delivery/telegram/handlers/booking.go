@@ -1683,3 +1683,44 @@ func (h *BookingHandler) GenerateWebAppURL(telegramID string) string {
 
 	return fmt.Sprintf("%s/card?id=%s&token=%s", url, telegramID, token)
 }
+
+// HandleListPatients shows a list of last 20 patients (Admin only)
+func (h *BookingHandler) HandleListPatients(c telebot.Context) error {
+	if !h.IsAdmin(c.Sender().ID) {
+		return c.Send("⛔ Доступ запрещен.")
+	}
+
+	// Search with empty query to get recents
+	patients, err := h.repository.SearchPatients("")
+	if err != nil {
+		logging.Errorf("Failed to list patients: %v", err)
+		return c.Send("❌ Ошибка при получении списка пациентов.")
+	}
+
+	if len(patients) == 0 {
+		return c.Send("Список пациентов пуст.")
+	}
+
+	var sb strings.Builder
+	sb.WriteString("📋 <b>Список пациентов:</b>\n\n")
+
+	for i, p := range patients {
+		name := p.Name
+		if name == "" {
+			name = "Без имени"
+		}
+		// Clean name for HTML
+		name = strings.ReplaceAll(name, "<", "&lt;")
+		name = strings.ReplaceAll(name, ">", "&gt;")
+
+		sb.WriteString(fmt.Sprintf("%d. <b>%s</b> (ID: <code>%s</code>)\nVisits: %d\n", i+1, name, p.TelegramID, p.TotalVisits))
+
+		webAppURL := h.GenerateWebAppURL(p.TelegramID)
+		if webAppURL != "" {
+			sb.WriteString(fmt.Sprintf("<a href=\"%s\">🔗 Открыть Карту</a>\n", webAppURL))
+		}
+		sb.WriteString("\n")
+	}
+
+	return c.Send(sb.String(), telebot.ModeHTML)
+}

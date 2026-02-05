@@ -19,7 +19,7 @@ type Repository interface {
 	LogEvent(patientID string, eventType string, details map[string]interface{}) error
 
 	// Clinical Records & Documents
-	GenerateHTMLRecord(patient domain.Patient, history []domain.Appointment) string
+	GenerateHTMLRecord(patient domain.Patient, history []domain.Appointment, isAdmin bool) string
 	GenerateAdminSearchPage() string
 	SavePatientDocumentReader(telegramID string, filename string, category string, r io.Reader) (string, error)
 	CreateBackup() (string, error)

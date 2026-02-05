@@ -222,6 +222,7 @@ func StartBot(
 	b.Handle("/block", bookingHandler.HandleBlock)
 	b.Handle("/status", bookingHandler.HandleStatus)
 	b.Handle("/edit_name", bookingHandler.HandleEditName)
+	b.Handle("/patients", bookingHandler.HandleListPatients)
 	b.Handle("/create_appointment", bookingHandler.HandleManualAppointment)
 
 	// Register file/media handlers

@@ -677,7 +677,7 @@ func TestGenerateHTMLRecord(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			html := repo.GenerateHTMLRecord(tt.patient, tt.history)
+			html := repo.GenerateHTMLRecord(tt.patient, tt.history, false)
 
 			if html == "" {
 				t.Error("GenerateHTMLRecord returned empty string")
