@@ -24,7 +24,7 @@ import (
 
 func generateHMAC(id string, secret string) string {
 	h := hmac.New(sha256.New, []byte(secret))
-	h.Write([]byte(id))
+	h.Write([]byte(strings.TrimSpace(id)))
 	return hex.EncodeToString(h.Sum(nil))
 }
 
