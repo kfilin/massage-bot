@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v5.5.0] - 2026-02-05
+
+### Added
+
+- **GitHub→GitLab Mirroring**: Automated repository sync using HTTPS + Personal Access Token. Pushes to GitHub automatically trigger GitLab CI/CD pipeline.
+- **TWA InitData Auth**: Cancel appointments now use Telegram's native `initData` authentication instead of URL tokens. Cryptographically signed by Telegram, never expires during session.
+
+### Changed
+
+- **CI/CD Architecture**: GitHub handles tests/builds only; GitLab handles all deployments. Eliminates duplicate deploy attempts.
+- **TWA Cancel UX**: Better error messages for patients instead of cryptic "Invalid token" errors.
+
+### Fixed
+
+- **Stale Token Bug**: Resolved issue where TWA cancel would fail with "Недействительный токен" after deployments due to stale URL tokens. InitData auth is session-based and immune to this.
+- **Deploy Scripts in Git**: Added `scripts/` directory to Git tracking (was previously in `.gitignore`).
+
 ## [v5.4.0] - 2026-02-04
 
 ### Added
