@@ -8,7 +8,7 @@ A professional clinical ecosystem for massage therapists. Features interactive b
 
 ## 🏗️ Technical Foundation
 
-- **Version**: v5.5.0 (GitLab CI/CD + TWA InitData Auth)
+- **Version**: v5.5.1 (Accessibility Improvements)
 - **Language**: **Go 1.24** (Alpine-based)
 - **Database**: PostgreSQL 15 (Metadata & Sync Status)
 - **Clinical Storage**: **Markdown-mirrored Filesystem** (Clinical Storage 2.0)
@@ -53,10 +53,10 @@ A fully isolated environment running on `vera-bot-test.kfilin.icu`:
 
 ## 💎 Gold Standard Checkpoint
 
-- **Commit**: `1962a7b` (GitLab CI/CD + TWA InitData Auth)
-- **Date**: 2026-02-05
-- **Status**: **STABLE**. GitHub→GitLab mirroring, TWA uses Telegram initData auth (never expires).
-- **Rollback**: `1702a74` (v5.4.0)
+- **Commit**: `PENDING_COMMIT` (Accessibility Improvements)
+- **Date**: 2026-02-06
+- **Status**: **STABLE**. TWA Accessibility (ARIA/Focus) implemented.
+- **Rollback**: `1962a7b` (v5.5.0)
 
 ---
 

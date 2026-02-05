@@ -95,7 +95,16 @@ const medicalRecordTemplate = `
 
         function toggleSection(header) {
             const section = header.closest('section');
-            section.classList.toggle('collapsed');
+            const isCollapsed = section.classList.toggle('collapsed');
+            header.setAttribute('aria-expanded', !isCollapsed);
+        }
+
+        // Keyboard support for collapsibles
+        function handleKey(e, header) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                toggleSection(header);
+            }
         }
 
         window.addEventListener('DOMContentLoaded', () => {
@@ -122,6 +131,11 @@ const medicalRecordTemplate = `
             }
             .notes-content { color: #cbd5e1; }
         }
+        
+
+        /* Accessibility */
+        :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+        button:focus-visible, a:focus-visible, .collapsible-header:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
         
         * { box-sizing: border-box; -webkit-font-smoothing: antialiased; }
         body { background-color: var(--bg-page); font-family: 'Inter', system-ui, sans-serif; margin: 0; padding: 0; color: var(--text-main); line-height: 1.6; overflow-x: hidden; }
@@ -267,7 +281,7 @@ const medicalRecordTemplate = `
                         {{if .CanCancel}}
                             <button class="btn-cancel" onclick="cancelAppointment('{{.ID}}', this)">Отменить</button>
                         {{else}}
-                            <a href="https://t.me/VeraFethiye" class="contact-vera">💬 Написать Вере</a>
+                            <a href="https://t.me/VeraFethiye" class="contact-vera" aria-label="Написать Вере в Telegram">💬 Написать Вере</a>
                         {{end}}
                     </div>
                 </div>
@@ -291,8 +305,8 @@ const medicalRecordTemplate = `
 
         {{if .RecentVisits}}
         <section class="history collapsed">
-            <h2 class="collapsible-header" onclick="toggleSection(this)">История посещений</h2>
-            <div class="collapsible-content appt-list">
+            <h2 class="collapsible-header" onclick="toggleSection(this)" onkeydown="handleKey(event, this)" role="button" tabindex="0" aria-expanded="false" aria-controls="history-content">История посещений</h2>
+            <div id="history-content" class="collapsible-content appt-list">
                 {{range .RecentVisits}}
                 <div class="appt-item">
                     <div style="font-weight: 600; font-size: 14px;">{{.Date}}</div>
@@ -312,8 +326,8 @@ const medicalRecordTemplate = `
 
         {{if .DocGroups}}
         <section class="collapsed">
-            <h2 class="collapsible-header" onclick="toggleSection(this)">Документы и Снимки</h2>
-            <div class="collapsible-content doc-list">
+            <h2 class="collapsible-header" onclick="toggleSection(this)" onkeydown="handleKey(event, this)" role="button" tabindex="0" aria-expanded="false" aria-controls="docs-content">Документы и Снимки</h2>
+            <div id="docs-content" class="collapsible-content doc-list">
                 {{range .DocGroups}}
                 <div class="doc-item">
                     <div class="doc-info">

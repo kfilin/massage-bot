@@ -72,12 +72,14 @@
 - "Обновлено" is less useful than showing "Next Appointment"  
 - **Idea**: Combine first visit + total visits in one card
 
-### 19. [TODO] Accessibility Improvements
+### 19. [DONE] Accessibility Improvements
 
-- **Priority**: High
-- Add `aria-labels` on interactive elements
-- Add `:focus-visible` styles for keyboard navigation
-- Improve contrast ratios for muted text
+- **Status**: Completed in v5.5.1 (2026-02-06).
+- **Resolution**:
+  - Added `:focus-visible` outline styles for keyboard navigation.
+  - Added `aria-expanded` attributes to collapsible sections via JS.
+  - Added `role="button"` and `tabindex="0"` to headers.
+  - Added `aria-label` to iconic links.
 
 ### 20. [TODO] Empty States Enhancement
 
@@ -94,8 +96,8 @@
 ### 22. [TODO] Visual Hierarchy Enhancement
 
 - **Priority**: Medium
-- Voice Transcripts section could have distinct styling
-- Documents section could show file type icons
+- Voice Transcripts section could have distinct styling (e.g., chat bubble style)
+- **Note**: Generic file icons rejected by user. Only custom/premium visuals to be used.
 
 ### 23. [TODO] Success Feedback
 

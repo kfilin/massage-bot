@@ -1,25 +1,19 @@
-# Last Session Summary - 2026-02-05
+# Last Session Summary - 2026-02-06
 
 ## Accomplishments
 
-### CI/CD Pipeline Improvements
+### TWA Accessibility (v5.5.1)
 
-- **GitHub→GitLab Mirroring**: Fixed using HTTPS + GitLab PAT (SSH had formatting issues with GitHub Secrets)
-- **Deploy Scripts Tracked**: Added `scripts/` to Git (was in `.gitignore`)  
-- **Disabled GitHub Deploys**: GitLab now handles all deployments exclusively
-
-### TWA Authentication Overhaul
-
-- **InitData Auth**: Switched TWA cancel from URL tokens to Telegram's native `initData`
-- **Never Expires**: initData is cryptographically signed by Telegram, session-based
-- **Fixed Stale Token Bug**: Patients no longer see "Недействительный токен" after deployments
+- **Keyboard Navigation**: Implemented `:focus-visible` outlines matching brand accent color.
+- **Screen Reader Support**: Added dynamic `aria-expanded` and `role="button"` for collapsible sections.
+- **Semantic HTML**: Added `aria-label` to icon-only links for better clarity.
 
 ## Challenges
 
-- **SSH Key Issues**: GitHub Secrets strips newlines from SSH private keys, causing auth failures
-- **Token Staleness**: Old HMAC tokens became invalid after deploys; initData solves this permanently
+- **Design Choices**: Visual styles for Empty States and Icons need more iteration (Dark Mode contrast, Line Art depth). Deferred to backlog.
 
 ## Next Steps
 
-1. Consider reducing DB log verbosity (`log_statement=none` in production)
-2. Backlog has TWA UI/UX improvements (dark mode, animations, etc.) - IDs 18-26
+1. **Design**: Create new visual options for Empty States/Icons.
+2. **Backlog**: Implement Tasks 20 and 22 once design is approved.
+3. **Monitor**: Check TWA metrics and logs.
