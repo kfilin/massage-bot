@@ -93,6 +93,11 @@ const medicalRecordTemplate = `
             el.innerText = "До приема: " + str;
         }
 
+        function toggleSection(header) {
+            const section = header.closest('section');
+            section.classList.toggle('collapsed');
+        }
+
         window.addEventListener('DOMContentLoaded', () => {
             const tg = window.Telegram.WebApp;
             if (tg && tg.expand) { tg.expand(); tg.ready(); tg.setHeaderColor('#ffffff'); }
@@ -195,6 +200,13 @@ const medicalRecordTemplate = `
         .empty-state { text-align: center; padding: 32px 20px; color: var(--text-muted); font-size: 14px; }
         .empty-state-icon { font-size: 32px; margin-bottom: 8px; opacity: 0.5; }
 
+        /* Collapsible Sections */
+        .collapsible-header { cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .collapsible-header::after { content: '▼'; font-size: 10px; color: var(--text-muted); transition: transform 0.3s ease; }
+        section.collapsed .collapsible-header::after { transform: rotate(-90deg); }
+        .collapsible-content { max-height: 1000px; overflow: hidden; transition: max-height 0.3s ease, opacity 0.3s ease; opacity: 1; }
+        section.collapsed .collapsible-content { max-height: 0; opacity: 0; }
+
         /* Mobile Optimization */
         @media (max-width: 480px) {
             .premium-header { padding: 24px 16px; }
@@ -216,9 +228,6 @@ const medicalRecordTemplate = `
         <div class="header-content">
             <span class="badge">КАРТА ПАЦИЕНТА</span>
             <h1>{{.Name}}</h1>
-            <div class="patient-meta">
-                <span>ID: {{.TelegramID}}</span>
-            </div>
             <div class="stat-grid">
                 <div class="stat-card">
                     <div class="stat-desc">Посещений</div>
@@ -228,10 +237,17 @@ const medicalRecordTemplate = `
                     <div class="stat-desc">Услуга</div>
                     <div class="stat-val">{{.CurrentService}}</div>
                 </div>
+                {{if .FutureAppointments}}
+                <div class="stat-card" style="border: 1px solid var(--accent);">
+                    <div class="stat-desc">Следующий прием</div>
+                    <div class="stat-val" style="color: var(--accent);">{{(index .FutureAppointments 0).Date}}</div>
+                </div>
+                {{else}}
                 <div class="stat-card">
-                    <div class="stat-desc">Обновлено</div>
+                    <div class="stat-desc">Последний</div>
                     <div class="stat-val">{{.LastVisit}}</div>
                 </div>
+                {{end}}
             </div>
         </div>
     </header>
@@ -274,9 +290,9 @@ const medicalRecordTemplate = `
         </section>
 
         {{if .RecentVisits}}
-        <section class="history">
-            <h2>История посещений</h2>
-            <div class="appt-list">
+        <section class="history collapsed">
+            <h2 class="collapsible-header" onclick="toggleSection(this)">История посещений</h2>
+            <div class="collapsible-content appt-list">
                 {{range .RecentVisits}}
                 <div class="appt-item">
                     <div style="font-weight: 600; font-size: 14px;">{{.Date}}</div>
@@ -294,9 +310,10 @@ const medicalRecordTemplate = `
         </section>
         {{end}}
 
-        <section>
-            <h2>Документы и Снимки</h2>
-            <div class="doc-list">
+        {{if .DocGroups}}
+        <section class="collapsed">
+            <h2 class="collapsible-header" onclick="toggleSection(this)">Документы и Снимки</h2>
+            <div class="collapsible-content doc-list">
                 {{range .DocGroups}}
                 <div class="doc-item">
                     <div class="doc-info">
@@ -308,11 +325,10 @@ const medicalRecordTemplate = `
                         <div>{{.Latest}}</div>
                     </div>
                 </div>
-                {{else}}
-                <div style="text-align: center; padding: 20px; color: var(--text-muted); font-size: 14px;">Документов пока нет.</div>
                 {{end}}
             </div>
         </section>
+        {{end}}
         <footer class="footer">Vera Massage Bot {{.BotVersion}}<br>Professional Medical Record Hub</footer>
     </main>
 </body>

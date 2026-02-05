@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"github.com/kfilin/massage-bot/internal/logging"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -15,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 	"time" // Ensure time is imported
+
+	"github.com/kfilin/massage-bot/internal/logging"
 
 	"github.com/kfilin/massage-bot/internal/domain"
 	"github.com/kfilin/massage-bot/internal/monitoring"
@@ -965,18 +966,45 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 	// Clear session on successful booking
 	h.sessionStorage.ClearSession(userID)
 
-	// 3. Confirm to User (Admin or Patient)
+	// 3. Confirm to User (Admin or Patient) with a visually rich confirmation card
 	var confirmationMsg string
 	if isAdminManual {
-		confirmationMsg = fmt.Sprintf("✅ <b>Ручная запись создана!</b>\n\n📅 %s\n⏰ %s\n⏳ %s\n👤 Пациент: %s",
+		confirmationMsg = fmt.Sprintf(`✅ <b>РУЧНАЯ ЗАПИСЬ СОЗДАНА</b>
+━━━━━━━━━━━━━━━━━━━━
+
+📅  <b>%s</b>
+⏰  <b>%s</b>
+💆  %s
+👤  %s
+
+━━━━━━━━━━━━━━━━━━━━
+<i>Запись добавлена в календарь</i>`,
 			appointmentTime.Format("02.01.2006"),
 			appointmentTime.Format("15:04"),
 			service.Name, name)
 	} else {
-		confirmationMsg = fmt.Sprintf("✅ <b>Запись подтверждена!</b>\n\n📅 %s\n⏰ %s\n⏳ %s\n\n⚠️ Отмена возможна за 72 часа до приема. Для отмены свяжитесь с терапевтом.",
+		confirmationMsg = fmt.Sprintf(`
+┏━━━━━━━━━━━━━━━━━━━━━┓
+┃  ✅ <b>ЗАПИСЬ ПОДТВЕРЖДЕНА!</b>  ┃
+┗━━━━━━━━━━━━━━━━━━━━━┛
+
+📅  <b>Дата:</b>     %s
+⏰  <b>Время:</b>    %s
+💆  <b>Услуга:</b>   %s
+⏳  <b>Длительность:</b> %d мин
+
+━━━━━━━━━━━━━━━━━━━━
+
+💡 <b>Важно:</b>
+• Приходите за 5 минут до назначенного времени
+• Отмена возможна за 72 часа до приема
+• Для изменений напишите @VeraFethiye
+
+<i>До встречи! 💙</i>`,
 			appointmentTime.Format("02.01.2006"),
 			appointmentTime.Format("15:04"),
-			service.Name)
+			service.Name,
+			service.DurationMinutes)
 	}
 
 	if appt.MeetLink != "" {
@@ -993,6 +1021,7 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 	}
 
 	return c.Send(confirmationMsg, h.GetMainMenu(), selector, telebot.ModeHTML)
+
 }
 
 func (h *BookingHandler) syncPatientStats(ctx context.Context, telegramID string, name string) (domain.Patient, error) {
