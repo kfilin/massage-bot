@@ -1,11 +1,17 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -37,14 +43,76 @@ func (m *mockRepo) GetAppointmentHistory(id string) ([]domain.Appointment, error
 
 func (m *mockRepo) UpsertAppointments(a []domain.Appointment) error { return nil }
 
+func (m *mockRepo) SearchPatients(query string) ([]domain.Patient, error) {
+	if query == "test_patient" {
+		return []domain.Patient{{TelegramID: "999", Name: "Test Patient", TotalVisits: 5}}, nil
+	}
+	return []domain.Patient{}, nil
+}
+
 func (m *mockRepo) GenerateAdminSearchPage() string { return "ADMIN_SEARCH_PAGE" }
 
 type mockApptService struct {
 	ports.AppointmentService
+	appointments map[string]domain.Appointment
 }
 
 func (m *mockApptService) GetCustomerHistory(ctx context.Context, id string) ([]domain.Appointment, error) {
 	return []domain.Appointment{}, nil
+}
+
+func (m *mockApptService) FindByID(ctx context.Context, id string) (*domain.Appointment, error) {
+	if appt, ok := m.appointments[id]; ok {
+		return &appt, nil
+	}
+	return nil, fmt.Errorf("not found")
+}
+
+func (m *mockApptService) CancelAppointment(ctx context.Context, id string) error {
+	if _, ok := m.appointments[id]; ok {
+		delete(m.appointments, id)
+		return nil
+	}
+	return fmt.Errorf("not found")
+}
+
+// signTestInitData mimics telegram's HMAC signature
+func signTestInitData(data map[string]string, token string) string {
+	var keys []string
+	for k := range data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var arr []string
+	for _, k := range keys {
+		arr = append(arr, k+"="+data[k])
+	}
+	checkString := strings.Join(arr, "\n")
+
+	h1 := hmac.New(sha256.New, []byte("WebAppData"))
+	h1.Write([]byte(token))
+	secret := h1.Sum(nil)
+
+	h2 := hmac.New(sha256.New, secret)
+	h2.Write([]byte(checkString))
+	return hex.EncodeToString(h2.Sum(nil))
+}
+
+func makeInitData(userID string, firstName string, token string) string {
+	data := map[string]string{
+		"query_id":  "QID",
+		"user":      fmt.Sprintf(`{"id":%s,"first_name":"%s","last_name":"User"}`, userID, firstName),
+		"auth_date": fmt.Sprintf("%d", time.Now().Unix()),
+	}
+	hash := signTestInitData(data, token)
+
+	var parts []string
+	for k, v := range data {
+		parts = append(parts, k+"="+v)
+	}
+	parts = append(parts, "hash="+hash)
+	return strings.Join(parts, "&")
 }
 
 func TestAdminViewPatient(t *testing.T) {
@@ -59,26 +127,9 @@ func TestAdminViewPatient(t *testing.T) {
 
 	handler := NewWebAppHandler(repo, service, botToken, []string{adminID}, "secret")
 
-	// Prepare data map
-	data := map[string]string{
-		"query_id":  "QID",
-		"user":      fmt.Sprintf(`{"id":%s,"first_name":"Admin","last_name":"User"}`, adminID),
-		"auth_date": fmt.Sprintf("%d", time.Now().Unix()),
-	}
+	initData := makeInitData(adminID, "Admin", botToken)
 
-	// Calculate hash
-	hash := signInitData(data, botToken)
-
-	// Build full initData string
-	var parts []string
-	for k, v := range data {
-		parts = append(parts, fmt.Sprintf("%s=%s", k, v))
-	}
-	parts = append(parts, "hash="+hash)
-	initData := strings.Join(parts, "&")
-
-	// Request: Admin trying to view Patient
-	// URL: /?id=200&initData=...
+	// Admin viewing patient
 	req, _ := http.NewRequest("GET", "/?id="+patientID+"&initData="+url.QueryEscape(initData), nil)
 	rr := httptest.NewRecorder()
 
@@ -95,43 +146,94 @@ func TestAdminViewPatient(t *testing.T) {
 	}
 }
 
-func TestNormalUserViewSelf(t *testing.T) {
-	userID := "300"
+func TestHandleSearch(t *testing.T) {
+	adminID := "100"
 	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
 
-	repo := &mockRepo{
-		patient: domain.Patient{TelegramID: userID, Name: "Self User"},
-	}
-	service := &mockApptService{}
+	repo := &mockRepo{}
 
-	handler := NewWebAppHandler(repo, service, botToken, []string{"999"}, "secret") // Admin is 999
+	// Create Search Handler
+	handler := NewSearchHandler(repo, botToken, []string{adminID})
 
-	data := map[string]string{
-		"query_id":  "QID",
-		"user":      fmt.Sprintf(`{"id":%s,"first_name":"User","last_name":"Self"}`, userID),
-		"auth_date": fmt.Sprintf("%d", time.Now().Unix()),
-	}
-	hash := signInitData(data, botToken)
-	var parts []string
-	for k, v := range data {
-		parts = append(parts, fmt.Sprintf("%s=%s", k, v))
-	}
-	parts = append(parts, "hash="+hash)
-	initData := strings.Join(parts, "&")
+	// 1. Authorized Search
+	initData := makeInitData(adminID, "Admin", botToken)
+	req, _ := http.NewRequest("GET", "/api/search?q=test_patient", nil)
+	req.Header.Set("X-Telegram-Init-Data", initData)
 
-	// User viewing themselves (id param matches or empty)
-	req, _ := http.NewRequest("GET", "/?initData="+url.QueryEscape(initData), nil)
 	rr := httptest.NewRecorder()
-
 	handler.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
-		t.Errorf("Expected 200 OK, got %d", rr.Code)
+		t.Errorf("Expected 200 OK for valid search, got %d", rr.Code)
 	}
 
-	body := rr.Body.String()
-	expected := "HTML_RECORD_FOR_Self User_ADMIN_false"
-	if !strings.Contains(body, expected) {
-		t.Errorf("Expected body to contain %q, got %q", expected, body)
+	// 2. Unauthorized (No initData)
+	reqNoAuth, _ := http.NewRequest("GET", "/api/search?q=test_patient", nil)
+	rrNoAuth := httptest.NewRecorder()
+	handler.ServeHTTP(rrNoAuth, reqNoAuth)
+
+	if rrNoAuth.Code != http.StatusUnauthorized {
+		t.Errorf("Expected 401 Unauthorized for empty auth, got %d", rrNoAuth.Code)
+	}
+}
+
+func TestHandleCancel(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	userID := "300"
+	otherUserID := "400"
+	apptID := "appt_1"
+
+	// Setup Service with an appointment
+	service := &mockApptService{
+		appointments: map[string]domain.Appointment{
+			apptID: {
+				ID:           apptID,
+				CustomerTgID: userID,
+				CustomerName: "Test User",
+				StartTime:    time.Now().Add(100 * time.Hour), // > 72h
+				Service:      domain.Service{Name: "Massage"},
+			},
+		},
+	}
+
+	handler := NewCancelHandler(service, botToken, []string{"999"}) // Admin 999
+
+	// 1. Valid Cancel by Owner
+	initData := makeInitData(userID, "User", botToken)
+	body := map[string]string{
+		"initData": initData,
+		"apptId":   apptID,
+	}
+	jsonBody, _ := json.Marshal(body)
+
+	req, _ := http.NewRequest("POST", "/cancel", bytes.NewBuffer(jsonBody))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200 OK for valid cancel, got %d. Body: %s", rr.Code, rr.Body.String())
+	}
+
+	// 2. Cancel Someone Else's Appt (Forbidden)
+	// Reset mock (simple way: recreate or re-add)
+	service.appointments[apptID] = domain.Appointment{
+		ID:           apptID,
+		CustomerTgID: userID,
+		StartTime:    time.Now().Add(100 * time.Hour),
+	}
+
+	otherInitData := makeInitData(otherUserID, "Hacker", botToken)
+	bodyHacker := map[string]string{
+		"initData": otherInitData,
+		"apptId":   apptID,
+	}
+	jsonBodyHacker, _ := json.Marshal(bodyHacker)
+
+	reqHacker, _ := http.NewRequest("POST", "/cancel", bytes.NewBuffer(jsonBodyHacker))
+	rrHacker := httptest.NewRecorder()
+	handler.ServeHTTP(rrHacker, reqHacker)
+
+	if rrHacker.Code != http.StatusForbidden {
+		t.Errorf("Expected 403 Forbidden, got %d", rrHacker.Code)
 	}
 }

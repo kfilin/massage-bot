@@ -2,12 +2,18 @@
 
 ## 🚀 Immediate Mission
 
-- **Verification**: Ensure Vera (or the admin) can now cancel appointments correctly in the TWA.
-- **Bot/TWA UX**: Investigate if we can make the "Add Record" flow for admins more seamless (currently closes TWA and goes to Bot).
-- **Testing**: Expand `webapp_test.go` to include handler logic tests using `httptest`.
+- **Verification (Live)**:
+  - Confirm "Manual Booking" works on the live server.
+  - **CRITICAL**: Debug why TWA redirects to Telegram Home Page when clicking "Cancel". Evidence: User screenshot shows `telegram.org` loading in the WebApp modal.
+    - Hypothesis 1: Deployment hasn't finished, so Admin fix isn't live -> falling back to "Contact Therapist" logic -> broken link?
+    - Hypothesis 2: Frontend JS handles errors (400/403) by redirecting to a default or broken URL.
+
+- **Technical Debt**:
+  - **Expand Tests**: The `webapp_handlers_test.go` has basic coverage. We should add more scenarios (e.g., failed HMAC, expired InitData) to be bulletproof.
+  - **Frontend Search**: The `api/search` endpoint in TWA currently lacks proper `initData` propagation in the `fetch` call (noted in code comments). This should be fixed to secure the search API.
 
 ## 🛠️ Context
 
-- **Version**: v5.6.2 (Admin TWA Fixes).
-- **Fix**: The main fix was in `webapp.go`, ensuring `isAdmin` check happens before `finalID` is overwritten.
-- **Walkthrough**: See `walkthrough.md` in the root for testing steps.
+- **Version**: v5.6.2
+- **State**: Code is pushed to master and automatically deploying.
+- **Docs**: See `docs/CI_CD_Pipeline.md` for deployment details.

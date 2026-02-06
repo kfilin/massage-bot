@@ -47,7 +47,14 @@ const medicalRecordTemplate = `
                 const result = await resp.json();
                 
                 if (result.status === "ok") {
-                    location.reload();
+                    // Fix for TWA: location.reload() might lose query params or context.
+                    // We reconstruct the URL ensuring initData is present.
+                    const url = new URL(window.location.href);
+                    if (tg.initData && !url.searchParams.get('initData')) {
+                        url.searchParams.set('initData', tg.initData);
+                    }
+                    // Use replace to avoid history stack issues
+                    window.location.replace(url.toString());
                 } else {
                     // Remove loading state on error
                     if (btn) {

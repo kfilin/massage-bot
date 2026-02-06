@@ -53,10 +53,10 @@ A fully isolated environment running on `vera-bot-test.kfilin.icu`:
 
 ## 💎 Gold Standard Checkpoint
 
-- **Commit**: `b2500c3642b5447645e6a8eab2a1b239f005c71c` (Admin TWA Fixes)
+- **Commit**: `868c1a37b1a8e54847d5d7e6c6f32a81969dac2e` (Admin TWA Fixes & CI/CD Docs)
 - **Date**: 2026-02-07
-- **Status**: **STABLE**. Fixed admin cancellation and view logic in TWA.
-- **Rollback**: `7f6e5f2` (v5.6.1)
+- **Status**: **STABLE**. Fixed admin cancellation, manual booking ID logic, and renamed CI/CD docs.
+- **Rollback**: `b2500c3` (v5.6.2-prev)
 
 ---
 

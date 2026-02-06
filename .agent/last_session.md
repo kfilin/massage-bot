@@ -2,15 +2,21 @@
 
 ## 🛡️ Accomplishments
 
-- **Fix: Admin TWA Access**: Resolved a fundamental authentication shadowing bug where `isAdmin` was lost when viewing patient cards.
-- **Fix: Manual Booking**: Fixed a bug where "Manual Booking" via TWA would incorrectly assign the appointment to the Admin instead of the target patient.
-- **Feat: Skip Name Input**: "Manual Booking" now automatically skips the name input step, as the patient name is already known from the deep link.
-- **Fix: TWA Cancellation**: Admins can now correctly see and use the "Cancel" button for all future appointments, resolving the "redirection to telegram website" issue.
-- **Restoration: walkthrough.md**: Created a fresh `walkthrough.md` in the root directory to help with feature verification and testing.
-- **Project Structure**: Cleaned up the `.agent` folder and updated the `Project Hub` and `CHANGELOG`.
+- **TWA Core Fixes**:
+  - **Admin Access**: Refactored `webapp.go` to use a `NewWebAppHandler` factory, allowing us to fix the logic where `isAdmin` was lost during viewing.
+  - **Manual Booking**: Fixed the "Who is the patient?" logic. Now correctly uses the `manual_ID` from the deep link instead of defaulting to the admin's ID.
+  - **Testing**: Added `webapp_handlers_test.go` to prevent future auth regressions.
+
+- **Documentation**:
+  - Renamed `.agent/sop/feature-release.md` to `docs/CI_CD_Pipeline.md` to make the deployment process discoverable.
+  - Updated `Project-Hub` and `CHANGELOG` with all details.
+
+- **Verification**:
+  - Verified logic via local unit tests.
+  - Deployment triggered via GitHub Mirror to GitLab.
 
 ## 📊 Metrics
 
 - **Version**: v5.6.2
-- **Stability**: PASS (Go tests passing)
-- **Status**: Stable and Ready for Admin use.
+- **Stability**: PASS (Tests)
+- **Status**: Production Deployment In Progress (via Pipeline)

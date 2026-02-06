@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -185,5 +186,145 @@ func NewWebAppHandler(repo ports.Repository, apptService ports.AppointmentServic
 		html := repo.GenerateHTMLRecord(patient, appts, isAdmin)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		fmt.Fprint(w, html)
+	}
+}
+
+// NewSearchHandler creates the handler for the Patient Search API
+func NewSearchHandler(repo ports.Repository, botToken string, adminIDs []string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		initData := r.Header.Get("X-Telegram-Init-Data")
+		if initData == "" {
+			initData = r.URL.Query().Get("initData")
+		}
+
+		if initData == "" {
+			http.Error(w, "Unauthorized: missing initData", http.StatusUnauthorized)
+			return
+		}
+
+		userID, _, err := validateInitData(initData, botToken)
+		if err != nil {
+			http.Error(w, "Unauthorized: invalid initData", http.StatusUnauthorized)
+			return
+		}
+
+		// Check Admin
+		isAdmin := false
+		for _, id := range adminIDs {
+			if id == userID {
+				isAdmin = true
+				break
+			}
+		}
+		if !isAdmin {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+
+		query := r.URL.Query().Get("q")
+		patients, err := repo.SearchPatients(query)
+		if err != nil {
+			logging.Errorf("Search failed: %v", err)
+			http.Error(w, "Search failed", http.StatusInternalServerError)
+			return
+		}
+
+		type patResult struct {
+			TelegramID  string `json:"telegram_id"`
+			Name        string `json:"name"`
+			TotalVisits int    `json:"total_visits"`
+		}
+		var results []patResult
+		for _, p := range patients {
+			results = append(results, patResult{
+				TelegramID:  p.TelegramID,
+				Name:        p.Name,
+				TotalVisits: p.TotalVisits,
+			})
+		}
+		json.NewEncoder(w).Encode(results)
+	}
+}
+
+// NewCancelHandler creates the handler for Appointment Cancellation
+func NewCancelHandler(apptService ports.AppointmentService, botToken string, adminIDs []string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Method not allowed"})
+			return
+		}
+
+		var reqBody struct {
+			InitData string `json:"initData"`
+			ApptID   string `json:"apptId"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Invalid request"})
+			return
+		}
+
+		if reqBody.InitData == "" || reqBody.ApptID == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Missing parameters"})
+			return
+		}
+
+		userID, _, err := validateInitData(reqBody.InitData, botToken)
+		if err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Сессия недействительна."})
+			return
+		}
+
+		isAdmin := false
+		for _, adminID := range adminIDs {
+			if adminID == userID {
+				isAdmin = true
+				break
+			}
+		}
+
+		appt, err := apptService.FindByID(r.Context(), reqBody.ApptID)
+		if err != nil {
+			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Запись не найдена"})
+			return
+		}
+
+		if !isAdmin && appt.CustomerTgID != userID {
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Доступ запрещен"})
+			return
+		}
+
+		now := time.Now().In(domain.ApptTimeZone)
+		if !isAdmin && appt.StartTime.Sub(now) < 72*time.Hour {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"status": "error",
+				"error":  "До приема менее 72 часов. Напишите терапевту.",
+			})
+			return
+		}
+
+		err = apptService.CancelAppointment(r.Context(), reqBody.ApptID)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Не удалось отменить запись"})
+			return
+		}
+
+		notificationMsg := fmt.Sprintf("⚠️ *Запись отменена!*\n\nПациент: %s\nДата: %s", appt.CustomerName, appt.StartTime.Format("02.01 15:04"))
+		for _, adminID := range adminIDs {
+			sendTelegramMessage(botToken, adminID, notificationMsg)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	}
 }
