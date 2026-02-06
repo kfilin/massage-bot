@@ -8,7 +8,7 @@ A professional clinical ecosystem for massage therapists. Features interactive b
 
 ## 🏗️ Technical Foundation
 
-- **Version**: v5.6.0 (TWA Actions & UI)
+- **Version**: v5.6.1 (Multi-Therapist & Dynamic Links)
 - **Language**: **Go 1.24** (Alpine-based)
 - **Database**: PostgreSQL 15 (Metadata & Sync Status)
 - **Clinical Storage**: **Markdown-mirrored Filesystem** (Clinical Storage 2.0)
@@ -53,10 +53,10 @@ A fully isolated environment running on `vera-bot-test.kfilin.icu`:
 
 ## 💎 Gold Standard Checkpoint
 
-- **Commit**: `bd4b3bcafc49644afcd427ff092c384140aea436` (TWA Actions & UI)
+- **Commit**: `7f6e5f299fa9ec608c2d81a3a75e7c5f5c850524` (Multi-Therapist & Dynamic Links)
 - **Date**: 2026-02-06
-- **Status**: **STABLE**. Admin TWA actions, deep linking, and premium UI implemented.
-- **Rollback**: `bd4b3bc` (v5.5.2)
+- **Status**: **STABLE**. Multi-therapist support, dynamic bot links, and patient notifications implemented.
+- **Rollback**: `bd4b3bc` (v5.6.0)
 
 ---
 

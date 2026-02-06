@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v5.6.1] - 2026-02-06
+
+### Added (v5.6.1)
+
+- **Multi-Therapist Support**: Updated configuration and handlers to support a list of therapist IDs. Both Vera and the lead admin now receive real-time booking notifications.
+- **Dynamic Bot Links**: Refactored startup to automatically detect bot username (`@vera_massage_bot` or `@VeraDevBot`). All TWA links (deep links, record buttons) are now dynamically generated using the active bot's identity.
+- **Patient Notifications**: Implemented automated confirmation messages for patients when an admin books an appointment on their behalf via the "Manual Booking" flow.
+- **WebDAV Identity**: WebDAV server now identifies itself with the correct deployment context.
+
+### Changed (v5.6.1)
+
+- **Admin Logic**: Expanded admin permissions to include all therapists, enabling them to use administrative deep links in the TWA.
+- **Deployment**: Consolidated network configuration to prioritize stability and outbound API connectivity.
+
+### Fixed (v5.6.1)
+
+- **Link Redirection**: Fixed a bug where TWA "Записать" buttons occasionally pointed to the wrong bot instance across dev/prod environments.
+- **TWA Auth Regression**: Resolved an issue where therapists were treated as regular patients in the TWA, preventing them from accessing admin search/booking.
+
 ## [v5.6.0] - 2026-02-06
 
 ### Added (v5.6.0)
