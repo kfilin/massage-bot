@@ -1,9 +1,19 @@
 ---
 description: The Twin-Environment Release Cycle
 ---
-# 🚀 Workflow: Feature Release Cycle
+# 🚀 CI/CD Pipeline & Deployment Guide
 
-This workflow defines how to move code from your local machine, through the **Test Environment (Staging)**, and finally to **Production**.
+This document describes the automated deployment pipeline and the workflows to move code from local development to **Production**.
+
+## 🔄 Deployment Overview
+
+The project uses a **Git-Ops** workflow:
+
+1. **Code Source**: GitHub (`kfilin/massage-bot`)
+2. **Deployment Engine**: GitLab CI/CD (triggered via Mirroring)
+3. **Target**: Home Server (`/opt/vera-bot`)
+
+---
 
 ## 🔄 The "Twin" Concept
 
