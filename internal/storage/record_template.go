@@ -22,7 +22,11 @@ const medicalRecordTemplate = `
             }
         })();
 
-        async function cancelAppointment(apptId, btn) {
+        async function cancelAppointment(event, apptId, btn) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
             const tg = window.Telegram.WebApp;
 
             // Add loading state to button
@@ -352,7 +356,7 @@ const medicalRecordTemplate = `
                     </div>
                     <div>
                         {{if .CanCancel}}
-                            <button class="btn-cancel" onclick="cancelAppointment('{{.ID}}', this)">Отменить</button>
+                            <button class="btn-cancel" type="button" onclick="cancelAppointment(event, '{{.ID}}', this)">Отменить</button>
                         {{else}}
                             <a href="https://t.me/VeraFethiye" class="contact-vera" aria-label="Написать Вере в Telegram">💬 Написать Вере</a>
                         {{end}}
