@@ -736,6 +736,12 @@ func (h *BookingHandler) HandleTimeSelection(c telebot.Context) error {
 
 	// Check if this is a manual admin booking
 	if val, ok := sessionData[SessionKeyIsAdminManual].(bool); ok && val {
+		// If name is already set (from HandleStart deep link lookup), skip input
+		if name, okName := sessionData[SessionKeyName].(string); okName && name != "" {
+			logging.Debugf(": Manual admin booking with pre-filled name '%s', skipping input", name)
+			return h.askForConfirmation(c)
+		}
+
 		logging.Debugf(": Manual admin booking detected for user %d, asking for patient name", userID)
 		return c.Send("✍️ Введите <b>имя и фамилию пациента</b> для записи:", telebot.ModeHTML)
 	}
@@ -898,9 +904,16 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 	}
 
 	if isAdminManual {
-		// Normalize name for unique but persistent ID (e.g., "Kirill Filin" -> "manual_kirillfilin")
-		normalized := strings.ToLower(strings.Join(strings.Fields(name), ""))
-		appt.CustomerTgID = "manual_" + normalized
+		// If manual booking, use the SessionKeyPatientID if available
+		if targetID, ok := session[SessionKeyPatientID].(string); ok && targetID != "" {
+			appt.CustomerTgID = targetID
+			logging.Debugf(": Manual booking using stored PatientID: %s", targetID)
+		} else {
+			// Fallback if ID is missing (should not happen in deep-link flow)
+			normalized := strings.ToLower(strings.Join(strings.Fields(name), ""))
+			appt.CustomerTgID = "manual_" + normalized
+			logging.Warnf(": Manual booking fallback to generated ID: %s", appt.CustomerTgID)
+		}
 		appt.Notes = "Manual Appointment by Admin"
 	}
 

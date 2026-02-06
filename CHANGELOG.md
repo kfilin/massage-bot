@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v5.6.2] - 2026-02-07
+
+### Added (v5.6.2)
+
+- **Walkthrough Guide**: Created a new `walkthrough.md` in the root directory for convenient testing and feature verification (as requested by the user).
+
+### Fixed (v5.6.2)
+
+- **Admin TWA Access**: Resolved a critical logic error in `webapp.go` where an admin's administrative status was lost correctly when viewing patient records.
+- **TWA Cancellation**: Fixed an issue where admins were redirected to the Telegram website instead of being able to cancel appointments directly in the TWA.
+
 ## [v5.6.1] - 2026-02-06
 
 ### Added (v5.6.1)

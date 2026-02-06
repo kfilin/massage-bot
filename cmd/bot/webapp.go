@@ -153,10 +153,11 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 			return
 		}
 
-		// 2. Check Admin Status
+		// 2. Check Admin Status (Important: check this BEFORE we potentially change finalID to a patient ID!)
 		isAdmin := false
+		authUserID := finalID // Keep track of WHO is logged in
 		for _, adminID := range adminIDs {
-			if adminID == finalID {
+			if adminID == authUserID {
 				isAdmin = true
 				break
 			}
@@ -164,60 +165,11 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 
 		// 3. Admin Routing Logic
 		if isAdmin {
-
-			// If we arrived via initData (no explicit ID param in URL, just auth), or if ID matches admin ID
-			// AND we are not explicitly trying to "view self" via some specific link
-			// Then show search page.
-			// However, standard flow uses ?initData=... and no ID param usually.
-			// But the code above sets finalID from id param if valid HMAC present.
-
-			// Simplified: If 'id' query param is NOT present (or empty), check if we want to show search.
-			// But 'id' might be used for HMAC auth.
-			// Let's rely on a specific 'view' param or lack of target.
-
-			// Case A: HMAC Auth (Legacy/Dev) - usually has ?id=...&token=...
-			// In this case finalID is set. If finalID == Admin, do we show Search?
-			// Probably yes, unless they want to see their own card.
-
-			// Case B: InitData Auth - usually no ?id=... initially.
-
-			// Logic: If query param 'id' is PRESENT and DIFFERENT from finalID (Admin acting as User) -> Show User.
-			// logic failure: HMAC uses ?id=ADMIN_ID.
-
-			// Better Logic:
-			// If query param 'view_user_id' is set -> Show that user.
-			// Else if URL param 'id' matches 'finalID' (or missing) -> Show Search Page.
-
-			// But wait, the previous code used 'id' query param as THE target ID if HMAC valid.
-			// If I am admin, and I click a link ?id=PATIENT_ID&token=..., validation fails because token is for ADMIN_ID?
-			// No, HMAC is ID+Secret. So I can only generate links for myself unless I know the secret.
-			// So `id` param in HMAC flow IS the authenticated user.
-
-			// So:
-			// 1. Authenticated User = finalID.
-			// 2. If Admin, and no 'id' param provided in URL (meaning we are identifying via initData) -> Show Search.
-			// 3. If Admin, and 'id' param provided MATCHES finalID -> Show Search.
-			// 4. If Admin wants to view a patient, they need to supply target ID.
-			//    But we need to distinguish "I am Admin X" from "I want to view Patient Y".
-			//    Let's use the 'id' param as the TARGET view if we are already authenticated via initData.
-			//    But wait, initData is stripped in some flows?
-
-			// Let's settle on:
-			// If Admin:
-			//   Check 'id' param.
-			//   If 'id' != finalID -> We are viewing someone else (assuming we allow admins to view anyone without token if auth via initData).
-			//   If 'id' == finalID or empty -> Show Search Page.
-
-			// BUT: The existing code uses 'id' path for HMAC check.
-			// Let's stick to: Authenticated User is `finalID`.
-			// The `id` query param is used for auth if token present.
-			// If we use TWA `initData`, `id` param might be used for Target.
-
 			targetID := r.URL.Query().Get("id")
 
 			// If we are authenticated via InitData
 			if initData != "" {
-				if targetID != "" && targetID != finalID {
+				if targetID != "" && targetID != authUserID {
 					// We are Admin, authenticated via InitData, and requesting to view `targetID`.
 					// Allow viewing this patient.
 					finalID = targetID
@@ -229,11 +181,8 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 				}
 			} else {
 				// HMAC Auth (Development/Legacy)
-				// If id == finalID (Admin), show Search
-				// But we might want to debug specific user.
-				// Let's just say for HMAC, if Admin -> Search.
-				// If we want to view user via HMAC, we must generate HMAC for THAT user.
-				// So if I authenticate as Admin via HMAC -> Search Page.
+				// In HMAC flow, the 'id' param is the authenticated user.
+				// If that user is admin, show search page.
 				w.Header().Set("Content-Type", "text/html; charset=utf-8")
 				fmt.Fprint(w, repo.GenerateAdminSearchPage())
 				return
