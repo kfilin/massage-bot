@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed (v5.6.2)
 
 - **Admin TWA Access**: Resolved a critical logic error in `webapp.go` where an admin's administrative status was lost correctly when viewing patient records.
-- **TWA Cancellation**: Fixed an issue where admins were redirected to the Telegram website instead of being able to cancel appointments directly in the TWA.
+- **TWA Cancellation**: Fixed critical redirect bug by replacing page reloading with instant DOM updates. Cancellation is now seamless and does not trigger navigation.
 - **Manual Booking**: Fixed logic where "Manual Booking" assigned the appointment to the Admin instead of the patient (by using correct deep-link ID logic).
 - **Documentation**: Renamed `.agent/sop/feature-release.md` to `docs/CI_CD_Pipeline.md` for better discoverability.
 

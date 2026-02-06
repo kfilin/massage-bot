@@ -47,14 +47,26 @@ const medicalRecordTemplate = `
                 const result = await resp.json();
                 
                 if (result.status === "ok") {
-                    // Fix for TWA: location.reload() might lose query params or context.
-                    // We reconstruct the URL ensuring initData is present.
-                    const url = new URL(window.location.href);
-                    if (tg.initData && !url.searchParams.get('initData')) {
-                        url.searchParams.set('initData', tg.initData);
+                    // Fix: Avoid location.reload() to prevent TWA redirect issues.
+                    // Instead, update the DOM directly.
+                    tg.showAlert("✅ Запись успешно отменена");
+                    
+                    if (btn) {
+                        // Find the row and visualy remove it
+                        const row = btn.closest('.appt-item');
+                        if (row) {
+                            row.style.transition = 'all 0.5s ease';
+                            row.style.opacity = '0';
+                            row.style.transform = 'translateX(20px)';
+                            setTimeout(() => {
+                                row.remove();
+                                // Check if list is empty? Optional.
+                            }, 500);
+                        }
+                        
+                        // Also try to hide the Next Appointment card if it matches (optional heuristics)
+                        // Or just advise user to reload if they want fresh stats
                     }
-                    // Use replace to avoid history stack issues
-                    window.location.replace(url.toString());
                 } else {
                     // Remove loading state on error
                     if (btn) {
