@@ -168,11 +168,15 @@ const medicalRecordTemplate = `
         h1 { font-family: 'Outfit', sans-serif; font-size: 28px; font-weight: 700; margin: 0 0 8px 0; color: var(--text-main); letter-spacing: -0.02em; }
         .patient-meta { font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 8px; }
         .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 24px; }
-        .stat-card { background: var(--bg-page); padding: 16px 8px; border-radius: 12px; border: 1px solid var(--border); display: flex; flex-direction: column; justify-content: space-between; align-items: center; min-height: 100px; text-align: center; transition: transform 0.2s ease, box-shadow 0.2s ease; }
-        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
-        .stat-val { font-size: 15px; font-weight: 800; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; margin: auto 0; }
-        .stat-val-large { font-size: 20px; }
-        .stat-desc { font-size: 10px; text-transform: uppercase; font-weight: 600; color: var(--text-muted); padding-top: 8px; }
+        .stat-card { background: var(--bg-page); padding: 16px 12px; border-radius: 12px; border: 1px solid var(--border); display: flex; flex-direction: column; justify-content: space-between; align-items: center; min-height: 110px; text-align: center; transition: all 0.2s ease; }
+        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); border-color: var(--accent); }
+        .stat-val { font-size: 15px; font-weight: 800; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; margin: auto 0; }
+        .stat-val-large { font-size: 22px; color: var(--accent); }
+        .stat-desc { font-size: 10px; text-transform: uppercase; font-weight: 700; color: var(--text-muted); letter-spacing: 0.05em; }
+        .stat-sub { font-size: 10px; color: var(--text-muted); margin-top: 4px; font-weight: 500; }
+        .next-appt { border: 1.5px solid var(--accent); background: var(--accent-soft); }
+        .next-appt .stat-val { color: var(--accent); }
+        
         .main-container { max-width: 800px; margin: 0 auto; padding: 24px; }
         h2 { font-family: 'Outfit', sans-serif; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin: 0 0 16px 0; display: flex; align-items: center; gap: 8px; }
         .notes-content { font-size: 16px; color: #334155; white-space: pre-wrap; line-height: 1.6; }
@@ -209,57 +213,107 @@ const medicalRecordTemplate = `
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.8; } }
         .contact-vera { font-size: 11px; color: var(--accent); text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; transition: opacity 0.2s; }
         .contact-vera:hover { opacity: 0.8; }
+
+        /* Primary Action Buttons */
+        .btn-primary { 
+            display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+            padding: 8px 14px; background: var(--accent); color: white; 
+            border: none; border-radius: 10px; font-size: 12px; font-weight: 700; 
+            text-decoration: none; cursor: pointer; transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(51, 144, 236, 0.2);
+        }
+        .btn-primary:active { transform: scale(0.96); }
+        .btn-admin { background: #10b981; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2); }
         
         /* Empty State */
-        .empty-state { text-align: center; padding: 32px 20px; color: var(--text-muted); font-size: 14px; }
-        .empty-state-icon { font-size: 32px; margin-bottom: 8px; opacity: 0.5; }
-
+        .empty-state { text-align: center; padding: 40px 24px; color: var(--text-muted); background: var(--bg-page); border-radius: 12px; border: 1px dashed var(--border); }
+        .empty-state-icon { font-size: 40px; margin-bottom: 12px; display: block; filter: grayscale(1); opacity: 0.6; }
+        .empty-state-text { font-size: 14px; font-weight: 500; }
+        .empty-state-sub { font-size: 12px; margin-top: 4px; opacity: 0.8; }
+ 
         /* Collapsible Sections */
         .collapsible-header { cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
         .collapsible-header::after { content: '▼'; font-size: 10px; color: var(--text-muted); transition: transform 0.3s ease; }
         section.collapsed .collapsible-header::after { transform: rotate(-90deg); }
         .collapsible-content { max-height: 1000px; overflow: hidden; transition: max-height 0.3s ease, opacity 0.3s ease; opacity: 1; }
         section.collapsed .collapsible-content { max-height: 0; opacity: 0; }
-
+ 
         /* Mobile Optimization */
         @media (max-width: 480px) {
             .premium-header { padding: 24px 16px; }
             h1 { font-size: 24px; }
-            .stat-grid { grid-template-columns: 1fr; gap: 8px; }
-            .stat-card { flex-direction: row; min-height: 48px; padding: 12px 16px; border-radius: 10px; }
-            .stat-card:hover { transform: none; box-shadow: none; }
-            .stat-val { text-align: right; width: auto; margin: 0; font-size: 13px; font-weight: 700; }
-            .stat-val-large { font-size: 16px; }
-            .stat-desc { padding-top: 0; font-size: 9px; order: -1; text-align: left; }
-            .main-container { padding: 12px; }
-            section { padding: 16px; border-radius: 12px; margin-bottom: 16px; }
+            .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+            .stat-card { padding: 14px 10px; min-height: 90px; }
+            .stat-card.next-appt { grid-column: span 2; min-height: 80px; flex-direction: row; padding: 12px 16px; justify-content: space-between; text-align: left; }
+            .stat-card.next-appt .stat-desc { order: -1; }
+            .stat-card.next-appt .stat-val { width: auto; margin: 0; text-align: right; font-size: 14px; }
+            .stat-card.next-appt .stat-sub { display: none; }
+            
+            .stat-val { font-size: 14px; }
+            .stat-val-large { font-size: 20px; }
+            .stat-desc { font-size: 9px; }
+            .stat-sub { font-size: 9px; }
+            
+            /* Primary Action Buttons - Mobile */
+            .btn-primary { 
+                padding: 6px 10px; font-size: 11px;
+            }
+            .main-container { padding: 16px; }
+            section { padding: 16px; border-radius: 12px; margin-bottom: 20px; }
             .notes-content { font-size: 14px; }
         }
+        
+        /* Primary Action Buttons */
+        .btn-primary { 
+            display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+            padding: 8px 14px; background: var(--accent); color: white; 
+            border: none; border-radius: 10px; font-size: 12px; font-weight: 700; 
+            text-decoration: none; cursor: pointer; transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(51, 144, 236, 0.2);
+            font-family: 'Inter', sans-serif;
+        }
+        .btn-primary:active { transform: scale(0.96); }
+        .btn-admin { background: #10b981; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2); }
+        .btn-secondary { background: var(--bg-page); color: var(--text-main); border: 1px solid var(--border); box-shadow: none; }
+
     </style>
 </head>
 <body>
     <header class="premium-header">
         <div class="header-content">
-            <span class="badge">КАРТА ПАЦИЕНТА</span>
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+                <span class="badge">КАРТА ПАЦИЕНТА</span>
+                <div style="display: flex; gap: 8px;">
+                    {{if .IsAdmin}}
+                        <a href="https://t.me/VeraMassageBot?start=manual_{{.TelegramID}}" class="btn-primary btn-admin">➕ Записать</a>
+                    {{else}}
+                        <a href="https://t.me/VeraMassageBot?start=book" class="btn-primary">🗓 Записаться</a>
+                    {{end}}
+                </div>
+            </div>
             <h1>{{.Name}}</h1>
             <div class="stat-grid">
                 <div class="stat-card">
-                    <div class="stat-desc">Посещений</div>
-                    <div class="stat-val stat-val-large">{{.TotalVisits}}</div>
+                    <div class="stat-desc">Прогресс</div>
+                    <div class="stat-val stat-val-large">{{.TotalVisits}} <span style="font-size: 12px; font-weight: 400; color: var(--text-muted); padding-left: 2px;">виз.</span></div>
+                    <div class="stat-sub">Первый: {{.FirstVisit}}</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-desc">Услуга</div>
-                    <div class="stat-val">{{.CurrentService}}</div>
+                    <div class="stat-desc">Текущая услуга</div>
+                    <div class="stat-val" style="font-size: 13px;">{{.CurrentService}}</div>
+                    <div class="stat-sub">{{.GeneratedAt}}</div>
                 </div>
                 {{if .FutureAppointments}}
-                <div class="stat-card" style="border: 1px solid var(--accent);">
+                <div class="stat-card next-appt">
                     <div class="stat-desc">Следующий прием</div>
-                    <div class="stat-val" style="color: var(--accent);">{{(index .FutureAppointments 0).Date}}</div>
+                    <div class="stat-val">{{(index .FutureAppointments 0).Date}}</div>
+                    <div class="stat-sub">Ждем вас ❤️</div>
                 </div>
                 {{else}}
                 <div class="stat-card">
-                    <div class="stat-desc">Последний</div>
+                    <div class="stat-desc">Последний визит</div>
                     <div class="stat-val">{{.LastVisit}}</div>
+                    <div class="stat-sub">Запишитесь снова</div>
                 </div>
                 {{end}}
             </div>
@@ -269,8 +323,8 @@ const medicalRecordTemplate = `
         <!-- UPCOMING APPOINTMENTS -->
         {{if .FutureAppointments}}
         <section class="upcoming">
-            <h2>Будущие записи</h2>
-            <div class="appt-list">
+            <h2 class="collapsible-header" onclick="toggleSection(this)" onkeydown="handleKey(event, this)" role="button" tabindex="0" aria-expanded="true">Будущие записи</h2>
+            <div class="appt-list collapsible-content">
                 {{range .FutureAppointments}}
                 <div class="appt-item">
                     <div>
@@ -299,50 +353,70 @@ const medicalRecordTemplate = `
         {{end}}
 
         <section>
-            <h2>История болезни</h2>
-            <div class="notes-content">{{.TherapistNotes}}</div>
+            <h2 class="collapsible-header" onclick="toggleSection(this)" onkeydown="handleKey(event, this)" role="button" tabindex="0" aria-expanded="true">История болезни</h2>
+            <div class="notes-content collapsible-content">
+                {{if .TherapistNotes}}
+                    {{.TherapistNotes}}
+                {{else}}
+                    <div class="empty-state">
+                        <span class="empty-state-icon">📝</span>
+                        <div class="empty-state-text">Записей пока нет</div>
+                        <div class="empty-state-sub">Вера добавит важную информацию после вашего следующего визита.</div>
+                    </div>
+                {{end}}
+            </div>
         </section>
 
-        {{if .RecentVisits}}
         <section class="history collapsed">
             <h2 class="collapsible-header" onclick="toggleSection(this)" onkeydown="handleKey(event, this)" role="button" tabindex="0" aria-expanded="false" aria-controls="history-content">История посещений</h2>
             <div id="history-content" class="collapsible-content appt-list">
-                {{range .RecentVisits}}
-                <div class="appt-item">
-                    <div style="font-weight: 600; font-size: 14px;">{{.Date}}</div>
-                    <div style="font-size: 13px; color: var(--text-muted);">{{.Service}}</div>
-                </div>
+                {{if .RecentVisits}}
+                    {{range .RecentVisits}}
+                    <div class="appt-item">
+                        <div style="font-weight: 600; font-size: 14px;">{{.Date}}</div>
+                        <div style="font-size: 13px; color: var(--text-muted);">{{.Service}}</div>
+                    </div>
+                    {{end}}
+                {{else}}
+                    <div class="empty-state" style="border: none; padding: 20px 0;">
+                        <span class="empty-state-icon">🕒</span>
+                        <div class="empty-state-text">История пуста</div>
+                    </div>
                 {{end}}
             </div>
         </section>
-        {{end}}
 
         {{if .VoiceTranscripts}}
         <section>
-            <h2>Расшифровки Консультаций</h2>
-            <div class="notes-content" style="font-style: italic; color: #64748b;">{{.VoiceTranscripts}}</div>
+            <h2 class="collapsible-header" onclick="toggleSection(this)" onkeydown="handleKey(event, this)" role="button" tabindex="0" aria-expanded="true">Расшифровки Консультаций</h2>
+            <div class="notes-content collapsible-content" style="font-style: italic; color: #64748b;">{{.VoiceTranscripts}}</div>
         </section>
         {{end}}
 
-        {{if .DocGroups}}
         <section class="collapsed">
             <h2 class="collapsible-header" onclick="toggleSection(this)" onkeydown="handleKey(event, this)" role="button" tabindex="0" aria-expanded="false" aria-controls="docs-content">Документы и Снимки</h2>
             <div id="docs-content" class="collapsible-content doc-list">
-                {{range .DocGroups}}
-                <div class="doc-item">
-                    <div class="doc-info">
-                        <div style="font-weight: 600;">{{.Name}}</div>
-                        <div class="doc-stat">Количество: {{.Count}}</div>
+                {{if .DocGroups}}
+                    {{range .DocGroups}}
+                    <div class="doc-item">
+                        <div class="doc-info">
+                            <div style="font-weight: 600;">{{.Name}}</div>
+                            <div class="doc-stat">Количество: {{.Count}}</div>
+                        </div>
+                        <div class="doc-latest">
+                            <div>Последний:</div>
+                            <div>{{.Latest}}</div>
+                        </div>
                     </div>
-                    <div class="doc-latest">
-                        <div>Последний:</div>
-                        <div>{{.Latest}}</div>
+                    {{end}}
+                {{else}}
+                    <div class="empty-state" style="border: none; padding: 20px 0;">
+                        <span class="empty-state-icon">📂</span>
+                        <div class="empty-state-text">Файлов пока нет</div>
                     </div>
-                </div>
                 {{end}}
             </div>
         </section>
-        {{end}}
         <footer class="footer">Vera Massage Bot {{.BotVersion}}<br>Professional Medical Record Hub</footer>
     </main>
 </body>
@@ -365,10 +439,14 @@ const adminSearchTemplate = `
         input { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; }
         button { padding: 12px 20px; background-color: var(--tg-theme-button-color, #3390ec); color: var(--tg-theme-button-text-color, #fff); border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; }
         .results { display: flex; flex-direction: column; gap: 10px; }
-        .patient-card { padding: 15px; background: var(--tg-theme-secondary-bg-color, #f5f5f5); border-radius: 10px; cursor: pointer; transition: transform 0.1s; }
-        .patient-card:active { transform: scale(0.98); }
-        .patient-name { font-weight: bold; font-size: 16px; }
+        .patient-card { padding: 15px; background: var(--tg-theme-secondary-bg-color, #f5f5f5); border-radius: 12px; cursor: pointer; transition: background 0.2s; border: 1px solid transparent; }
+        .patient-card:hover { border-color: var(--tg-theme-button-color, #3390ec); }
+        .patient-name { font-weight: bold; font-size: 16px; color: var(--tg-theme-text-color, #000); }
         .patient-info { font-size: 13px; color: var(--tg-theme-hint-color, #888); margin-top: 4px; }
+        .btn-row { margin-top: 12px; display: flex; gap: 8px; }
+        .btn-action { border: none; border-radius: 8px; padding: 8px 12px; font-size: 12px; font-weight: 700; cursor: pointer; color: white; flex: 1; text-align: center; text-decoration: none; }
+        .btn-create { background-color: #10b981; }
+        .btn-view { background-color: var(--tg-theme-button-color, #3390ec); }
     </style>
 </head>
 <body>
@@ -416,7 +494,11 @@ const adminSearchTemplate = `
                     el.className = 'patient-card';
                     el.onclick = () => viewPatient(p.telegram_id);
                     el.innerHTML = '<div class="patient-name">' + p.name + '</div>' +
-                        '<div class="patient-info">ID: ' + p.telegram_id + ' • Визитов: ' + p.total_visits + '</div>';
+                        '<div class="patient-info">ID: ' + p.telegram_id + ' • Визитов: ' + p.total_visits + '</div>' +
+                        '<div class="btn-row">' +
+                            '<button onclick="event.stopPropagation(); window.location.href=\'https://t.me/VeraMassageBot?start=manual_' + p.telegram_id + '\'" class="btn-action btn-create">➕ Новая запись</button>' +
+                            '<button onclick="event.stopPropagation(); viewPatient(\'' + p.telegram_id + '\')" class="btn-action btn-view">📄 Карта</button>' +
+                        '</div>';
                     container.appendChild(el);
                 });
             } catch (e) {

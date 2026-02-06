@@ -224,6 +224,8 @@ func StartBot(
 	b.Handle("/edit_name", bookingHandler.HandleEditName)
 	b.Handle("/patients", bookingHandler.HandleListPatients)
 	b.Handle("/create_appointment", bookingHandler.HandleManualAppointment)
+	b.Handle("/manual", bookingHandler.HandleManualAppointment)
+	b.Handle("/book", bookingHandler.HandleStart)
 
 	// Register file/media handlers
 	b.Handle(telebot.OnDocument, bookingHandler.HandleFileMessage)

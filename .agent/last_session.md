@@ -2,12 +2,10 @@
 
 ## 🛡️ Accomplishments
 
-- **TWA Actions**: Implemented "Add Appointment" (➕) and "View Card" (📄) buttons in Admin Search.
-- **Deep Linking**: Enhanced `/start` handler to support `manual_ID` and `book` parameters for seamless Bot<->TWA interaction.
-- **Patient CTA**: Added "🗓 Записаться" button for patients in the TWA.
-- **UI/UX Premium**: Implemented high-density stat cards (Progress, Current Service, Next/Last Visit) with 2-column mobile grid.
-- **Empty States**: Added rich empty states (icons + descriptive text) for Notes, History, and Documents.
-- **Cleanup**: Standardized date formatting and unified CSS in `record_template.go`.
+- **Fix: Admin Cancellation**: Resolved "Access Denied" bug; admins can now cancel any appointment regardless of ownership.
+- **Fix: TWA Auth Self-Healing**: Refactored `webapp.go` to prioritize session-based `initData` and added a premium loading screen for auto-recovery from stale tokens.
+- **Deep Linking**: Enhanced `/start` and registered `/manual` commands for seamless Bot<->TWA interaction.
+- **UI/UX Premium**: Verified high-density stat cards and conditional "Empty States" (icons + help text).
 - **Validation**: Full test suite (`make test`) passed with 100% success rate.
 
 ## ⚠️ Technical Debt

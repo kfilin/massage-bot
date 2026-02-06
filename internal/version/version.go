@@ -3,7 +3,7 @@ package version
 
 const (
 	// Version is the semantic version of the application.
-	Version = "v5.3.6"
+	Version = "v5.6.0"
 
 	// Edition describes the deployment edition.
 	Edition = "Clinical Edition"

@@ -125,27 +125,31 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 		var telegramName string
 
 		// 1. Authenticate Request
-		if id != "" && token != "" {
-			if !validateHMAC(id, token, secret) {
-				expected := generateHMAC(id, secret)
-				logging.Errorf("AUTH ERROR: HMAC Mismatch! ID=%s, Token=%s, Expected=%s, SecretLen=%d", id, token, expected, len(secret))
-				http.Error(w, "Invalid token", http.StatusUnauthorized)
-				return
-			}
-			finalID = id
-		} else if initData != "" {
+		// We support two methods: HMAC (legacy/direct links) and InitData (TWA native).
+		// We prefer InitData as it is more secure and session-based.
+
+		if initData != "" {
 			var err error
 			finalID, telegramName, err = validateInitData(initData, botToken)
 			if err != nil {
-				logging.Errorf("AUTH ERROR: InitData Validation Failed! Err: %v\nInitData: %s\nBotTokenPrefix: %s...", err, initData, botToken[:5])
-				http.Error(w, "Authentication failed", http.StatusUnauthorized)
-				return
+				logging.Errorf("AUTH ERROR: InitData Validation Failed! Err: %v", err)
+				// If we have HMAC params, we can still fall back to them
 			}
-		} else {
-			// Serve basic TWA loading page
+		}
+
+		if finalID == "" && id != "" && token != "" {
+			if validateHMAC(id, token, secret) {
+				finalID = id
+				logging.Debugf(" [WebApp]: Authenticated via legacy HMAC for ID %s", id)
+			} else {
+				logging.Warnf("AUTH ERROR: HMAC Mismatch for ID %s. Token may be stale.", id)
+			}
+		}
+
+		if finalID == "" {
+			// Serve basic TWA loading page to attempt auth via JS
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			w.WriteHeader(http.StatusBadRequest)
-			fmt.Fprint(w, `<!DOCTYPE html><html><head><script src="https://telegram.org/js/telegram-web-app.js"></script></head><body><script>const tg = window.Telegram.WebApp; if(tg.initData) { const url = new URL(window.location.href); url.searchParams.set('initData', tg.initData); window.location.href = url.toString(); } else { document.body.innerHTML = "❌ Ошибка авторизации"; }</script></body></html>`)
+			fmt.Fprint(w, `<!DOCTYPE html><html><head><script src="https://telegram.org/js/telegram-web-app.js"></script><style>body{background:#0f172a;color:white;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;font-family:sans-serif;}</style></head><body><div id="status">⏳ Авторизация...</div><script>const tg = window.Telegram.WebApp; tg.expand(); if(tg.initData) { const url = new URL(window.location.href); url.searchParams.set('initData', tg.initData); window.location.replace(url.toString()); } else { document.getElementById('status').innerHTML = "❌ Ошибка авторизации<br><small>Откройте карту через бота</small>"; }</script></body></html>`)
 			return
 		}
 
@@ -477,7 +481,16 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 
 		logging.Debugf(" [WebApp]: Validated cancel request from user %s (%s)", userID, userName)
 
-		// Security: Ensure the appointment belongs to the user
+		// Check if user is admin
+		isAdmin := false
+		for _, adminID := range adminIDs {
+			if adminID == userID {
+				isAdmin = true
+				break
+			}
+		}
+
+		// Security: Ensure the appointment belongs to the user OR user is Admin
 		appt, err := apptService.FindByID(r.Context(), reqBody.ApptID)
 		if err != nil {
 			logging.Errorf("Cancel Error: Appt %s not found: %v", reqBody.ApptID, err)
@@ -486,20 +499,11 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 			return
 		}
 
-		if appt.CustomerTgID != userID {
+		if !isAdmin && appt.CustomerTgID != userID {
 			logging.Errorf("Cancel Error: Appt %s (Owner: %s) access denied for User %s", reqBody.ApptID, appt.CustomerTgID, userID)
 			w.WriteHeader(http.StatusForbidden)
 			_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Доступ запрещен"})
 			return
-		}
-
-		// Check if user is admin
-		isAdmin := false
-		for _, adminID := range adminIDs {
-			if adminID == userID {
-				isAdmin = true
-				break
-			}
 		}
 
 		// Enforce 72h rule (unless Admin)

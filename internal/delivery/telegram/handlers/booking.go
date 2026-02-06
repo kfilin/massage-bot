@@ -69,6 +69,35 @@ func (h *BookingHandler) HandleStart(c telebot.Context) error {
 	logging.Debugf(": Entered HandleStart for user %d", userID)
 	h.sessionStorage.ClearSession(userID)
 
+	args := c.Args()
+	if len(args) > 0 {
+		arg := args[0]
+		if strings.HasPrefix(arg, "manual_") {
+			targetID := strings.TrimPrefix(arg, "manual_")
+			// Only admins can use manual booking
+			isAdmin := false
+			userIDStr := strconv.FormatInt(userID, 10)
+			for _, id := range h.adminIDs {
+				if id == userIDStr {
+					isAdmin = true
+					break
+				}
+			}
+			if isAdmin {
+				h.sessionStorage.Set(userID, SessionKeyIsAdminManual, true)
+				patient, err := h.repository.GetPatient(targetID)
+				if err == nil {
+					h.sessionStorage.Set(userID, SessionKeyName, patient.Name)
+					logging.Debugf(": Deep link manual booking: detected patient %s for admin %d", patient.Name, userID)
+					return h.showCategories(c)
+				}
+			}
+		} else if arg == "book" {
+			// Just proceed to booking
+			return h.showCategories(c)
+		}
+	}
+
 	// First, send the persistent main menu
 	// Send welcome message
 	if err := c.Send("💆 Добро пожаловать!", h.GetMainMenu()); err != nil {
