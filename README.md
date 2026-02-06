@@ -1,4 +1,4 @@
-# 💆 Vera Massage Bot (Technical Excellence v5.3.6)
+# 💆 Vera Massage Bot (Technical Excellence v5.6.1)
 
 ![Go Version](https://img.shields.io/badge/Go-1.23-00ADD8?style=flat&logo=go)
 ![Test Coverage](https://img.shields.io/badge/coverage-33.4%25-green)
@@ -140,7 +140,7 @@ The bot is configured entirely via environment variables.
 | `GOOGLE_CREDENTIALS_PATH` | Path to Google Service Account JSON | Yes* | *Either this or JSON required |
 | `GOOGLE_CALENDAR_ID` | Calendar ID to manage (usually email) | No | Defaults to `primary` |
 | `GROQ_API_KEY` | API Key for Voice Transcription | No | [Groq Console](https://console.groq.com) |
-| `TG_THERAPIST_ID` | Telegram ID for "Ask Therapist" feature | No | Defaults to Admin ID |
+| `TG_THERAPIST_ID` | Comma-separated list for Therapist notifications | No | Defaults to Admin ID |
 | `WEBAPP_URL` | Public URL for the Mini App | No | e.g. `https://vera.massage/app` |
 | `WEBAPP_SECRET` | Secret key for Web App JWT signature | No | Required if Web App used |
 | `WEBAPP_PORT` | Port for the Web App server | No | Defaults to `8080` |
@@ -151,4 +151,4 @@ The bot is configured entirely via environment variables.
 | `APPT_CACHE_TTL` | Cache TTL for free/busy | No | Defaults to `5m` |
 
 ---
-*Created by Kirill Filin with Gemini Assistance. Gold Standard Checkpoint: v5.3.6 Stable (2026-02-03).*
+*Created by Kirill Filin with Gemini Assistance. Gold Standard Checkpoint: v5.6.1 Stable (2026-02-06).*

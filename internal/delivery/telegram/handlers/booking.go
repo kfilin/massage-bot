@@ -29,7 +29,7 @@ type BookingHandler struct {
 	appointmentService   ports.AppointmentService
 	sessionStorage       ports.SessionStorage
 	adminIDs             []string
-	therapistID          string // Added to notify Vera
+	therapistIDs         []string // Added to notify Vera and other admins
 	transcriptionService ports.TranscriptionService
 	repository           ports.Repository
 	WebAppURL            string
@@ -47,15 +47,16 @@ const (
 	SessionKeyIsAdminBlock         = "is_admin_block"
 	SessionKeyIsAdminManual        = "is_admin_manual"
 	SessionKeyAdminReplyingTo      = "admin_replying_to"
+	SessionKeyPatientID            = "patient_id" // For manual booking
 )
 
 // NewBookingHandler creates a new BookingHandler.
-func NewBookingHandler(as ports.AppointmentService, ss ports.SessionStorage, admins []string, therapistID string, trans ports.TranscriptionService, repo ports.Repository, webAppURL string, webAppSecret string) *BookingHandler {
+func NewBookingHandler(as ports.AppointmentService, ss ports.SessionStorage, admins []string, therapistIDs []string, trans ports.TranscriptionService, repo ports.Repository, webAppURL string, webAppSecret string) *BookingHandler {
 	return &BookingHandler{
 		appointmentService:   as,
 		sessionStorage:       ss,
 		adminIDs:             admins,
-		therapistID:          therapistID,
+		therapistIDs:         therapistIDs,
 		transcriptionService: trans,
 		repository:           repo,
 		WebAppURL:            webAppURL,
@@ -85,6 +86,7 @@ func (h *BookingHandler) HandleStart(c telebot.Context) error {
 			}
 			if isAdmin {
 				h.sessionStorage.Set(userID, SessionKeyIsAdminManual, true)
+				h.sessionStorage.Set(userID, SessionKeyPatientID, targetID)
 				patient, err := h.repository.GetPatient(targetID)
 				if err == nil {
 					h.sessionStorage.Set(userID, SessionKeyName, patient.Name)
@@ -1001,10 +1003,14 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 		h.BotNotify(c.Bot(), adminID, msg)
 	}
 
-	// 2. Notify Therapist (Vera)
-	if h.therapistID != "" {
-		therapistID, _ := strconv.ParseInt(h.therapistID, 10, 64)
-		msg := fmt.Sprintf("🆕 *Вера, у вас новая запись!*\n\nПациент: %s\nУслуга: %s\nДата: %s\nВремя: %s",
+	// 2. Notify Therapists
+	for _, tID := range h.therapistIDs {
+		therapistID, err := strconv.ParseInt(tID, 10, 64)
+		if err != nil {
+			logging.Warnf("Invalid therapist ID: %s", tID)
+			continue
+		}
+		msg := fmt.Sprintf("🆕 *Новая запись!*\n\nПациент: %s\nУслуга: %s\nДата: %s\nВремя: %s",
 			name, service.Name,
 			appointmentTime.Format("02.01.2006"),
 			appointmentTime.Format("15:04"))
@@ -1076,8 +1082,31 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 		)
 	}
 
-	return c.Send(confirmationMsg, h.GetMainMenu(), selector, telebot.ModeHTML)
+	// 4. Also notify patient if it was a manual booking by admin
+	if isAdminManual {
+		patientIDStr, ok := session[SessionKeyPatientID].(string)
+		if ok && patientIDStr != "" {
+			patientID, err := strconv.ParseInt(patientIDStr, 10, 64)
+			if err == nil {
+				patientNotice := fmt.Sprintf(`💆 <b>ЗАПИСЬ СОЗДАНА</b>
 
+Вас записали на прием к Вере:
+
+📅  <b>%s</b>
+⏰  <b>%s</b>
+💆  %s
+
+━━━━━━━━━━━━━━━━━
+<i>Ждем вас! 💙</i>`,
+					appointmentTime.Format("02.01.2006"),
+					appointmentTime.Format("15:04"),
+					service.Name)
+				h.BotNotify(c.Bot(), patientID, patientNotice)
+			}
+		}
+	}
+
+	return c.Send(confirmationMsg, h.GetMainMenu(), selector, telebot.ModeHTML)
 }
 
 func (h *BookingHandler) syncPatientStats(ctx context.Context, telegramID string, name string) (domain.Patient, error) {

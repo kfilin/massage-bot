@@ -43,18 +43,8 @@ const (
 
 // StartBot initializes and runs the Telegram bot.
 // It now receives all necessary services and configuration from the main package.
-func StartBot(
-	ctx context.Context,
-	token string,
-	appointmentService ports.AppointmentService,
-	sessionStorage ports.SessionStorage,
-	adminTelegramID string,
-	allowedTelegramIDs []string,
-	trans ports.TranscriptionService,
-	repo ports.Repository,
-	webAppURL string,
-	webAppSecret string,
-) {
+// InitBot initializes the bot and returns the instance.
+func InitBot(token string) (*telebot.Bot, error) {
 	pref := telebot.Settings{
 		Token:  token,
 		Poller: &telebot.LongPoller{Timeout: 10 * time.Second},
@@ -67,21 +57,28 @@ func StartBot(
 	for i := 0; i < 10; i++ {
 		b, err = telebot.NewBot(pref)
 		if err == nil {
-			break
+			return b, nil
 		}
 		logging.Debugf("DEBUG_RETRY: Error creating bot (attempt %d/10): %v", i+1, err)
 		time.Sleep(time.Duration(i*2+5) * time.Second) // Exponential-ish backoff
 	}
+	return nil, err
+}
 
-	if err != nil {
-		logging.Errorf("CRITICAL: Failed to create bot after multiple attempts: %v", err)
-		logging.Info("Suspending bot polling, but keeping process alive for WebApp.")
-		// We don't log.Fatalf here anymore to allow WebApp to still run
-		// However, most handlers depend on 'b', so we might need a way to mark bot as "offline"
-		// For now, we return to prevent panics below if 'b' is nil
-		return
-	}
-
+// RunBot starts the main event loop of the Telegram bot.
+func RunBot(
+	ctx context.Context,
+	b *telebot.Bot,
+	appointmentService ports.AppointmentService,
+	sessionStorage ports.SessionStorage,
+	adminTelegramID string,
+	allowedTelegramIDs []string,
+	trans ports.TranscriptionService,
+	repo ports.Repository,
+	webAppURL string,
+	webAppSecret string,
+	therapistIDs []string,
+) {
 	// Set menu button for quick TWA access
 	if webAppURL != "" {
 		// Use raw API call to avoid nil pointer issues with SetMenuButton
@@ -113,19 +110,18 @@ func StartBot(
 			adminMap[id] = true
 		}
 	}
+	for _, id := range therapistIDs {
+		if id != "" {
+			adminMap[id] = true
+		}
+	}
 
 	finalAdminIDs := make([]string, 0, len(adminMap))
 	for id := range adminMap {
 		finalAdminIDs = append(finalAdminIDs, id)
 	}
 
-	// Retrieve therapist ID from environment
-	therapistID := os.Getenv("TG_THERAPIST_ID")
-	if therapistID == "" {
-		logging.Warn("WARNING: TG_THERAPIST_ID not set in environment.")
-	}
-
-	bookingHandler := handlers.NewBookingHandler(appointmentService, sessionStorage, finalAdminIDs, therapistID, trans, repo, webAppURL, webAppSecret)
+	bookingHandler := handlers.NewBookingHandler(appointmentService, sessionStorage, finalAdminIDs, therapistIDs, trans, repo, webAppURL, webAppSecret)
 
 	// Initialize and start Reminder Service
 	reminderService := reminder.NewService(appointmentService, repo, b, finalAdminIDs)

@@ -102,7 +102,7 @@ func validateInitData(initData string, botToken string) (string, string, error) 
 	return fmt.Sprintf("%d", user.ID), fullName, nil
 }
 
-func startWebAppServer(ctx context.Context, port string, secret string, botToken string, adminIDs []string, repo ports.Repository, apptService ports.AppointmentService, dataDir string) {
+func startWebAppServer(ctx context.Context, port string, secret string, botToken string, adminIDs []string, repo ports.Repository, apptService ports.AppointmentService, dataDir string, botUsername string) {
 	if port == "" {
 		port = "8082"
 	}

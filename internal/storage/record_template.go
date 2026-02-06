@@ -285,9 +285,9 @@ const medicalRecordTemplate = `
                 <span class="badge">КАРТА ПАЦИЕНТА</span>
                 <div style="display: flex; gap: 8px;">
                     {{if .IsAdmin}}
-                        <a href="https://t.me/VeraMassageBot?start=manual_{{.TelegramID}}" class="btn-primary btn-admin">➕ Записать</a>
+                        <a href="https://t.me/{{.BotUsername}}?start=manual_{{.TelegramID}}" class="btn-primary btn-admin">➕ Записать</a>
                     {{else}}
-                        <a href="https://t.me/VeraMassageBot?start=book" class="btn-primary">🗓 Записаться</a>
+                        <a href="https://t.me/{{.BotUsername}}?start=book" class="btn-primary">🗓 Записаться</a>
                     {{end}}
                 </div>
             </div>
@@ -496,7 +496,7 @@ const adminSearchTemplate = `
                     el.innerHTML = '<div class="patient-name">' + p.name + '</div>' +
                         '<div class="patient-info">ID: ' + p.telegram_id + ' • Визитов: ' + p.total_visits + '</div>' +
                         '<div class="btn-row">' +
-                            '<button onclick="event.stopPropagation(); window.location.href=\'https://t.me/VeraMassageBot?start=manual_' + p.telegram_id + '\'" class="btn-action btn-create">➕ Новая запись</button>' +
+                            '<button onclick="event.stopPropagation(); window.location.href=\'https://t.me/{{.BotUsername}}?start=manual_' + p.telegram_id + '\'" class="btn-action btn-create">➕ Новая запись</button>' +
                             '<button onclick="event.stopPropagation(); viewPatient(\'' + p.telegram_id + '\')" class="btn-action btn-view">📄 Карта</button>' +
                         '</div>';
                     container.appendChild(el);

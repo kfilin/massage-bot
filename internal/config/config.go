@@ -16,7 +16,7 @@ type Config struct {
 	GoogleCalendarCredentialsJSON string
 	GoogleCalendarID              string
 	GroqAPIKey                    string
-	TherapistID                   string
+	TherapistIDs                  []string
 	WebAppURL                     string
 	WebAppSecret                  string
 	WebAppPort                    string
@@ -62,6 +62,18 @@ func LoadConfig() *Config {
 		googleCalendarID = "primary"
 	}
 
+	therapistIDsStr := os.Getenv("TG_THERAPIST_ID")
+	var therapistIDs []string
+	if therapistIDsStr != "" {
+		ids := strings.Split(therapistIDsStr, ",")
+		for _, id := range ids {
+			trimmedID := strings.TrimSpace(id)
+			if trimmedID != "" {
+				therapistIDs = append(therapistIDs, trimmedID)
+			}
+		}
+	}
+
 	return &Config{
 		TgBotToken:                    token,
 		AdminTelegramID:               adminID,
@@ -70,7 +82,7 @@ func LoadConfig() *Config {
 		GoogleCalendarCredentialsJSON: googleCredsJSON,
 		GoogleCalendarID:              googleCalendarID,
 		GroqAPIKey:                    os.Getenv("GROQ_API_KEY"),
-		TherapistID:                   os.Getenv("TG_THERAPIST_ID"),
+		TherapistIDs:                  therapistIDs,
 		WebAppURL:                     os.Getenv("WEBAPP_URL"),
 		WebAppSecret:                  os.Getenv("WEBAPP_SECRET"),
 		WebAppPort:                    os.Getenv("WEBAPP_PORT"),

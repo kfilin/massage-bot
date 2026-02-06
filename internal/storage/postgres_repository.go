@@ -26,9 +26,10 @@ import (
 var _ ports.Repository = (*PostgresRepository)(nil)
 
 type PostgresRepository struct {
-	db         *sqlx.DB
-	dataDir    string
-	BotVersion string
+	db          *sqlx.DB
+	dataDir     string
+	BotVersion  string
+	BotUsername string
 }
 
 func NewPostgresRepository(db *sqlx.DB, dataDir string) *PostgresRepository {
@@ -382,6 +383,7 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient, history []doma
 		FutureAppointments []futureInfo
 		NextApptUnix       int64
 		IsAdmin            bool
+		BotUsername        string
 	}
 
 	getCalLink := func(t time.Time, service string) string {
@@ -396,6 +398,15 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient, history []doma
 	// cleanNotes := re.ReplaceAllString(p.TherapistNotes, "")
 	cleanNotes := p.TherapistNotes
 
+	firstVisitStr := p.FirstVisit.Format("02.01.2006")
+	if p.FirstVisit.Year() < 2000 {
+		firstVisitStr = "Впервые"
+	}
+	lastVisitStr := p.LastVisit.Format("02.01.2006")
+	if p.LastVisit.Year() < 2000 {
+		lastVisitStr = "—"
+	}
+
 	data := templateData{
 		Name:               strings.ToUpper(p.Name),
 		TelegramID:         p.TelegramID,
@@ -405,11 +416,12 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient, history []doma
 		BotVersion:         r.BotVersion,
 		TherapistNotes:     r.mdToHTML(cleanNotes),
 		VoiceTranscripts:   template.HTML(strings.ReplaceAll(template.HTMLEscapeString(p.VoiceTranscripts), "\n", "<br>")),
-		FirstVisit:         p.FirstVisit.Format("02.01.2006 15:04"),
-		LastVisit:          p.LastVisit.Format("02.01.2006 15:04"),
+		FirstVisit:         firstVisitStr,
+		LastVisit:          lastVisitStr,
 		FirstVisitLink:     getCalLink(p.FirstVisit, p.CurrentService),
 		ShowFirstVisitLink: p.FirstVisit.After(time.Now()),
 		IsAdmin:            isAdmin,
+		BotUsername:        r.BotUsername,
 	}
 
 	// Identify Future Appointments and Next Appointment for Countdown

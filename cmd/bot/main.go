@@ -93,7 +93,19 @@ func main() {
 		startHealthServer(ctx)
 	}()
 
-	// 6b. Start Web App server
+	// 7. Initialize and Start the Telegram Bot
+	logging.Info("Starting Telegram bot...")
+	bot, err := telegram.InitBot(cfg.TgBotToken)
+	if err != nil {
+		logging.Fatalf("CRITICAL: Failed to initialize Telegram bot: %v", err)
+	}
+	botUsername := bot.Me.Username
+	logging.Infof("Authenticated as @%s", botUsername)
+
+	// Set metadata in repository for dynamic link generation
+	patientRepo.BotUsername = botUsername
+
+	// 8. Start Web App server
 	if cfg.WebAppSecret != "" {
 		adminMap := make(map[string]struct{})
 		if cfg.AdminTelegramID != "" {
@@ -104,8 +116,10 @@ func main() {
 				adminMap[id] = struct{}{}
 			}
 		}
-		if cfg.TherapistID != "" {
-			adminMap[cfg.TherapistID] = struct{}{}
+		for _, id := range cfg.TherapistIDs {
+			if id != "" {
+				adminMap[id] = struct{}{}
+			}
 		}
 
 		var allAdmins []string
@@ -115,20 +129,18 @@ func main() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			startWebAppServer(ctx, cfg.WebAppPort, cfg.WebAppSecret, cfg.TgBotToken, allAdmins, patientRepo, appointmentService, os.Getenv("DATA_DIR"))
+			startWebAppServer(ctx, cfg.WebAppPort, cfg.WebAppSecret, cfg.TgBotToken, allAdmins, patientRepo, appointmentService, os.Getenv("DATA_DIR"), botUsername)
 		}()
 	} else {
 		logging.Warn("Warning: WEBAPP_SECRET not set, Web App server not started.")
 	}
 
-	// 7. Start the Telegram Bot
-	logging.Info("Starting Telegram bot...")
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		telegram.StartBot(
+		telegram.RunBot(
 			ctx,
-			cfg.TgBotToken,
+			bot,
 			appointmentService,
 			sessionStorage,
 			cfg.AdminTelegramID,
@@ -137,6 +149,7 @@ func main() {
 			patientRepo,
 			cfg.WebAppURL,
 			cfg.WebAppSecret,
+			cfg.TherapistIDs,
 		)
 	}()
 
