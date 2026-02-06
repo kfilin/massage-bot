@@ -65,12 +65,10 @@
 - **Status**: Completed in v5.4.0.
 - **Resolution**: Added dark mode support, section fade-in animations, button loading states, and visual differentiation for upcoming vs history sections.
 
-### 18. [TODO] Stat Cards - Information Density
+### 18. [DONE] Stat Cards - Information Density
 
-- **Priority**: High
-- On mobile, stat cards stack vertically taking too much space
-- "Обновлено" is less useful than showing "Next Appointment"  
-- **Idea**: Combine first visit + total visits in one card
+- **Status**: Completed (2026-02-06).
+- **Resolution**: Combined First Visit + Total Visits in one card, improved mobile responsiveness with a 2-column grid, and made "Next Appointment" more prominent with a dedicated highlight style.
 
 ### 19. [DONE] Accessibility Improvements
 
@@ -81,11 +79,10 @@
   - Added `role="button"` and `tabindex="0"` to headers.
   - Added `aria-label` to iconic links.
 
-### 20. [TODO] Empty States Enhancement
+### 20. [DONE] Empty States Enhancement
 
-- **Priority**: High
-- Current "Документов пока нет" is plain text
-- **Idea**: Add icon/illustration and call-to-action
+- **Status**: Completed (2026-02-06).
+- **Resolution**: Added icons and descriptive text for empty sections (Notes, History, Docs) to improve UX for new patients.
 
 ### 21. [TODO] History List Pagination
 

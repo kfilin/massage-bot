@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v5.6.0] - 2026-02-06
+
+### Added (v5.6.0)
+
+- **TWA Actions**: Implemented "Add Appointment" (➕) and "View Card" (📄) quick-action buttons in Admin Search.
+- **Deep Linking**: Added support for `manual_ID` start parameter to pre-fill patient data when admins trigger booking from TWA.
+- **Patient CTA**: Added "🗓 Записаться" (Schedule) button for patients in TWA with direct bot redirection.
+- **UI/UX**: Implemented high-density stat cards and conditional "Empty States" (icons + help text) for all TWA sections.
+- **Mobile responsiveness**: Redesigned stat grid for mobile (2-column layout + spanning "Next Appointment").
+
+### Changed (v5.6.0)
+
+- **Record Template**: Cleaned up and unified CSS/HTML for better performance and maintainability.
+- **Backlog**: Marked items 18 (Stat Cards) and 20 (Empty States) as DONE.
+
+### Fixed (v5.6.0)
+
+- **Data Formatting**: Standardized date display (DD.MM.YYYY) across all TWA cards, removing redundant time strings where unnecessary.
+
 ## [v5.5.2] - 2026-02-06
 
 ### Added (v5.5.2)
