@@ -8,7 +8,7 @@ A professional clinical ecosystem for massage therapists. Features interactive b
 
 ## 🏗️ Technical Foundation
 
-- **Version**: v5.5.1 (Accessibility Improvements)
+- **Version**: v5.5.2 (Organization & Quality)
 - **Language**: **Go 1.24** (Alpine-based)
 - **Database**: PostgreSQL 15 (Metadata & Sync Status)
 - **Clinical Storage**: **Markdown-mirrored Filesystem** (Clinical Storage 2.0)
@@ -17,7 +17,7 @@ A professional clinical ecosystem for massage therapists. Features interactive b
 
 ---
 
-## 🚀 Deployment & Workflows
+## 🚀 Deployment & SOPs
 
 All deployment scripts are in the `scripts/` directory.
 
@@ -53,10 +53,10 @@ A fully isolated environment running on `vera-bot-test.kfilin.icu`:
 
 ## 💎 Gold Standard Checkpoint
 
-- **Commit**: `PENDING_COMMIT` (Accessibility Improvements)
+- **Commit**: `PENDING_COMMIT` (Organization & Doc Quality)
 - **Date**: 2026-02-06
-- **Status**: **STABLE**. TWA Accessibility (ARIA/Focus) implemented.
-- **Rollback**: `1962a7b` (v5.5.0)
+- **Status**: **STABLE**. Documentation linted and project structure reorganized.
+- **Rollback**: `553bbda` (v5.5.1)
 
 ---
 
@@ -65,4 +65,4 @@ A fully isolated environment running on `vera-bot-test.kfilin.icu`:
 1. **Human-Led, AI-Assisted**: You define the goal, I suggest 3 options with trade-offs.
 2. **Docs as Fuel**: Every feature = Code + Tests + Rationale.
 3. **Smart Logs**: Use `git log` and this Hub to track decisions (ADRs).
-4. **Checkpoint**: Use `/checkpoint` to flush context and update this Hub.
+4. **Checkpoint**: Follow `.agent/sop/checkpoint.md` to rotate handoffs into `ARCHIVE/` and update this Hub.

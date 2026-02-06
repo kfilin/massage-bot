@@ -70,3 +70,4 @@ docker-compose.override.yml
 !deploy/docker-compose.example.yml
 !deploy/docker-compose.test.yml
 !deploy/Caddyfile.example
+/ARCHIVE/

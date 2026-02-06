@@ -5,29 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v5.5.2] - 2026-02-06
+
+### Added (v5.5.2)
+
+- **Organization**: Created root `ARCHIVE/` directory for historical session logs and documentation.
+- **Agent SOPs**: Renamed `.agent/workflows/` to `.agent/sop/` to distinguish from CI/CD machine workflows.
+- **Convention**: Implemented ISO 8601 (`YYYY-MM-DD`) naming for `handoff` and `last_session` files for chronological sorting.
+- **Automation**: Updated Checkpoint SOP with automated rotation and archiving logic.
+
+### Fixed (v5.5.2)
+
+- **Linting**: Fixed over 100 Markdown linting errors across all documentation files (headings, tables, code blocks).
+- **Documentation**: Corrected broken links and updated `docs/files.md` to reflect the new structure.
+
 ## [v5.5.1] - 2026-02-06
 
-### Added
+### Added (v5.5.1)
 
 - **Accessibility**: Implemented full keyboard navigation (`:focus-visible` outlines) and Screen Reader support (`aria-expanded`, `role="button"`) for the TWA Patient Card.
 - **Clean Code**: Integrated accessibility logic directly into `record_template.go` (no external deps).
 
 ## [v5.5.0] - 2026-02-05
 
-### Added
+### Added (v5.5.0)
 
 - **GitHub→GitLab Mirroring**: Automated repository sync using HTTPS + Personal Access Token. Pushes to GitHub automatically trigger GitLab CI/CD pipeline.
 - **TWA InitData Auth**: Cancel appointments now use Telegram's native `initData` authentication instead of URL tokens. Cryptographically signed by Telegram, never expires during session.
 - **Admin TWA Features**: Admins can now view a full patient list (autoload) and override the 72h cancellation restriction in the Web App.
 - **Bot Command**: Added `/patients` command to list recent patients with direct TWA links.
 
-### Changed
+### Changed (v5.5.0)
 
 - **CI/CD Architecture**: GitHub handles tests/builds only; GitLab handles all deployments. Eliminates duplicate deploy attempts.
 - **TWA Cancel UX**: Better error messages for patients instead of cryptic "Invalid token" errors.
 - **Documentation**: Updated `Collaboration-Blueprint.md` to "Gold Standard" and `files.md` to reflect current project structure.
 
-### Fixed
+### Fixed (v5.5.0)
 
 - **Invalid Token Error**: Fixed HMAC mismatch caused by whitespace handling inconsistencies between Go backend and JS frontend (`ids` are now trimmed).
 - **Stale Token Bug**: Resolved issue where TWA cancel would fail with "Недействительный токен" after deployments due to stale URL tokens. InitData auth is session-based and immune to this.
@@ -35,42 +49,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [v5.4.0] - 2026-02-04
 
-### Added
+### Added (v5.4.0)
 
 - **Menu Button**: Added "Открыть карту" (Open Card) button for quick one-click access to the Telegram Web App directly from the bot's chat interface.
 
-### Fixed
+### Fixed (v5.4.0)
 
 - **TWA Cancellation**: Fixed critical bug where cancelled appointments would reappear on patient cards after page refresh. Root cause was that cancellations only deleted from Google Calendar but not from the local database cache.
 - **Repository Interface**: Added `DeleteAppointment` method to properly remove cancelled appointments from both Google Calendar AND the local database.
 - **Menu Button Panic**: Fixed nil pointer dereference in SetMenuButton by using raw API call instead of telebot library method.
 
-### Changed
+### Changed (v5.4.0)
 
 - **Service Architecture**: Updated `appointment.Service` to include database repository for proper appointment lifecycle management.
 - **Test Coverage**: Expanded to **37.8%** overall (up from 19.5%, +18.3pp), exceeding the 30% target.
 
 ## [v5.3.7] - 2026-02-01
 
-### Fixed
+### Fixed (v5.3.7)
 
 - **App Stability**: Permanently resolved "Invalid Token" and crash loops by decoupling the WebApp server lifespan from the Telegram Bot connection within `main.go`. The WebApp now remains online even if the Bot cannot reach the Telegram API.
 - **DNS Collision**: Resolved a critical Docker DNS conflict where Caddy round-robined requests between Production (`massage-bot`) and Test (`massage-bot-test`) containers on the shared network.
 - **Build System**: Forced cache validation in `bot.go` to prevent stale binaries from persisting in deployments.
 
-### Added
+### Added (v5.3.7)
 
 - **Request Tracing**: Added debug logging to `webapp.go` middleware to trace incoming requests (Method, URL, RemoteAddr) for easier routing diagnosis.
 
 ## [v5.3.4] - 2026-01-31
 
-### Added
+### Added (v5.3.4)
 
 - **Admin Arsenal**: Restored `/edit_name <telegram_id> <new_name>` command. This allows admins to manually correct patient names in both the database and Markdown synchronization files, bypassing fragile auto-sync logic.
 
 ## [v5.3.3] - 2026-01-31
 
-### Fixed
+### Fixed (v5.3.3)
 
 - **TWA Authentication**: Implemented permanent `AUTH ERROR` diagnostics to resolve "Invalid Token" issues.
 - **Network Topology**: Isolated database traffic to a private `bot-db-net` bridge. This prevents DNS collisions between Prod and Test environments on the same host and ensures `db` hostname consistently resolves correctly.
@@ -78,7 +92,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [v5.2.3] - 2026-01-30
 
-### Fixed
+### Fixed (v5.2.3)
 
 - **TWA Connectivity**: Resolved connectivity issues by switching test network to `external` mode.
 - **Documentation**: Streamlined project documentation structure.
@@ -98,14 +112,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [v5.2.1] - 2026-01-29
 
-### Added
+### Added (v5.2.1)
 
 - **Dual Folder Strategy**: Deployed a fully isolated Test Environment (`/opt/vera-bot-test`) running on ports 9082 (App) and 9083 (Metrics), separate from Production.
 - **Dedicated Config**: Added `docker-compose.test-override.yml` and parameterized port usage for flexible deployments.
 
 ## [5.1.1] - 2026-01-29
 
-### Fixed
+### Fixed (5.1.1)
 
 - **TWA Performance**: Restored "Lightning Fast" loading speeds by switching from synchronous Google Calendar sync to a **Local Database Cache** strategy.
 - **TWA Cancellation**: Removed blocking confirmation dialog that caused freezing on iOS devices; cancellation is now instant.
@@ -115,19 +129,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [5.1.0] - 2026-01-27
 
-### Added
+### Added (5.1.0)
 
 - **Enhanced Observability**: Implemented application-wide `DEBUG` logs for database initialization, repository operations, Google Calendar API requests, and Telegram bot interactions.
 - **Duplicati Integration**: Verified and documented the setup of a local Duplicati instance for incremental, encrypted backups of clinical data and metadata.
 
-### Changed
+### Changed (5.1.0)
 
 - **Database Logging**: Refined PostgreSQL logging in `docker-compose.yml` to captue only data-modifying queries (`log_statement=mod`) and disabled connection/disconnection logs to eliminate health-check noise.
 - **Documentation Cleanup**: consolidated and updated the `.agent` and `docs/` directories, removing 1000+ lines of redundant or outdated documentation.
 
 ## [5.0.0] - 2026-01-26
 
-### Added
+### Added (5.0.0)
 
 - **Phase 4: Technical Excellence** (Series Finale)
 - **Robust Scheduling**: Successfully migrated to the official Google Calendar **Free/Busy API**. This ensures 100% accurate collision detection for available slots, automatically respecting "Out of Office", manual blocks, and overlapping events created outside the bot.
@@ -135,33 +149,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Backup Worker**: Added a background ticker that performs an automated backup every 24 hours and sends it directly to the therapist via Telegram.
 - **Manual Backups**: Updated the `/backup` command for admins to trigger an immediate full ZIP archive delivery.
 
-### Changed
+### Changed (5.0.0)
 
 - **Infrastructure**: Updated Dockerfile to include `postgresql-client` and `zip` for integrated backup capabilities.
 - **Availability Logic**: Refactored the internal scheduler to perform a just-in-time Free/Busy check during the final confirmation step, eliminating the risk of race-condition double bookings.
 
 ## [4.4.3] - 2026-01-26
 
-### Fixed
+### Fixed (4.4.3)
 
 - **TWA Cancellation**: Restored Admin Alert for patients who are also admins (now only receive one alert due to deduplicated recipient list).
 
 ## [4.4.2] - 2026-01-26
 
-### Fixed
+### Fixed (4.4.2)
 
 - **TWA Cancellation**: Deduplicated Telegram notifications for admins.
 - **TWA Cancellation**: Prevented sending "Admin Alert" to a patient who is also an admin.
 
 ## [4.4.1] - 2026-01-26
 
-### Fixed
+### Fixed (4.4.1)
 
 - **TWA Cancellation**: Added bot notifications for both patient and admins when a record is cancelled via the Web App.
 
 ## [4.4.0] - 2026-01-26
 
-### Added
+### Added (4.4.0)
 
 - **Phase 2: TWA Evolution**
 - Conditional "Cancel" buttons in TWA (enforced 72h-notice rule).
@@ -173,7 +187,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [4.3.0] - 2026-01-26
 
-### Added
+### Added (4.3.0)
 
 - **Reminder Service**: New background worker (10-min ticker) for automated patient notifications.
 - **Interactive Reminders**: Interactive `[✅ Подтвердить]` and `[❌ Отменить]` buttons for 72h and 24h appointment windows.
@@ -181,18 +195,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Automatic Archiving**: All patient inquiries (text/voice) and admin responses are automatically logged to the patient's medical card (Postgres & Markdown).
 - **Confirmation Tracking**: New database metadata layer to track appointment confirmation status.
 
-### Changed
+### Changed (4.3.0)
 
 - **Messaging Loop**: Refined auto-reply logic for unknown patient inputs ("Ваше сообщение получено и передано Вере.").
 - **Bot Persona**: Professionalized communication persona for better patient guidance.
 
-### Fixed
+### Fixed (4.3.0)
 
 - **Name Input Flow**: Fixed a regression in the booking flow where name input was bypassed by the forwarding middleware.
 
 ## [4.2.2] - 2026-01-24
 
-### Fixed
+### Fixed (4.2.2)
 
 - **Navigation**: Fixed routing issues for "Back to Service" and "Back to Date" navigation buttons in the booking flow.
 
@@ -230,7 +244,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Categorized Clinical Data**: Summarized document grouping in Patient's Card (Scans, Photos, Videos, Voice Messages, Texts, Others).
 - **Professionalism**: Professional "Conventional Commits" standard and squashed history.
 
-### Changed
+### Changed (4.2.0)
 
 - **Scheduler Logic**: Simplified booking slots to hourly intervals (09:00 - 18:00) to ensure therapist breaks.
 - **Localization**: Localized TWA badge to "КАРТА ПАЦИЕНТА".
@@ -240,7 +254,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [4.1.0] - 2026-01-23
 
-### Added
+### Added (4.1.0)
 
 - **Clinical Storage 2.0**: Permanent switch back to Markdown-mirrored filesystem for Obsidian/WebDAV sync.
 - **Suffix Tracking**: Implemented `(TelegramID)` folder suffix tracking, allowing therapist-led folder renames in Obsidian.
@@ -249,21 +263,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [4.0.0] - 2026-01-20
 
-### Changed
+### Changed (4.0.0)
 
 - **Architecture Pivot**: Decommissioned StirlingPDF in favor of browser-native `window.print()`.
 - **The Postgres Return**: Re-implemented PostgreSQL as the primary metadata store for long-term scalability.
 
 ## [3.1.15] - 2026-01-18
 
-### Added
+### Added (3.1.15)
 
 - **Smart Registration**: Robust name extraction from Google Calendar and "Quiet Self-Healing" session management.
 - **TWA Auth Expansion**: implemented `initData` self-healing for seamless web-app authentication.
 
 ## [3.1.8] - 2025-11-27
 
-### Added
+### Added (3.1.8)
 
 - **Voice Intelligence**: Integrated **Groq (Whisper)** for voice note transcription.
 - **Policy Shift**: Extended the cancellation window from 24h to **72h**.
@@ -271,14 +285,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.5.0] - 2025-11-15
 
-### Changed
+### Changed (2.5.0)
 
 - **Menu Evolution**: Switched from one-time keyboards to a persistent **Main Menu** pattern for better UX.
 - **Scheduling**: Implemented the "No Weekend" rule, filtering out Saturdays and Sundays from the calendar.
 
 ## [2.1.0] - 2025-11-10
 
-### Added
+### Added (2.1.0)
 
 - **Admin Arsenal**: Introduced the `/block` command for manual schedule blocking.
 - **Security**: Implementation of a **Blacklist** to prevent problematic user registrations.
@@ -286,14 +300,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.0] - 2025-11-01
 
-### Changed
+### Changed (2.0.0)
 
 - **Experiment Phase**: Temporary removal of PostgreSQL in favor of pure FS-based state.
 - **The OAuth Port Dance**: Successfully resolved host conflicts by moving from port 8080 to **18080** and establishing a dedicated `HEALTH_PORT=8081`.
 
 ## [1.0.0] - 2025-10-15
 
-### Added
+### Added (1.0.0)
 
 - **Initial Core**: Bot structure with Google Calendar integration.
 - **Persistence**: Initial Postgres setup for sessions and `token.json` migration to the `data/` volume.
