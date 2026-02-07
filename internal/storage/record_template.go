@@ -308,7 +308,7 @@ const medicalRecordTemplate = `
                 <span class="badge">КАРТА ПАЦИЕНТА</span>
                 <div style="display: flex; gap: 8px;">
                     {{if .IsAdmin}}
-                        <a href="https://t.me/{{.BotUsername}}?start=manual_{{.TelegramID}}" class="btn-primary btn-admin">➕ Записать</a>
+                        <button onclick="window.Telegram.WebApp.openTelegramLink('https://t.me/{{.BotUsername}}?start=manual_{{.TelegramID}}')" class="btn-primary btn-admin">➕ Записать</button>
                     {{else}}
                         <a href="https://t.me/{{.BotUsername}}?start=book" class="btn-primary">🗓 Записаться</a>
                     {{end}}
@@ -519,7 +519,7 @@ const adminSearchTemplate = `
                     el.innerHTML = '<div class="patient-name">' + p.name + '</div>' +
                         '<div class="patient-info">ID: ' + p.telegram_id + ' • Визитов: ' + p.total_visits + '</div>' +
                         '<div class="btn-row">' +
-                            '<button onclick="event.stopPropagation(); window.location.href=\'https://t.me/{{.BotUsername}}?start=manual_' + p.telegram_id + '\'" class="btn-action btn-create">➕ Новая запись</button>' +
+                            '<button onclick="event.stopPropagation(); window.Telegram.WebApp.openTelegramLink(\'https://t.me/{{.BotUsername}}?start=manual_\' + p.telegram_id)" class="btn-action btn-create">➕ Новая запись</button>' +
                             '<button onclick="event.stopPropagation(); viewPatient(\'' + p.telegram_id + '\')" class="btn-action btn-view">📄 Карта</button>' +
                         '</div>';
                     container.appendChild(el);

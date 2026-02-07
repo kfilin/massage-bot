@@ -50,7 +50,7 @@ func NewWebAppHandler(repo ports.Repository, apptService ports.AppointmentServic
 		if finalID == "" {
 			// Serve basic TWA loading page to attempt auth via JS
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			fmt.Fprint(w, `<!DOCTYPE html><html><head><script src="https://telegram.org/js/telegram-web-app.js"></script><style>body{background:#0f172a;color:white;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;font-family:sans-serif;}</style></head><body><div id="status">⏳ Авторизация...</div><script>const tg = window.Telegram.WebApp; tg.expand(); if(tg.initData) { const url = new URL(window.location.href); url.searchParams.set('initData', tg.initData); window.location.replace(url.toString()); } else { document.getElementById('status').innerHTML = "❌ Ошибка авторизации<br><small>Откройте карту через бота</small>"; }</script></body></html>`)
+			fmt.Fprint(w, `<!DOCTYPE html><html><head><script src="https://telegram.org/js/telegram-web-app.js"></script><style>body{background:#0f172a;color:white;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;font-family:sans-serif;}</style></head><body><div id="status">⏳ Авторизация...</div><script>const tg = window.Telegram.WebApp; tg.expand(); const url = new URL(window.location.href); if (url.searchParams.get('initData')) { document.getElementById('status').innerHTML = "❌ Ошибка проверки данных.<br><small>Попробуйте перезапустить бота.</small>"; } else if(tg.initData) { url.searchParams.set('initData', tg.initData); window.location.replace(url.toString()); } else { document.getElementById('status').innerHTML = "❌ Ошибка авторизации<br><small>Откройте карту через бота</small>"; }</script></body></html>`)
 			return
 		}
 

@@ -1114,6 +1114,11 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 					appointmentTime.Format("02.01.2006"),
 					appointmentTime.Format("15:04"),
 					service.Name)
+
+				// Generate calendar link for patient
+				calendarLink := h.generateGoogleCalendarLink(appt)
+				patientNotice += fmt.Sprintf("\n\n<a href=\"%s\">📅 Добавить в Google Календарь</a>", calendarLink)
+
 				h.BotNotify(c.Bot(), patientID, patientNotice)
 			}
 		}
