@@ -424,6 +424,12 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient, history []doma
 		BotUsername:        r.BotUsername,
 	}
 
+	if r.BotUsername == "" {
+		logging.Warn("WARNING: BotUsername is empty in PostgresRepository during HTML generation! TWA links will be broken.")
+	} else {
+		logging.Debugf("GenerateHTMLRecord using BotUsername: %s", r.BotUsername)
+	}
+
 	// Identify Future Appointments and Next Appointment for Countdown
 	now := time.Now().In(domain.ApptTimeZone)
 	var futureAppts []domain.Appointment

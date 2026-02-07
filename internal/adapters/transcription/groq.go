@@ -108,7 +108,9 @@ func (a *groqAdapter) Transcribe(ctx context.Context, audio io.Reader, filename 
 		if strings.Contains(lowerText, "you") ||
 			strings.Contains(lowerText, "thank you") ||
 			strings.Contains(lowerText, "subscribe") ||
-			strings.Contains(lowerText, "watching") {
+			strings.Contains(lowerText, "subscribe") ||
+			strings.Contains(lowerText, "watching") ||
+			strings.Contains(lowerText, "продолжение следует") {
 			return "", nil // Return empty string to indicate silence/noise
 		}
 	}

@@ -1464,6 +1464,59 @@ func (h *BookingHandler) HandleFileMessage(c telebot.Context) error {
 	}
 	defer fileReader.Close()
 
+	// 1. Check if this is an Admin replying to a patient
+	session := h.sessionStorage.Get(userID)
+	if replyingToID, ok := session[SessionKeyAdminReplyingTo].(string); ok && replyingToID != "" {
+		logging.Infof("[Reply] Admin %d is replying to patient %s via file/voice", userID, replyingToID)
+
+		patientID, _ := strconv.ParseInt(replyingToID, 10, 64)
+		patientUser := &telebot.User{ID: patientID}
+
+		// Forward the file/voice itself
+		_, err := c.Bot().Copy(patientUser, c.Message())
+		if err != nil {
+			logging.Errorf("Failed to forward voice/file to patient %s: %v", replyingToID, err)
+			return c.Send("❌ Не удалось отправить файл пациенту.")
+		}
+
+		// If it's a voice message, transcribe it and send text too
+		var transcript string
+		if voice := msg.Voice; voice != nil {
+			statusMsg, _ := c.Bot().Send(c.Sender(), "📝 Расшифровываю ваш ответ...")
+
+			// Need a new fileReader as the previous one was closed by defer
+			fileReaderForTranscription, _ := c.Bot().File(&telebot.File{FileID: voice.FileID})
+			defer fileReaderForTranscription.Close() // Ensure this is closed too
+
+			// Use a generic name for admin replies to avoid confusion
+			transcript, err = h.transcriptionService.Transcribe(context.Background(), fileReaderForTranscription, "admin_reply.ogg")
+
+			if statusMsg != nil {
+				c.Bot().Delete(statusMsg)
+			}
+
+			if err == nil && transcript != "" {
+				// Send transcription to patient
+				c.Bot().Send(patientUser, fmt.Sprintf("📝 <b>Текст сообщения:</b>\n%s", transcript), telebot.ModeHTML)
+
+				// Log to Patient's Notes (Dialogue View)
+				patient, err := h.repository.GetPatient(replyingToID)
+				if err == nil {
+					notePrefix := fmt.Sprintf("\n\n[🗣 Вера %s]: ", time.Now().In(domain.ApptTimeZone).Format("15:04"))
+					patient.TherapistNotes += notePrefix + transcript
+					if err := h.repository.SavePatient(patient); err != nil {
+						logging.Errorf("Failed to save admin reply to patient record: %v", err)
+					}
+				}
+			}
+		}
+
+		// Clear session
+		h.sessionStorage.Set(userID, SessionKeyAdminReplyingTo, nil)
+		return c.Send(fmt.Sprintf("✅ Сообщение отправлено пациенту (ID: %s)", replyingToID))
+	}
+
+	// 2. Standard Flow: Patient Uploading File
 	// Determine category based on extension/type
 	ext := strings.ToLower(filepath.Ext(fileName))
 	category := "documents"
@@ -1508,9 +1561,14 @@ func (h *BookingHandler) HandleFileMessage(c telebot.Context) error {
 		}
 
 		if err == nil && transcript != "" {
-			// Save transcripts to dedicated field instead of clinical notes
+			// Save transcripts to dedicated field AND TherapistNotes for dialogue view
 			prefix := fmt.Sprintf("\n\n[🎙 %s]: ", time.Now().Format("02.01.2006 15:04"))
 			patient.VoiceTranscripts += prefix + transcript
+
+			// Append to TherapistNotes for chronological dialogue
+			notePrefix := fmt.Sprintf("\n\n[🎙 Пациент %s]: ", time.Now().In(domain.ApptTimeZone).Format("15:04"))
+			patient.TherapistNotes += notePrefix + transcript
+
 			if err := h.repository.SavePatient(patient); err != nil {
 				logging.Errorf("Failed to save transcript to patient record: %v", err)
 			}
