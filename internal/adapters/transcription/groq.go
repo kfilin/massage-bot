@@ -54,6 +54,11 @@ func (a *groqAdapter) Transcribe(ctx context.Context, audio io.Reader, filename 
 		return "", fmt.Errorf("failed to write model field: %w", err)
 	}
 
+	// Add language part (Force Russian)
+	if err := writer.WriteField("language", "ru"); err != nil {
+		return "", fmt.Errorf("failed to write language field: %w", err)
+	}
+
 	if err := writer.Close(); err != nil {
 		return "", fmt.Errorf("failed to close multipart writer: %w", err)
 	}
