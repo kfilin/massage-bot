@@ -8,6 +8,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/kfilin/massage-bot/internal/monitoring"
@@ -94,5 +95,18 @@ func (a *groqAdapter) Transcribe(ctx context.Context, audio io.Reader, filename 
 		return "", fmt.Errorf("failed to decode groq response: %w", err)
 	}
 
-	return groqResp.Text, nil
+	text := strings.TrimSpace(groqResp.Text)
+
+	// Filter common hallucinations (especially "You" or "Thank you" on silence)
+	lowerText := strings.ToLower(text)
+	if len(text) < 20 { // Only filter short texts
+		if strings.Contains(lowerText, "you") ||
+			strings.Contains(lowerText, "thank you") ||
+			strings.Contains(lowerText, "subscribe") ||
+			strings.Contains(lowerText, "watching") {
+			return "", nil // Return empty string to indicate silence/noise
+		}
+	}
+
+	return text, nil
 }

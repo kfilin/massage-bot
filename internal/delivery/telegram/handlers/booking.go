@@ -590,7 +590,12 @@ func (h *BookingHandler) HandleReminderCancellation(c telebot.Context) error {
 // HandleAdminReplyRequest initiates the process of replying to a patient via the bot
 func (h *BookingHandler) HandleAdminReplyRequest(c telebot.Context) error {
 	patientID := strings.TrimPrefix(c.Callback().Data, "admin_reply|")
-	logging.Debugf(": HandleAdminReplyRequest called for patientID: %s", patientID)
+	// Trim any potential leading/trailing whitespace including hidden characters
+	patientID = strings.TrimSpace(patientID)
+	// Remove the unique prefix if it was duplicated by telebot (rare but possible: "admin_reply|admin_reply|id")
+	patientID = strings.TrimPrefix(patientID, "admin_reply|")
+
+	logging.Debugf(": HandleAdminReplyRequest called. Raw Data: '%s', Extracted ID: '%s'", c.Callback().Data, patientID)
 
 	patient, err := h.repository.GetPatient(patientID)
 	if err != nil {
@@ -598,7 +603,8 @@ func (h *BookingHandler) HandleAdminReplyRequest(c telebot.Context) error {
 	}
 
 	h.sessionStorage.Set(c.Sender().ID, SessionKeyAdminReplyingTo, patientID)
-	return c.Send(fmt.Sprintf("✍️ Введите ответ для пациента <b>%s</b>:", patient.Name), telebot.ModeHTML, telebot.ForceReply)
+	h.sessionStorage.Set(c.Sender().ID, SessionKeyAdminReplyingTo, patientID)
+	return c.Send(fmt.Sprintf("✍️ Введите ответ для пациента <b>%s</b> (ID: %s):", patient.Name, patient.TelegramID), telebot.ModeHTML, telebot.ForceReply)
 }
 
 // askForTime sends available time slots to the user.

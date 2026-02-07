@@ -573,6 +573,11 @@ func parseTime(s string) time.Time {
 }
 
 func (r *PostgresRepository) GenerateAdminSearchPage() string {
+	if r.BotUsername == "" {
+		logging.Warn("WARNING: BotUsername is empty in PostgresRepository! TWA links will be broken.")
+	} else {
+		logging.Debugf("GenerateAdminSearchPage using BotUsername: %s", r.BotUsername)
+	}
 	return strings.ReplaceAll(adminSearchTemplate, "{{.BotUsername}}", r.BotUsername)
 }
 
