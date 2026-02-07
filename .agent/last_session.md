@@ -1,18 +1,22 @@
-# Session Log: 2026-02-07
+# Last Session: 2026-02-07
 
-## Summary
+## 🎯 Goal: Deployment Verification & Fix
 
-Attempted to fix a critical bug in the Telegram Web App (TWA) where cancelling an appointment caused a redirect loop to `telegram.org`.
+The primary goal was to investigate why the TWA cancellation fix (implemented in the previous session) was not working in production.
 
-## Actions Taken
+## 🔍 Key Findings
 
-1. **Handler Refactoring**: Extracted inline handlers for `/api/search` and `/cancel` into `NewSearchHandler` and `NewCancelHandler` to better enable unit testing and isolation.
-2. **Test Expansion**: Wrote comprehensive unit tests for the new handlers, verifying authentication (HMAC & InitData) and logic (Admin vs User cancellation).
-3. **Frontend Fix (Attempt 1)**: Replaced `location.reload()` with `window.location.replace()` in `record_template.go` to preserve query parameters. **Outcome**: Failed.
-4. **Frontend Fix (Attempt 2)**: Removed reload entirely. Implemented DOM manipulation to visually remove the appointment row upon success. Explicitly added `event.preventDefault()` to the button. **Outcome**: User reports "results are the same".
+- **Root Cause**: The physical code was updated to `v5.6.2`, but the Docker container was running a stale image (`v5.6.1`) due to a build context/caching issue.
+- **Resolution**: Forced a `docker-compose build` and restart. Verified logs now show `v5.6.2 Clinical Edition`.
+- **Status**: The TWA cancellation fix (`event.preventDefault` + DOM removal) is now active in production.
 
-## Current State
+## 🛠️ Changes
 
-- **Version**: v5.6.2
-- **Status**: Users experiencing redirect/reload loop on cancel.
-- **Next Step**: Investigate caching issues or deployment latency. The code *should* be safe, suggesting the new code isn't running.
+- **Deployment**: Rebuilt and restarted `massage-bot` container.
+- **Documentation**: Updated `Project-Hub.md` and `CHANGELOG.md` to reflect the deployment.
+- **Git**: Pushed `v5.6.2` release commit to `master`.
+
+## ⏭️ Next Steps
+
+- **Monitor**: Watch for user feedback regarding TWA cancellation.
+- **Cleanup**: Remove any temporary debug logs if they were added (none were added to code, only verified version).
