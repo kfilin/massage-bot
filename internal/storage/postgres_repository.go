@@ -573,7 +573,7 @@ func parseTime(s string) time.Time {
 }
 
 func (r *PostgresRepository) GenerateAdminSearchPage() string {
-	return adminSearchTemplate
+	return strings.ReplaceAll(adminSearchTemplate, "{{.BotUsername}}", r.BotUsername)
 }
 
 func (r *PostgresRepository) SavePatientDocumentReader(telegramID string, filename string, category string, reader io.Reader) (string, error) {
