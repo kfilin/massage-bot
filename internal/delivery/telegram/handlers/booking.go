@@ -1502,6 +1502,13 @@ func (h *BookingHandler) HandleFileMessage(c telebot.Context) error {
 				// Log to Patient's Notes (Dialogue View)
 				patient, err := h.repository.GetPatient(replyingToID)
 				if err == nil {
+					// Add date header if this is the first message of the day in notes
+					today := time.Now().In(domain.ApptTimeZone).Format("02.01.2006")
+					dateHeader := fmt.Sprintf("\n\n📅 %s", today)
+					if !strings.Contains(patient.TherapistNotes, dateHeader) {
+						patient.TherapistNotes += dateHeader
+					}
+
 					notePrefix := fmt.Sprintf("\n\n[🗣 Вера %s]: ", time.Now().In(domain.ApptTimeZone).Format("15:04"))
 					patient.TherapistNotes += notePrefix + transcript
 					if err := h.repository.SavePatient(patient); err != nil {
@@ -1566,6 +1573,12 @@ func (h *BookingHandler) HandleFileMessage(c telebot.Context) error {
 			patient.VoiceTranscripts += prefix + transcript
 
 			// Append to TherapistNotes for chronological dialogue
+			today := time.Now().In(domain.ApptTimeZone).Format("02.01.2006")
+			dateHeader := fmt.Sprintf("\n\n📅 %s", today)
+			if !strings.Contains(patient.TherapistNotes, dateHeader) {
+				patient.TherapistNotes += dateHeader
+			}
+
 			notePrefix := fmt.Sprintf("\n\n[🎙 Пациент %s]: ", time.Now().In(domain.ApptTimeZone).Format("15:04"))
 			patient.TherapistNotes += notePrefix + transcript
 
