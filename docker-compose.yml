@@ -4,7 +4,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: massage-bot
+    # container_name: massage-bot  <-- REMOVED: Defined in overrides (prod/test)
     user: "1000:1000"
     restart: unless-stopped
     environment:
@@ -37,7 +37,7 @@ services:
 
   db:
     image: postgres:15-alpine
-    container_name: massage-bot-db
+    # container_name: massage-bot-db <-- REMOVED: Defined in overrides (prod/test)
     command: postgres -c log_timezone=Europe/Istanbul -c log_statement=mod
     restart: unless-stopped
     environment:
@@ -65,5 +65,5 @@ networks:
   caddy-test-net:
     external: true
   massage-bot-internal:
-    name: massage-bot-internal
+    name: ${NETWORK_NAME:-massage-bot-internal} # Configurable network name
     driver: bridge

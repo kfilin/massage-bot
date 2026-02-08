@@ -9,6 +9,9 @@ REPO_URL=$(git remote get-url origin 2>/dev/null || echo "https://github.com/kfi
 
 echo "🧪 Starting deployment on TEST Environment..."
 
+# Force Network Isolation
+export NETWORK_NAME="massage-bot-internal-test"
+
 # 0. Ensure Directory Exists and Grid/Clone
 if [ ! -d "$APP_DIR" ]; then
     echo "📂 Creating test directory at $APP_DIR..."

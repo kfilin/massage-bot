@@ -14,14 +14,14 @@ git reset --hard origin/master
 
 # 2. Build and restart containers
 echo "🛠 Building latest images (No Cache) and recreating containers..."
-docker compose build --no-cache --pull
-docker compose up -d --force-recreate
+docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml build --no-cache --pull
+docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml up -d --force-recreate
 
 # 3. Check status
 echo "📊 Deployment Status:"
-docker compose ps
+docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml ps
 
 echo "📝 Recent Logs:"
-docker compose logs --tail=20 $SERVICE_NAME
+docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml logs --tail=20 $SERVICE_NAME
 
 echo "✅ Deployment complete!"

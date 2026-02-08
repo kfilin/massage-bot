@@ -1,0 +1,64 @@
+services:
+  massage-bot:
+    build: .
+    container_name: massage-bot-dev
+    restart: unless-stopped
+    environment:
+      - TZ=Europe/Istanbul
+      - HEALTH_PORT=8081
+      - DB_HOST=db-dev
+      - WEBAPP_URL=https://localhost:8443
+    env_file:
+      - .env
+    ports:
+      - "8082:8082"
+      - "8081:8081"
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+    networks:
+      - dev-net
+    depends_on:
+      db-dev:
+        condition: service_healthy
+
+  db-dev:
+    image: postgres:15-alpine
+    container_name: massage-bot-db-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-massage_bot}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - ./postgres_data_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-massage_bot}"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+      start_period: 2s
+    networks:
+      - dev-net
+
+  caddy-dev:
+    image: caddy:latest
+    container_name: caddy-dev
+    ports:
+      - "8443:443"
+      - "8080:80"
+    volumes:
+      - ./Caddyfile.dev:/etc/caddy/Caddyfile
+      - caddy_data_dev:/data
+      - caddy_config_dev:/config
+    networks:
+      - dev-net
+
+networks:
+  dev-net:
+    driver: bridge
+
+volumes:
+  caddy_data_dev:
+  caddy_config_dev:
+  postgres_data_dev:

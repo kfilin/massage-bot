@@ -1,0 +1,29 @@
+services:
+  # Base 'massage-bot' service inherits 'caddy-test-net' from docker-compose.yml
+  # No need to redefine networks here.
+
+  massage-bot:
+    # Use the same image/build context as base
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: massage-bot
+    # Standard Prod Environment Overrides
+    environment:
+      - TZ=Europe/Istanbul
+      - TELEGRAM_BOT_TOKEN=${TG_BOT_TOKEN}
+      - ALLOWED_TELEGRAM_IDS=${ALLOWED_TELEGRAM_IDS}
+      - GOOGLE_CREDENTIALS_FILE=credentials.json
+    env_file:
+      - .env.prod
+    # Persist Prod Data
+    volumes:
+      - ./credentials.json:/app/credentials.json:ro
+      - ./token.json:/app/token.json:rw
+      # Logs/Data volumes inherited from base
+    restart: unless-stopped
+    # Healthcheck inherited from base
+
+  db:
+    container_name: massage-bot-db
+
