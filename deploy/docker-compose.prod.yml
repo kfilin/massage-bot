@@ -22,7 +22,16 @@ services:
       # Logs/Data volumes inherited from base
     restart: unless-stopped
     # Healthcheck inherited from base
+    networks:
+      massage-bot-internal:
+      caddy-test-net:
+        aliases:
+          - massage-bot
 
   db:
     container_name: massage-bot-db
+
+networks:
+  caddy-test-net:
+    external: true
 

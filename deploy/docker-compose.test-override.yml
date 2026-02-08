@@ -4,6 +4,11 @@ services:
     environment:
       - HEALTH_PORT=8083
     restart: unless-stopped
+    networks:
+      massage-bot-internal:
+      caddy-test-net:
+        aliases:
+          - massage-bot-test
 
   db:
     container_name: massage-bot-db-test
@@ -11,4 +16,8 @@ services:
       - "5433:5432" # Override host port
     environment:
       POSTGRES_DB: massage_bot_test
+
+networks:
+  caddy-test-net:
+    external: true
 

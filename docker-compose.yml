@@ -29,7 +29,6 @@ services:
       - ./logs:/app/logs
       - ./data:/app/data
     networks:
-      - caddy-test-net
       - massage-bot-internal
     depends_on:
       db:
@@ -62,8 +61,6 @@ services:
         max-file: "3"
 
 networks:
-  caddy-test-net:
-    external: true
   massage-bot-internal:
     name: ${NETWORK_NAME:-massage-bot-internal} # Configurable network name
     driver: bridge
