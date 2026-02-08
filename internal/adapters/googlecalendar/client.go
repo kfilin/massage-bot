@@ -89,7 +89,9 @@ func NewGoogleCalendarClient() (*calendar.Service, error) {
 		Timeout:   baseClient.Timeout, // Preserve timeout from base client if any
 	}
 
-	monitoring.UpdateTokenExpiry(expiryDays)
+	// Force an initial token retrieval to update the metric immediately
+	// independently of when the first request comes in.
+	_, _ = mts.Token()
 
 	return calendar.NewService(ctx, option.WithHTTPClient(clientWithRetry))
 }
