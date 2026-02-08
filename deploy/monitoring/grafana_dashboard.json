@@ -259,7 +259,7 @@
       "datasource": "Prometheus",
       "gridPos": {
         "h": 8,
-        "w": 24,
+        "w": 12,
         "x": 0,
         "y": 12
       },
@@ -288,45 +288,100 @@
     {
       "datasource": "Prometheus",
       "gridPos": {
-        "h": 6,
+        "h": 8,
         "w": 12,
-        "x": 0,
-        "y": 20
+        "x": 12,
+        "y": 12
       },
-      "id": 16,
+      "id": 20,
       "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
         },
-        "textMode": "auto"
+        "tooltip": {
+          "mode": "single"
+        }
       },
-      "pluginVersion": "7.5.4",
       "targets": [
         {
-          "expr": "vera_clinical_note_length_chars",
+          "expr": "sum(rate(vera_booking_lead_time_days_sum[1d])) / sum(rate(vera_booking_lead_time_days_count[1d]))",
           "interval": "",
-          "legendFormat": "",
+          "legendFormat": "Avg Lead Time (Days)",
           "refId": "A"
         }
       ],
-      "title": "Avg Clinical Note Length (Chars)",
-      "type": "stat"
+      "title": "Avg Booking Lead Time (Days)",
+      "type": "timeseries"
     },
     {
       "datasource": "Prometheus",
       "gridPos": {
-        "h": 6,
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 20
+      },
+      "id": 22,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(vera_api_latency_seconds_bucket[5m])) by (le))",
+          "interval": "",
+          "legendFormat": "P95 Latency",
+          "refId": "A"
+        }
+      ],
+      "title": "API Latency (P95)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 8,
         "w": 12,
         "x": 12,
         "y": 20
+      },
+      "id": 24,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(vera_api_requests_total[5m])) by (provider)",
+          "interval": "",
+          "legendFormat": "{{provider}}",
+          "refId": "A"
+        }
+      ],
+      "title": "API Request Rate (by Provider)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 28
       },
       "id": 18,
       "options": {
@@ -370,7 +425,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "Massage Bot Dashboard",
+  "title": "Vera Massage Bot Dashboard",
   "uid": "massage-bot-001",
-  "version": 1
+  "version": 2
 }

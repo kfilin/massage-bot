@@ -68,7 +68,10 @@ func NewGoogleCalendarClient() (*calendar.Service, error) {
 	}
 
 	// Create the base client with the token
-	baseClient := config.Client(ctx, token)
+	// Wrap TokenSource to monitor expiry
+	ts := config.TokenSource(ctx, token)
+	mts := &MonitoringTokenSource{src: ts}
+	baseClient := oauth2.NewClient(ctx, mts)
 
 	// Wrap the transport with our RetryTransport
 	// config.Client returns a *http.Client. We need to access its Transport.
@@ -212,9 +215,30 @@ func saveToken(path string, token *oauth2.Token) {
 	if err != nil {
 		log.Fatalf("Unable to cache oauth token: %v", err)
 	}
-	// --- FIX 2: Check error return value of Encode ---
 	if err := json.NewEncoder(f).Encode(token); err != nil {
 		logging.Infof("Error encoding token to file: %v", err)
 	}
-	defer f.Close() // Ensure defer is after any potential error that would close f
+	defer f.Close()
+}
+
+// MonitoringTokenSource wraps an oauth2.TokenSource to update metrics
+type MonitoringTokenSource struct {
+	src oauth2.TokenSource
+}
+
+func (m *MonitoringTokenSource) Token() (*oauth2.Token, error) {
+	t, err := m.src.Token()
+	if err != nil {
+		return nil, err
+	}
+
+	// Update metric with time until expiry
+	// Use 0 if expiry is zero (never expires)
+	days := 0.0
+	if !t.Expiry.IsZero() {
+		days = time.Until(t.Expiry).Hours() / 24.0
+	}
+	monitoring.UpdateTokenExpiry(days)
+
+	return t, nil
 }
