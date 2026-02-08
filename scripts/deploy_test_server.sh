@@ -56,6 +56,9 @@ fi
 if ! grep -q "COMPOSE_FILE" .env; then
     echo "COMPOSE_FILE=docker-compose.yml:deploy/docker-compose.test-override.yml" >> .env
 fi
+if ! grep -q "NETWORK_NAME" .env; then
+    echo "NETWORK_NAME=massage-bot-internal-test" >> .env
+fi
 # 1.2 End
 
 # 2. Build and restart containers using TEST config (Override Strategy)
