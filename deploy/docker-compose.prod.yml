@@ -1,8 +1,8 @@
 services:
-  # Base 'massage-bot' service inherits 'caddy-test-net' from docker-compose.yml
+  # Base 'app' service inherits 'caddy-test-net' from docker-compose.yml
   # No need to redefine networks here.
 
-  massage-bot:
+  app:
     # Use the same image/build context as base
     build: 
       context: .

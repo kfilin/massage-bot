@@ -1,5 +1,5 @@
 services:
-  massage-bot:
+  app:
     build: .
     container_name: massage-bot-dev
     restart: unless-stopped

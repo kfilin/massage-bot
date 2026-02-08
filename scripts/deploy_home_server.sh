@@ -2,7 +2,7 @@
 
 # Configuration
 APP_DIR="/opt/vera-bot"
-SERVICE_NAME="massage-bot"
+SERVICE_NAME="app"
 
 echo "🚀 Starting deployment on Home Server..."
 

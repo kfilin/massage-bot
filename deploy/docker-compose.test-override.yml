@@ -1,5 +1,5 @@
 services:
-  massage-bot:
+  app:
     container_name: massage-bot-test
     environment:
       - HEALTH_PORT=8083

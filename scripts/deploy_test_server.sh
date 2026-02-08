@@ -2,7 +2,7 @@
 
 # Configuration
 APP_DIR="/opt/vera-bot-test"
-SERVICE_NAME="massage-bot-test"
+SERVICE_NAME="app"
 REPO_URL="https://github.com/kfilin/massage-bot.git" # Fallback if not set
 # Use SSH remote if available using git remote get-url origin
 REPO_URL=$(git remote get-url origin 2>/dev/null || echo "https://github.com/kfilin/massage-bot.git")

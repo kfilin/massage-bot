@@ -1,5 +1,5 @@
 services:
-  massage-bot:
+  app:
     image: massage-bot:latest
     build:
       context: .
