@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v5.6.3] - 2026-02-08
+
+### Changed (v5.6.3)
+
+- **TWA UI**: Added scrollable note container to "Medical Card" to prevent long histories from overflowing the screen.
+- **Dialogue View**: Implemented automatic date separators (`📅 DD.MM.YYYY`) in patient notes history for better readability.
+- **Transcription**: Added "продолжение следует" to the hallucination filter to reduce noise in silent/background-noise voice messages.
+
+### Fixed (v5.6.3)
+
+- **TWA Button**: Fixed a JavaScript variable scope error (`ReferenceError: p is not defined`) causing the "New Appointment" button to be unresponsive.
+- **Admin Voice Reply**: Fixed an issue where admin voice replies were not being routed to the patient or logged in the dialogue history.
+
 ## [v5.6.2] - 2026-02-07
 
 ### Added (v5.6.2)
