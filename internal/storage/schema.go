@@ -57,4 +57,15 @@ CREATE TABLE IF NOT EXISTS appointments (
 );
 
 CREATE INDEX IF NOT EXISTS idx_appointments_customer_id ON appointments(customer_id);
+
+CREATE TABLE IF NOT EXISTS patient_media (
+    id TEXT PRIMARY KEY,
+    patient_id TEXT NOT NULL,
+    file_type TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    telegram_file_id TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_media_patient_id ON patient_media(patient_id);
 `

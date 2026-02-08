@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v5.6.4] - 2026-02-08
+
+### Fixed (v5.6.4)
+
+- **Metrics Intelligence**: Fixed `vera_active_sessions` to accurately track real-time concurrent users (was previously 0).
+- **Token Monitoring**: Resolved `vera_token_expiry_days` bug where the metric would initialize to negative values or become stale. It now auto-refreshes on every token usage and initializes correctly on startup.
+
+### Changed (v5.6.4)
+
+- **Dashboard**: Updated Grafana configuration to focus on actionable signals:
+  - Removed "Clinical Note Length" (vanity metric).
+  - Added "API Latency" and "Request Rate" for external dependency health.
+  - Added "Avg Booking Lead Time" to track patient planning behavior.
+
 ## [v5.6.3] - 2026-02-08
 
 ### Changed (v5.6.3)

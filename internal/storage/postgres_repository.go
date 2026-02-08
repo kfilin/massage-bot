@@ -74,8 +74,7 @@ func (r *PostgresRepository) SavePatient(p domain.Patient) error {
 	noteLen := len(p.TherapistNotes)
 	monitoring.ClinicalNoteLength.Set(float64(noteLen))
 
-	// Mirror to Markdown file
-	return r.saveToMarkdown(p)
+	return nil
 }
 
 func (r *PostgresRepository) getPatientDir(p domain.Patient) string {
@@ -98,138 +97,11 @@ func (r *PostgresRepository) getPatientDir(p domain.Patient) string {
 	return filepath.Join(patientsDir, folderName)
 }
 
-func (r *PostgresRepository) saveToMarkdown(p domain.Patient) error {
-	patientDir := r.getPatientDir(p)
-
-	if err := os.MkdirAll(patientDir, 0755); err != nil {
-		return fmt.Errorf("failed to create patient directory: %w", err)
-	}
-
-	filePath := filepath.Join(patientDir, fmt.Sprintf("%s.md", p.TelegramID))
-
-	// Prevent duplication: if the notes already have the template markers,
-	// we use them as is, otherwise we wrap with the full template structure.
-	body := p.TherapistNotes
-	if !strings.Contains(body, "## 📋 История болезни") {
-		body = fmt.Sprintf(`## 📋 История болезни
-%s
-
-## 📝 Заметки терапевта
-(Используйте этот раздел для ежедневных записей)`, body)
-	}
-
-	// Create content from template
-	content := fmt.Sprintf(`---
-Name: %s
-ID: %s
----
-
-# 🩺 Медицинская карта: %s
-
-%s
-
----
-*Статистика (обновляется ботом):*
-- Первый визит: %s
-- Последний визит: %s
-- Всего визитов: %d
-- Услуга: %s
-`, p.Name, p.TelegramID, p.Name, body,
-		p.FirstVisit.Format("02.01.2006"),
-		p.LastVisit.Format("02.01.2006"),
-		p.TotalVisits, p.CurrentService)
-
-	return os.WriteFile(filePath, []byte(content), 0644)
-}
-
 func (r *PostgresRepository) GetPatient(telegramID string) (domain.Patient, error) {
 	logging.Debugf(": Fetching patient record for ID: %s", telegramID)
 	var p domain.Patient
 	err := r.db.Get(&p, "SELECT * FROM patients WHERE telegram_id = $1", telegramID)
-
-	// If not found in DB, try to find in Markdown folder
-	if err != nil {
-		p.TelegramID = telegramID
-		updated, errFile := r.syncFromFile(&p)
-		if errFile == nil && updated {
-			logging.Infof("[Sync] Discovered patient %s from Markdown file after DB miss", telegramID)
-			// Save to DB to establish record
-			if err := r.SavePatient(p); err != nil {
-				logging.Errorf("Failed to save discovered patient %s to DB: %v", telegramID, err)
-			}
-			return p, nil
-		}
-		return p, err // Return original DB error if file also not found
-	}
-
-	// Sync from Markdown if file exists (picks up edits)
-	updated, errFile := r.syncFromFile(&p)
-	if errFile == nil && updated {
-		// Save back to DB to keep analytics and TWA fast
-		if _, err := r.db.NamedExec(`UPDATE patients SET name = :name, therapist_notes = :therapist_notes WHERE telegram_id = :telegram_id`, p); err != nil {
-			logging.Errorf("ERROR: Failed to sync updated patient data to DB: %v", err)
-		}
-	}
-
-	return p, nil
-}
-
-func (r *PostgresRepository) syncFromFile(p *domain.Patient) (bool, error) {
-	patientDir := r.getPatientDir(*p)
-	filePath := filepath.Join(patientDir, fmt.Sprintf("%s.md", p.TelegramID))
-	info, err := os.Stat(filePath)
-	if err != nil {
-		return false, err
-	}
-
-	content, err := os.ReadFile(filePath)
-	if err != nil {
-		return false, err
-	}
-
-	strContent := string(content)
-
-	// 1. Extract name from frontmatter if possible
-	name := p.Name
-	if strings.Contains(strContent, "Name: ") {
-		lines := strings.Split(strContent, "\n")
-		for _, line := range lines {
-			if strings.HasPrefix(line, "Name: ") {
-				name = strings.TrimSpace(strings.TrimPrefix(line, "Name: "))
-				break
-			}
-		}
-	}
-
-	// 2. Extract full notes body
-	bodyMarker := "# 🩺 Медицинская карта"
-	statsMarker := "---"
-
-	var notes string
-	headerIdx := strings.Index(strContent, bodyMarker)
-	if headerIdx != -1 {
-		lineEnd := strings.Index(strContent[headerIdx:], "\n")
-		if lineEnd != -1 {
-			bodyStart := headerIdx + lineEnd
-			bodyEnd := strings.LastIndex(strContent, statsMarker)
-
-			if bodyEnd > bodyStart {
-				notes = strings.TrimSpace(strContent[bodyStart:bodyEnd])
-			} else {
-				notes = strings.TrimSpace(strContent[bodyStart:])
-			}
-		}
-	}
-
-	hasChanged := p.TherapistNotes != notes || p.Name != name
-	if hasChanged {
-		p.TherapistNotes = notes
-		p.Name = name
-		logging.Infof("[Sync] Updated patient %s from Markdown file (Last Mod: %v)", p.TelegramID, info.ModTime())
-		return true, nil
-	}
-
-	return false, nil
+	return p, err
 }
 
 func (r *PostgresRepository) IsUserBanned(telegramID string, username string) (bool, error) {
@@ -284,6 +156,38 @@ func (r *PostgresRepository) GetAppointmentHistory(telegramID string) ([]domain.
 	}
 
 	return appts, nil
+}
+
+func (r *PostgresRepository) SaveMedia(media domain.PatientMedia) error {
+	query := `
+		INSERT INTO patient_media (id, patient_id, file_type, file_path, telegram_file_id, created_at)
+		VALUES (:id, :patient_id, :file_type, :file_path, :telegram_file_id, :created_at)
+		ON CONFLICT (id) DO NOTHING
+	`
+	_, err := r.db.NamedExec(query, media)
+	if err != nil {
+		return fmt.Errorf("failed to save media: %w", err)
+	}
+	return nil
+}
+
+func (r *PostgresRepository) GetPatientMedia(patientID string) ([]domain.PatientMedia, error) {
+	var media []domain.PatientMedia
+	err := r.db.Select(&media, "SELECT * FROM patient_media WHERE patient_id = $1 ORDER BY created_at DESC", patientID)
+	if err != nil {
+		return nil, err
+	}
+	return media, nil
+}
+
+// GetMediaByID retrieves a single media record by ID
+func (r *PostgresRepository) GetMediaByID(mediaID string) (*domain.PatientMedia, error) {
+	var media domain.PatientMedia
+	err := r.db.Get(&media, "SELECT * FROM patient_media WHERE id = $1", mediaID)
+	if err != nil {
+		return nil, err
+	}
+	return &media, nil
 }
 
 // UpsertAppointments batch inserts or updates appointments in the database
@@ -352,6 +256,7 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient, history []doma
 		Name   string
 		Count  int
 		Latest string
+		Files  []domain.PatientMedia
 	}
 	type visitInfo struct {
 		Date    string
@@ -384,6 +289,7 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient, history []doma
 		NextApptUnix       int64
 		IsAdmin            bool
 		BotUsername        string
+		Media              []domain.PatientMedia
 	}
 
 	getCalLink := func(t time.Time, service string) string {
@@ -407,6 +313,11 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient, history []doma
 		lastVisitStr = "—"
 	}
 
+	mediaList, errMedia := r.GetPatientMedia(p.TelegramID)
+	if errMedia != nil {
+		logging.Warnf("Failed to fetch media for patient %s: %v", p.TelegramID, errMedia)
+	}
+
 	data := templateData{
 		Name:               strings.ToUpper(p.Name),
 		TelegramID:         p.TelegramID,
@@ -421,7 +332,9 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient, history []doma
 		FirstVisitLink:     getCalLink(p.FirstVisit, p.CurrentService),
 		ShowFirstVisitLink: p.FirstVisit.After(time.Now()),
 		IsAdmin:            isAdmin,
-		BotUsername:        r.BotUsername,
+
+		BotUsername: r.BotUsername,
+		Media:       mediaList,
 	}
 
 	if r.BotUsername == "" {
@@ -482,7 +395,7 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient, history []doma
 		})
 	}
 
-	// Grouping Logic
+	// Grouping Logic - FROM DB NOW
 	groups := make(map[string]*docGroup)
 	initGroup := func(name string) {
 		groups[name] = &docGroup{Name: name, Count: 0}
@@ -494,61 +407,31 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient, history []doma
 	initGroup("Texts")
 	initGroup("Others")
 
-	patientDir := r.getPatientDir(p)
-	walkErr := filepath.Walk(patientDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
-			return nil
-		}
-		if info.Name() == fmt.Sprintf("%s.md", p.TelegramID) {
-			return nil
-		}
-
-		relPath, _ := filepath.Rel(patientDir, path)
-		folder := ""
-		if parts := strings.Split(relPath, string(os.PathSeparator)); len(parts) > 0 {
-			folder = parts[0]
-		}
-
+	for _, m := range mediaList {
 		var targetGroup *docGroup
-		ext := strings.ToLower(filepath.Ext(path))
-
-		switch folder {
-		case "scans":
+		switch m.FileType {
+		case "scan":
 			targetGroup = groups["Scans"]
-		case "images":
+		case "photo", "image":
 			targetGroup = groups["Photos"]
-		case "messages":
+		case "voice", "audio":
 			targetGroup = groups["Voice Messages"]
-		case "documents":
-			if ext == ".pdf" || ext == ".doc" || ext == ".docx" || ext == ".txt" {
-				targetGroup = groups["Texts"]
-			} else {
-				targetGroup = groups["Others"]
-			}
+		case "video":
+			targetGroup = groups["Videos"]
+		case "document", "text":
+			targetGroup = groups["Texts"]
 		default:
-			// Fallback by extension if outside standard folders
-			if ext == ".jpg" || ext == ".png" || ext == ".jpeg" {
-				targetGroup = groups["Photos"]
-			} else if ext == ".mp4" || ext == ".mov" || ext == ".avi" {
-				targetGroup = groups["Videos"]
-			} else if ext == ".pdf" || ext == ".doc" || ext == ".docx" {
-				targetGroup = groups["Texts"]
-			} else {
-				targetGroup = groups["Others"]
-			}
+			targetGroup = groups["Others"]
 		}
 
 		if targetGroup != nil {
 			targetGroup.Count++
-			modTime := info.ModTime().Format("02.01.2006 15:04")
-			if targetGroup.Latest == "" || info.ModTime().After(parseTime(targetGroup.Latest)) {
+			targetGroup.Files = append(targetGroup.Files, m)
+			modTime := m.CreatedAt.Format("02.01.2006 15:04")
+			if targetGroup.Latest == "" || m.CreatedAt.After(parseTime(targetGroup.Latest)) {
 				targetGroup.Latest = modTime
 			}
 		}
-		return nil
-	})
-	if walkErr != nil {
-		logging.Warnf("Failed to walk patient directory: %v", walkErr)
 	}
 
 	// Add only populated groups
@@ -585,94 +468,6 @@ func (r *PostgresRepository) GenerateAdminSearchPage() string {
 		logging.Debugf("GenerateAdminSearchPage using BotUsername: %s", r.BotUsername)
 	}
 	return strings.ReplaceAll(adminSearchTemplate, "{{.BotUsername}}", r.BotUsername)
-}
-
-func (r *PostgresRepository) SavePatientDocumentReader(telegramID string, filename string, category string, reader io.Reader) (string, error) {
-	p, err := r.GetPatient(telegramID)
-	if err != nil {
-		return "", err
-	}
-	patientDir := r.getPatientDir(p)
-	var targetDir string
-	switch strings.ToLower(category) {
-	case "scans":
-		targetDir = filepath.Join(patientDir, "scans", time.Now().Format("02.01.06"))
-	case "images":
-		targetDir = filepath.Join(patientDir, "images")
-	case "messages":
-		targetDir = filepath.Join(patientDir, "messages")
-	default:
-		targetDir = filepath.Join(patientDir, "documents")
-	}
-	if err := os.MkdirAll(targetDir, 0755); err != nil {
-		return "", fmt.Errorf("failed to create directory: %w", err)
-	}
-	filePath := filepath.Join(targetDir, filename)
-	f, err := os.Create(filePath)
-	if err != nil {
-		return "", fmt.Errorf("failed to create file: %w", err)
-	}
-	defer f.Close()
-	if _, err := io.Copy(f, reader); err != nil {
-		return "", fmt.Errorf("failed to write file content: %w", err)
-	}
-	return filePath, nil
-}
-
-func (r *PostgresRepository) MigrateFolderNames() error {
-	var patients []domain.Patient
-	if err := r.db.Select(&patients, "SELECT * FROM patients"); err != nil {
-		return fmt.Errorf("failed to load patients: %w", err)
-	}
-	for _, p := range patients {
-		oldDir := filepath.Join(r.dataDir, "patients", p.TelegramID)
-		newDir := r.getPatientDir(p)
-		if _, err := os.Stat(oldDir); err == nil && oldDir != newDir {
-			if err := os.Rename(oldDir, newDir); err != nil {
-				logging.Warnf("Warning: Failed to rename patient folder from '%s' to '%s': %v", oldDir, newDir, err)
-			}
-		}
-	}
-	return nil
-}
-
-func (r *PostgresRepository) SyncAll() error {
-	patientsDir := filepath.Join(r.dataDir, "patients")
-	entries, _ := os.ReadDir(patientsDir)
-	for _, e := range entries {
-		if e.IsDir() {
-			id := e.Name()
-			if strings.Contains(id, "(") {
-				id = id[strings.LastIndex(id, "(")+1 : len(id)-1]
-			}
-			if _, err := r.GetPatient(id); err != nil {
-				logging.Warnf("Warning: Failed to sync patient %s from folder: %v", id, err)
-			}
-		}
-	}
-	var patients []domain.Patient
-	if err := r.db.Select(&patients, "SELECT * FROM patients"); err != nil {
-		return fmt.Errorf("failed to load patients: %w", err)
-	}
-	for _, p := range patients {
-		// --- PERMANENT SCRUB of legacy boilerplate (Clinical Edition Cleanup) ---
-		if strings.Contains(p.TherapistNotes, "## 📁 Ссылки на документы") {
-			parts := strings.Split(p.TherapistNotes, "## 📁 Ссылки на документы")
-			p.TherapistNotes = strings.TrimSpace(parts[0])
-			if err := r.SavePatient(p); err != nil {
-				logging.Errorf("Failed to save patient during cleanup: %v", err)
-			} // Persists cleaned notes to DB and mirrors to Markdown
-			logging.Infof("[Cleanup] Permanently scrubbed legacy section for patient %s", p.TelegramID)
-		}
-
-		filePath := filepath.Join(r.getPatientDir(p), fmt.Sprintf("%s.md", p.TelegramID))
-		if _, err := os.Stat(filePath); os.IsNotExist(err) {
-			if err := r.saveToMarkdown(p); err != nil {
-				logging.Errorf("ERROR: Failed to create missing markdown for patient %s: %v", p.TelegramID, err)
-			}
-		}
-	}
-	return nil
 }
 
 func (r *PostgresRepository) CreateBackup() (string, error) {

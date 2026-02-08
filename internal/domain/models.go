@@ -84,6 +84,16 @@ type Patient struct {
 	CurrentService   string    `json:"current_service,omitempty" db:"current_service"`
 }
 
+// PatientMedia represents a media file associated with a patient
+type PatientMedia struct {
+	ID             string    `json:"id" db:"id"`
+	PatientID      string    `json:"patient_id" db:"patient_id"`
+	FileType       string    `json:"file_type" db:"file_type"` // photo, voice, video, document
+	FilePath       string    `json:"file_path" db:"file_path"` // absolute path on disk
+	TelegramFileID string    `json:"telegram_file_id,omitempty" db:"telegram_file_id"`
+	CreatedAt      time.Time `json:"created_at" db:"created_at"`
+}
+
 // AnalyticsEvent represents a tracked user action
 type AnalyticsEvent struct {
 	ID        int                    `json:"id"`

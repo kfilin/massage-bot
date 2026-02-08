@@ -1,7 +1,6 @@
 package ports
 
 import (
-	"io"
 	"time"
 
 	"github.com/kfilin/massage-bot/internal/domain"
@@ -19,12 +18,13 @@ type Repository interface {
 	LogEvent(patientID string, eventType string, details map[string]interface{}) error
 
 	// Clinical Records & Documents
+	// Clinical Records & Documents
 	GenerateHTMLRecord(patient domain.Patient, history []domain.Appointment, isAdmin bool) string
 	GenerateAdminSearchPage() string
-	SavePatientDocumentReader(telegramID string, filename string, category string, r io.Reader) (string, error)
+	SaveMedia(media domain.PatientMedia) error
+	GetPatientMedia(patientID string) ([]domain.PatientMedia, error)
+	GetMediaByID(mediaID string) (*domain.PatientMedia, error)
 	CreateBackup() (string, error)
-	SyncAll() error
-	MigrateFolderNames() error
 	GetAppointmentHistory(telegramID string) ([]domain.Appointment, error)
 	UpsertAppointments(appts []domain.Appointment) error
 	DeleteAppointment(appointmentID string) error

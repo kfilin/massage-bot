@@ -227,13 +227,16 @@ func (m *mockSessionStorage) ClearSession(userID int64) {
 
 // mockRepository implements ports.Repository
 type mockRepository struct {
-	patients           map[string]domain.Patient
-	bannedUsers        map[string]bool
-	appointmentHistory map[string][]domain.Appointment
-	isUserBannedFunc   func(telegramID string, username string) (bool, error)
-	savePatientFunc    func(patient domain.Patient) error
-	getPatientFunc     func(telegramID string) (domain.Patient, error)
-	searchPatientsFunc func(query string) ([]domain.Patient, error)
+	patients            map[string]domain.Patient
+	bannedUsers         map[string]bool
+	appointmentHistory  map[string][]domain.Appointment
+	isUserBannedFunc    func(telegramID string, username string) (bool, error)
+	savePatientFunc     func(patient domain.Patient) error
+	getPatientFunc      func(telegramID string) (domain.Patient, error)
+	searchPatientsFunc  func(query string) ([]domain.Patient, error)
+	saveMediaFunc       func(media domain.PatientMedia) error
+	getPatientMediaFunc func(patientID string) ([]domain.PatientMedia, error)
+	getMediaByIDFunc    func(mediaID string) (*domain.PatientMedia, error)
 }
 
 func newMockRepository() *mockRepository {
@@ -298,20 +301,29 @@ func (m *mockRepository) GenerateAdminSearchPage() string {
 	return "<html>Mock Search Page</html>"
 }
 
-func (m *mockRepository) SavePatientDocumentReader(telegramID string, filename string, category string, r io.Reader) (string, error) {
-	return "/tmp/mock-file.pdf", nil
-}
-
 func (m *mockRepository) CreateBackup() (string, error) {
 	return "/tmp/backup.zip", nil
 }
 
-func (m *mockRepository) SyncAll() error {
+func (m *mockRepository) SaveMedia(media domain.PatientMedia) error {
+	if m.saveMediaFunc != nil {
+		return m.saveMediaFunc(media)
+	}
 	return nil
 }
 
-func (m *mockRepository) MigrateFolderNames() error {
-	return nil
+func (m *mockRepository) GetPatientMedia(patientID string) ([]domain.PatientMedia, error) {
+	if m.getPatientMediaFunc != nil {
+		return m.getPatientMediaFunc(patientID)
+	}
+	return []domain.PatientMedia{}, nil
+}
+
+func (m *mockRepository) GetMediaByID(mediaID string) (*domain.PatientMedia, error) {
+	if m.getMediaByIDFunc != nil {
+		return m.getMediaByIDFunc(mediaID)
+	}
+	return nil, nil
 }
 
 func (m *mockRepository) GetAppointmentHistory(telegramID string) ([]domain.Appointment, error) {

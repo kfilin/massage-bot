@@ -299,6 +299,14 @@ const medicalRecordTemplate = `
         .btn-admin { background: #10b981; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2); }
         .btn-secondary { background: var(--bg-page); color: var(--text-main); border: 1px solid var(--border); box-shadow: none; }
 
+        /* Media Gallery */
+        .doc-files { display: none; padding: 10px; gap: 8px; flex-wrap: wrap; background: #f8fafc; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }
+        .doc-files.open { display: flex; }
+        .media-item { width: 80px; height: 80px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); position: relative; }
+        .media-item img { width: 100%; height: 100%; object-fit: cover; }
+        .file-link { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; text-decoration: none; font-size: 10px; color: var(--text-main); background: #fff; text-align: center; padding: 4px; }
+        .doc-item { cursor: pointer; }
+
     </style>
 </head>
 <body>
@@ -421,14 +429,29 @@ const medicalRecordTemplate = `
             <div id="docs-content" class="collapsible-content doc-list">
                 {{if .DocGroups}}
                     {{range .DocGroups}}
-                    <div class="doc-item">
-                        <div class="doc-info">
-                            <div style="font-weight: 600;">{{.Name}}</div>
-                            <div class="doc-stat">Количество: {{.Count}}</div>
+                    <div class="doc-group">
+                        <div class="doc-item" onclick="this.parentElement.querySelector('.doc-files').classList.toggle('open')">
+                            <div class="doc-info">
+                                <div style="font-weight: 600;">{{.Name}}</div>
+                                <div class="doc-stat">Количество: {{.Count}}</div>
+                            </div>
+                            <div class="doc-latest">
+                                <div>Последний:</div>
+                                <div>{{.Latest}}</div>
+                            </div>
                         </div>
-                        <div class="doc-latest">
-                            <div>Последний:</div>
-                            <div>{{.Latest}}</div>
+                        <div class="doc-files">
+                            {{range .Files}}
+                            <div class="media-item">
+                                <a href="/api/media/{{.ID}}" target="_blank">
+                                {{if or (eq .FileType "photo") (eq .FileType "image") (eq .FileType "scan")}}
+                                    <img src="/api/media/{{.ID}}" loading="lazy" alt="Media">
+                                {{else}}
+                                    <div class="file-link">📄<br>{{.CreatedAt.Format "02.01"}}</div>
+                                {{end}}
+                                </a>
+                            </div>
+                            {{end}}
                         </div>
                     </div>
                     {{end}}

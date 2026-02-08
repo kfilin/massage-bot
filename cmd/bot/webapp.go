@@ -122,6 +122,9 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 	mux.HandleFunc("/api/search", NewSearchHandler(repo, botToken, adminIDs))
 	mux.HandleFunc("/cancel", NewCancelHandler(apptService, botToken, adminIDs))
 
+	mediaHandler := NewMediaHandler(repo, secret, adminIDs)
+	mux.Handle("/api/media/", http.StripPrefix("/api/media/", http.HandlerFunc(mediaHandler.GetMedia)))
+
 	// WebDAV Handler for Obsidian Sync
 	davUser := os.Getenv("WEBDAV_USER")
 	davPass := os.Getenv("WEBDAV_PASSWORD")

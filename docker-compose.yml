@@ -52,6 +52,8 @@ services:
       timeout: 3s
       retries: 5
       start_period: 2s
+    ports:
+      - "5432:5432"
     networks:
       - massage-bot-internal
     logging:

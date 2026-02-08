@@ -54,6 +54,20 @@ func NewWebAppHandler(repo ports.Repository, apptService ports.AppointmentServic
 			return
 		}
 
+		// Set Auth Cookie for Media Access
+		if finalID != "" {
+			cookieVal := GenerateAuthCookie(finalID, secret)
+			http.SetCookie(w, &http.Cookie{
+				Name:     "vera_auth",
+				Value:    cookieVal,
+				Path:     "/",
+				HttpOnly: true,
+				Secure:   true,
+				SameSite: http.SameSiteNoneMode,
+				MaxAge:   86400 * 30, // 30 days
+			})
+		}
+
 		// 2. Check Admin Status (Important: check this BEFORE we potentially change finalID to a patient ID!)
 		isAdmin := false
 		authUserID := finalID // Keep track of WHO is logged in

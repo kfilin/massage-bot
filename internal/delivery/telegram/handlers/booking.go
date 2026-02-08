@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"html"
+	"io"
 	"log"
 	"net/url"
 	"os"
@@ -1526,25 +1527,76 @@ func (h *BookingHandler) HandleFileMessage(c telebot.Context) error {
 	// 2. Standard Flow: Patient Uploading File
 	// Determine category based on extension/type
 	ext := strings.ToLower(filepath.Ext(fileName))
-	category := "documents"
+
+	// Determine file type for DB
+	fileType := "document"
 	if msg.Voice != nil || msg.Audio != nil {
-		category = "messages"
+		fileType = "voice"
 	} else if msg.Photo != nil {
-		category = "images"
+		fileType = "photo"
+	} else if msg.Video != nil || msg.VideoNote != nil {
+		fileType = "video"
 	} else if ext == ".pdf" || ext == ".doc" || ext == ".docx" {
-		category = "scans"
+		fileType = "scan"
 	}
 
-	// Save to storage using Reader for efficiency
-	_, err = h.repository.SavePatientDocumentReader(telegramID, fileName, category, fileReader)
+	// 1. Prepare Directory: data/media/{patientID}
+	baseDir := os.Getenv("DATA_DIR")
+	if baseDir == "" {
+		baseDir = "data"
+	}
+	mediaDir := filepath.Join(baseDir, "media", telegramID)
+	if err := os.MkdirAll(mediaDir, 0755); err != nil {
+		logging.Errorf("Failed to create media directory: %v", err)
+		return c.Send("❌ Ошибка сервера (mkdir).")
+	}
+
+	// 2. Save File
+	filePath := filepath.Join(mediaDir, fileName)
+	dst, err := os.Create(filePath)
 	if err != nil {
-		logging.Errorf(": Failed to save patient document: %v", err)
-		if statusMsg != nil {
-			if err := c.Bot().Delete(statusMsg); err != nil {
-				logging.Warnf("Failed to delete status message: %v", err)
-			}
-		}
-		return c.Send("❌ Ошибка при сохранении файла на сервере.")
+		logging.Errorf("Failed to create file: %v", err)
+		return c.Send("❌ Ошибка сервера (create).")
+	}
+
+	if _, err := io.Copy(dst, fileReader); err != nil {
+		dst.Close()
+		logging.Errorf("Failed to save file content: %v", err)
+		return c.Send("❌ Ошибка сервера (copy).")
+	}
+	dst.Close()
+
+	// 3. Save Metadata to DB
+	mediaID := fmt.Sprintf("%d_%s", time.Now().UnixNano(), fileName)
+
+	telegramFileID := ""
+	if msg.Document != nil {
+		telegramFileID = msg.Document.FileID
+	} else if msg.Photo != nil {
+		telegramFileID = msg.Photo.FileID
+	} else if msg.Voice != nil {
+		telegramFileID = msg.Voice.FileID
+	}
+
+	// Store path relative to DATA_DIR for portability
+	// baseDir is "data" or getenv("DATA_DIR")
+	// mediaDir is baseDir/media/telegramID
+	// filePath is baseDir/media/telegramID/fileName
+	// We want to store "media/telegramID/fileName"
+	relativePath := filepath.Join("media", telegramID, fileName)
+
+	media := domain.PatientMedia{
+		ID:             mediaID,
+		PatientID:      telegramID,
+		FileType:       fileType,
+		FilePath:       relativePath, // Storing relative path
+		TelegramFileID: telegramFileID,
+		CreatedAt:      time.Now(),
+	}
+
+	if err := h.repository.SaveMedia(media); err != nil {
+		logging.Errorf("Failed to save media metadata: %v", err)
+		return c.Send("❌ Ошибка при сохранении метаданных.")
 	}
 
 	if statusMsg != nil {
