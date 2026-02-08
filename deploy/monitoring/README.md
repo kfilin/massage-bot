@@ -44,3 +44,5 @@ Check the "Massage Bot Dashboard" in Grafana. You should see metrics for:
 - Active Sessions
 - Service Popularity
 - DB Errors
+
+*Verified for v5.6.3 (Stable)*

@@ -93,3 +93,5 @@ If GitLab is down or slow, you can manually deploy `origin/master` to Prod.
 1. **Immutable Server**: NEVER edit files inside `/opt/vera-bot` or `/opt/vera-bot-test` directly.
     * *Why?* The deployment scripts run `git reset --hard`. Your changes will be deleted.
 2. **Test First**: Always verify on `vera-bot-test` before pushing to `gitlab`.
+
+*Verified for v5.6.3 (Stable)*

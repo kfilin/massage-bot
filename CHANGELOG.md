@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **TWA UI**: Added scrollable note container to "Medical Card" to prevent long histories from overflowing the screen.
 - **Dialogue View**: Implemented automatic date separators (`📅 DD.MM.YYYY`) in patient notes history for better readability.
 - **Transcription**: Added "продолжение следует" to the hallucination filter to reduce noise in silent/background-noise voice messages.
+- **Documentation**: Comprehensive update of `README.md`, `VERA_GUIDE_RU.md`, `USER_GUIDE.md`, and technical docs to align with v5.6.3 code state.
 
 ### Fixed (v5.6.3)
 

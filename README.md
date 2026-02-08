@@ -1,16 +1,15 @@
-# 💆 Vera Massage Bot (Technical Excellence v5.6.1)
+# 💆 Vera Massage Bot (Technical Excellence v5.6.3)
 
-![Go Version](https://img.shields.io/badge/Go-1.23-00ADD8?style=flat&logo=go)
-![Test Coverage](https://img.shields.io/badge/coverage-33.4%25-green)
+![Go Version](https://img.shields.io/badge/Go-1.24-00ADD8?style=flat&logo=go)
+![Test Coverage](https://img.shields.io/badge/coverage-37.8%25-green)
 ![Docker](https://img.shields.io/badge/Docker-Enabled-blue?logo=docker)
 ![License](https://img.shields.io/badge/License-Private-red)
 
-## 🛠️ Refactoring Status (2026-02-03)
+## 🚀 Project Status
 
-**Current Phase**: 3 - Code Quality
-**Progress**: 33.4% Code Coverage (Target: 30%+)
-**Focus**: Cleanup, Linting, & Documentation
-**Documentation**: [docs/Refactoring/README.md](docs/Refactoring/README.md)
+**Version**: v5.6.3 (Stable)
+**Status**: Active Production
+**Latest Feature**: Telegram Web App (TWA) & Voice Intelligence
 
 A professional Telegram-based ecosystem for clinical massage practice. Developed for the Vera studio in Fethiye, this bot combines interactive scheduling with a robust medical recording system and seamless cross-device synchronization via **WebDAV**.
 
@@ -47,10 +46,29 @@ A structured **Markdown-mirrored** architecture for patient records:
 - **Loop-Closed Messaging**: Admins can reply to patient inquiries directly via the bot using the `✍️ Ответить` interface.
 - **72h Cancellation Rule**: Enforced notice period for self-service cancellations to reduce administrative burden.
 
+### 📱 Telegram Web App (TWA)
+
+A full-featured Mini App integrated directly into Telegram:
+
+- **For Patients**:
+  - **Booking Wizard**: Visual calendar, service selection, and slot picker.
+  - **Medical Card**: View visit history, upcoming appointments, and personal data.
+  - **Fast Action**: "Book Now" buttons and "Next Appointment" countdowns.
+- **For Admins**:
+  - **Patient Search**: Live search across the entire database.
+  - **Manual Booking**: "Create Appointment" flow to book on behalf of patients.
+  - **Full History**: Access to all patient notes, files, and visit logs.
+
+### 🎙️ Voice Intelligence (Groq/Whisper)
+
+- **Transcription**: All voice messages from patients are automatically transcribed using **Groq's Whisper API**.
+- **Context**: Transcriptions are saved to the patient's medical card (Postgres + Markdown) and forwarded to the therapist.
+- **Filtering**: Intelligent filtering removes "hallucinations" (e.g., "Silence", "Thank you") from empty voice notes.
+
 ### 🔒 Enterprise Logic
 
-- **Transcription**: Automated voice-to-text conversion for consultation notes.
-- **Shadow Banning**: Polite rejection of unwanted users through the "No slots available" middleware.
+- **Smart Replies**: Admins can reply to patient messages (Text/Voice) directly via the bot using the `[✍️ Ответить]` button. The bot routes the reply and logs the conversation.
+- **Discreet Blocking**: Polite rejection of unwanted users through the "No slots available" middleware.
 - **DB Resilience**: Built-in 5-attempt retry loop for PostgreSQL connectivity.
 
 ---
@@ -63,7 +81,7 @@ The project follows a clean architecture pattern, prioritizing stability and dep
 - **Database**: PostgreSQL 15+ (Transactional integrity)
 - **Sync**: WebDAV Server (CORS/OPTIONS enabled for Mobile clients)
 - **Monitoring**: Prometheus/Grafana stack on port 8083 (with decoupled `MetricsCollector`).
-- **Deployment**: Docker Compose with resource guards.
+- **Deployment**: Docker Compose with `scripts/` automation.
 
 ---
 
@@ -71,10 +89,12 @@ The project follows a clean architecture pattern, prioritizing stability and dep
 
 - `cmd/bot`: Main application entry point.
 - `internal/domain`: Core business logic and shared models.
-- `internal/services`: Business logic implementation (appointments, etc.).
-- `internal/storage`: Database persistence (PostgreSQL).
-- `internal/delivery`: Transport layer (Telegram bot handlers).
-- `internal/adapters`: External integrations (Google Calendar).
+- `internal/services`: Business logic implementation (appointments, reminder, transcription).
+- `internal/storage`: Database persistence (PostgreSQL + Markdown).
+- `internal/delivery`: Transport layer (Telegram bot & Web App handlers).
+- `internal/adapters`: External integrations (Google Calendar, Groq).
+- `internal/ports`: Interfaces defining the hexagonal architecture boundaries.
+- `internal/config`: Configuration loading and validation.
 - `internal/monitoring`: Prometheus metrics.
 - `internal/logging`: Structured logging.
 
@@ -95,7 +115,11 @@ Create a `.env` file from `.env.example`.
 ### 3. Deploy
 
 ```bash
-docker-compose up -d --build
+# Production Deployment (Manual)
+./scripts/deploy_home_server.sh
+
+# Test Environment Deployment
+./scripts/deploy_test_server.sh
 ```
 
 ---
@@ -151,4 +175,4 @@ The bot is configured entirely via environment variables.
 | `APPT_CACHE_TTL` | Cache TTL for free/busy | No | Defaults to `5m` |
 
 ---
-*Created by Kirill Filin with Gemini Assistance. Gold Standard Checkpoint: v5.6.1 Stable (2026-02-06).*
+*Created by Kirill Filin with Gemini Assistance. Gold Standard Checkpoint: v5.6.3 Stable (2026-02-08).*
