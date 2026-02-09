@@ -460,7 +460,10 @@ const medicalRecordTemplate = `
 
     <!-- Header Section -->
     <div class="header">
-        <div class="subtitle">MEDICAL CARD</div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="subtitle">MEDICAL CARD</div>
+            <div style="font-size: 10px; color: var(--text-secondary);">{{.BotVersion}}</div>
+        </div>
         <div style="display: flex; justify-content: space-between; align-items: flex-end;">
             <h1 class="large-title">{{.Name}}</h1>
             <div onclick="openEditModal()" style="width: 38px; height: 38px; background: #E5E5EA; border-radius: 19px; display: flex; align-items: center; justify-content: center; margin-bottom: 6px; cursor: pointer;">
@@ -488,7 +491,7 @@ const medicalRecordTemplate = `
         <div class="card" style="margin: 0; padding: 14px;">
             <div class="stat-label">Total Visits</div>
             <div class="stat-value">{{.TotalVisits}}</div>
-            <div class="stat-sub">Since {{if .FirstVisit.IsZero}}-{{else}}{{.FirstVisit.Format "Jan 2006"}}{{end}}</div>
+            <div class="stat-sub">Since {{if or .FirstVisit.IsZero (lt .FirstVisit.Year 2000)}}-{{else}}{{.FirstVisit.Format "Jan 2006"}}{{end}}</div>
         </div>
     </div>
 

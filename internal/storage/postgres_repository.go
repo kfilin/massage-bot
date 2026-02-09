@@ -312,8 +312,8 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient, history []doma
 		BotVersion         string
 		TherapistNotes     template.HTML
 		VoiceTranscripts   template.HTML
-		FirstVisit         string
-		LastVisit          string
+		FirstVisit         time.Time
+		LastVisit          time.Time
 		FirstVisitLink     string
 		NextVisitLink      string // Renamed from LastVisitLink for clarity in countdown
 		ShowFirstVisitLink bool
@@ -339,15 +339,6 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient, history []doma
 	// cleanNotes := re.ReplaceAllString(p.TherapistNotes, "")
 	cleanNotes := p.TherapistNotes
 
-	firstVisitStr := p.FirstVisit.Format("02.01.2006")
-	if p.FirstVisit.Year() < 2000 {
-		firstVisitStr = "Впервые"
-	}
-	lastVisitStr := p.LastVisit.Format("02.01.2006")
-	if p.LastVisit.Year() < 2000 {
-		lastVisitStr = "—"
-	}
-
 	mediaList, errMedia := r.GetPatientMedia(p.TelegramID)
 	if errMedia != nil {
 		logging.Warnf("Failed to fetch media for patient %s: %v", p.TelegramID, errMedia)
@@ -362,8 +353,8 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient, history []doma
 		BotVersion:         r.BotVersion,
 		TherapistNotes:     r.mdToHTML(cleanNotes),
 		VoiceTranscripts:   template.HTML(strings.ReplaceAll(template.HTMLEscapeString(p.VoiceTranscripts), "\n", "<br>")),
-		FirstVisit:         firstVisitStr,
-		LastVisit:          lastVisitStr,
+		FirstVisit:         p.FirstVisit,
+		LastVisit:          p.LastVisit,
 		FirstVisitLink:     getCalLink(p.FirstVisit, p.CurrentService),
 		ShowFirstVisitLink: p.FirstVisit.After(time.Now()),
 		IsAdmin:            isAdmin,
