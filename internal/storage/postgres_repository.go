@@ -311,6 +311,7 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient, history []doma
 		CurrentService     string
 		BotVersion         string
 		TherapistNotes     template.HTML
+		RawNotes           string
 		VoiceTranscripts   template.HTML
 		FirstVisit         time.Time
 		LastVisit          time.Time
@@ -352,6 +353,7 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient, history []doma
 		CurrentService:     p.CurrentService,
 		BotVersion:         r.BotVersion,
 		TherapistNotes:     r.mdToHTML(cleanNotes),
+		RawNotes:           p.TherapistNotes,
 		VoiceTranscripts:   template.HTML(strings.ReplaceAll(template.HTMLEscapeString(p.VoiceTranscripts), "\n", "<br>")),
 		FirstVisit:         p.FirstVisit,
 		LastVisit:          p.LastVisit,

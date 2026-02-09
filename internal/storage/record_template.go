@@ -234,6 +234,19 @@ const medicalRecordTemplate = `
         }
         @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
         
+        .collapsible-group { margin-bottom: 24px; }
+        .collapsible-header { 
+            display: flex; justify-content: space-between; align-items: center; 
+            font-size: 20px; font-weight: 700; color: var(--text-primary); 
+            cursor: pointer; padding: 10px 4px;
+        }
+        .collapsible-header::after { content: '⌄'; font-size: 24px; transition: transform 0.2s; }
+        .collapsible-header.collapsed::after { transform: rotate(-90deg); }
+        .collapsible-content { display: block; }
+        .collapsible-content.collapsed { display: none; }
+        .collapsible-content.collapsed .timeline-item:nth-child(n+3) { display: none; }
+
+        
         .form-group { margin-bottom: 16px; }
         .form-label { display: block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
         .form-input { 
@@ -360,7 +373,6 @@ const medicalRecordTemplate = `
             document.getElementById('editModal').classList.add('visible');
         }
         function closeEditModal() {
-            document.getElementById('modalBackdrop').classList.remove('visible'); // actually closes editModal if ID matches
              document.getElementById('editModal').classList.remove('visible');
         }
 
@@ -505,10 +517,17 @@ const medicalRecordTemplate = `
         <div class="timeline-content">
             <div class="timeline-date">Latest Notes</div>
             <div class="timeline-title">Therapist Summary</div>
-            <div class="timeline-body">{{.TherapistNotes}}</div>
+            <div class="timeline-body" style="white-space: normal;">{{.TherapistNotes}}</div>
         </div>
     </div>
     {{end}}
+
+    <div class="collapsible-group">
+        <div class="collapsible-header" onclick="this.classList.toggle('collapsed'); this.nextElementSibling.classList.toggle('collapsed');">
+            Timeline
+        </div>
+        <div class="collapsible-content">
+
 
     <!-- Item: Recent Visits -->
     {{range .RecentVisits}}
@@ -521,26 +540,36 @@ const medicalRecordTemplate = `
         </div>
     </div>
     {{end}}
+        </div>
+    </div>
+
 
     <!-- Item: Documents / Media -->
     {{range .DocGroups}}
-        {{range .Files}}
-        <div class="timeline-item">
-            <div class="timeline-icon-box icon-green">
-                {{if eq .FileType "voice"}}🎙️{{else if eq .FileType "image"}}🖼️{{else}}📄{{end}}
+        <div class="collapsible-group">
+            <div class="collapsible-header collapsed" onclick="this.classList.toggle('collapsed'); this.nextElementSibling.classList.toggle('collapsed');">
+                {{.Name}} ({{.Count}})
             </div>
-            <div class="timeline-content">
-                <div class="timeline-date">{{.CreatedAt.Format "02 Jan 15:04"}}</div>
-                <div class="timeline-title">{{$.Name}}</div>
-                {{if eq .FileType "voice"}}
-                     <button onclick="openMedia('/api/media/{{.ID}}', 'voice')" style="margin-top:8px; background:var(--bg-page); border:none; padding:6px 12px; border-radius:8px;">▶ Play Voice Note</button>
-                {{else}}
-                     <button onclick="openMedia('/api/media/{{.ID}}', '{{.FileType}}')" style="color: var(--accent); background: none; border: none; font-weight: 600; padding: 0; margin-top:4px;">Open File</button>
+            <div class="collapsible-content collapsed">
+                {{range .Files}}
+                <div class="timeline-item">
+                    <div class="timeline-icon-box icon-green">
+                        {{if eq .FileType "voice"}}🎙️{{else if eq .FileType "image"}}🖼️{{else}}📄{{end}}
+                    </div>
+                    <div class="timeline-content">
+                        <div class="timeline-date">{{.CreatedAt.Format "02 Jan 15:04"}}</div>
+                        {{if eq .FileType "voice"}}
+                             <button onclick="openMedia('/api/media/{{.ID}}', 'voice')" style="margin-top:8px; background:var(--bg-page); border:none; padding:6px 12px; border-radius:8px;">▶ Play Voice Note</button>
+                        {{else}}
+                             <button onclick="openMedia('/api/media/{{.ID}}', '{{.FileType}}')" style="color: var(--accent); background: none; border: none; font-weight: 600; padding: 0; margin-top:4px;">Open File</button>
+                        {{end}}
+                    </div>
+                </div>
                 {{end}}
             </div>
         </div>
-        {{end}}
     {{end}}
+
     
     <!-- Floating Action Button -->
     <button class="fab" onclick="openEditModal()" title="Add Note / Voice">🎤</button>
@@ -572,7 +601,7 @@ const medicalRecordTemplate = `
                 </div>
                 <div class="form-group">
                     <label class="form-label">Notes (Markdown supported)</label>
-                    <textarea id="editNotes" class="form-input form-textarea">{{.TherapistNotes}}</textarea>
+                    <textarea id="editNotes" class="form-input form-textarea">{{.RawNotes}}</textarea>
                 </div>
                 <button type="submit" id="saveBtn" class="btn-block">Save Changes</button>
             </form>
