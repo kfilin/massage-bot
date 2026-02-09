@@ -129,7 +129,7 @@ func main() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			startWebAppServer(ctx, cfg.WebAppPort, cfg.WebAppSecret, cfg.TgBotToken, allAdmins, patientRepo, appointmentService, os.Getenv("DATA_DIR"), botUsername)
+			startWebAppServer(ctx, cfg.WebAppPort, cfg.WebAppSecret, cfg.TgBotToken, allAdmins, patientRepo, appointmentService, transcriptionAdapter, os.Getenv("DATA_DIR"), botUsername)
 		}()
 	} else {
 		logging.Warn("Warning: WEBAPP_SECRET not set, Web App server not started.")

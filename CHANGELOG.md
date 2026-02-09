@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v5.7.0] - 2026-02-09
+
+### Added (v5.7.0)
+
+- **Voice Intelligence**: Implemented `POST /api/transcribe` endpoint using Groq for audio-to-text conversion.
+- **Hybrid Voice Editor**: Added a "Voice Note" recording interface within the Edit Profile modal, allowing therapists to dictate and edit clinical notes in real-time.
+- **Design System**: Completely rebuilt the TWA frontend with an "Apple Health" inspired aesthetic (Cards, Timeline, Modern Typography).
+
+### Changed (v5.7.0)
+
+- **TWA Layout**: Replaced the legacy section-based layout with a unified "Timeline Stream" for visits, notes, and media.
+- **Media Viewer**: Improved lightbox logic to support audio playback without autoplay policy errors.
+- **Typography**: Switched to system fonts (San Francisco / Inter) for better native feel.
+
+### Fixed (v5.7.0)
+
+- **Readability**: Improved text contrast in dark mode by using semantic color variables (`--text-primary`).
+- **Audio Playback**: Resolved popup errors by removing forced autoplay on media elements.
+
 ## [v5.6.5] - 2026-02-09
 
 ### Fixed (v5.6.5)

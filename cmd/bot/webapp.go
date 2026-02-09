@@ -101,7 +101,7 @@ func validateInitData(initData string, botToken string) (string, string, error) 
 	return fmt.Sprintf("%d", user.ID), fullName, nil
 }
 
-func startWebAppServer(ctx context.Context, port string, secret string, botToken string, adminIDs []string, repo ports.Repository, apptService ports.AppointmentService, dataDir string, botUsername string) {
+func startWebAppServer(ctx context.Context, port string, secret string, botToken string, adminIDs []string, repo ports.Repository, apptService ports.AppointmentService, transcriptionService ports.TranscriptionService, dataDir string, botUsername string) {
 	if port == "" {
 		port = "8082"
 	}
@@ -122,6 +122,7 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 	mux.HandleFunc("/api/search", NewSearchHandler(repo, botToken, adminIDs))
 	mux.HandleFunc("/api/patient/update", NewUpdatePatientHandler(repo, botToken, adminIDs))
 	mux.HandleFunc("/cancel", NewCancelHandler(apptService, botToken, adminIDs))
+	mux.HandleFunc("/api/transcribe", NewTranscribeHandler(transcriptionService, botToken))
 
 	mediaHandler := NewMediaHandler(repo, secret, adminIDs)
 	mux.Handle("/api/media/", http.StripPrefix("/api/media/", http.HandlerFunc(mediaHandler.GetMedia)))
