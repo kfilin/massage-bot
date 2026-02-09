@@ -260,8 +260,10 @@ func (r *PostgresRepository) mdToHTML(md string) template.HTML {
 	if md == "" {
 		return template.HTML("")
 	}
-	// 1. Basic escaping and line breaks
-	h := template.HTMLEscapeString(md)
+	// We no longer escape the whole string because the user might have saved HTML
+	// from previous versions or wants to keep some formatting.
+	// We just apply basic Markdown-to-HTML conversions on top.
+	h := md
 
 	// 2. Simple Markdown logic (order matters)
 	// Headers
@@ -280,7 +282,8 @@ func (r *PostgresRepository) mdToHTML(md string) template.HTML {
 	reList := regexp.MustCompile(`(?m)^[*-] (.*)$`)
 	h = reList.ReplaceAllString(h, "• $1")
 
-	// Line breaks (convert remaining \n to <br>)
+	// Line breaks (only for plain text segments, but here we just replace all \n)
+	// If it already has <br> or <h2>, this might add extra space, but it's acceptable for now.
 	h = strings.ReplaceAll(h, "\n", "<br>")
 
 	return template.HTML(h)
@@ -331,7 +334,7 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient, history []doma
 	getCalLink := func(t time.Time, service string) string {
 		start := t.Format("20060102T150405")
 		end := t.Add(time.Hour).Format("20060102T150405")
-		title := "Massage: " + service
+		title := "Массаж: " + service
 		return fmt.Sprintf("https://www.google.com/calendar/render?action=TEMPLATE&text=%s&dates=%s/%s", strings.ReplaceAll(title, " ", "+"), start, end)
 	}
 
@@ -428,28 +431,28 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient, history []doma
 	initGroup := func(name string) {
 		groups[name] = &docGroup{Name: name, Count: 0}
 	}
-	initGroup("Scans")
-	initGroup("Photos")
-	initGroup("Videos")
-	initGroup("Voice Messages")
-	initGroup("Texts")
-	initGroup("Others")
+	initGroup("Снимки")            // Scans
+	initGroup("Фотографии")        // Photos
+	initGroup("Видео")             // Videos
+	initGroup("Голосовые заметки") // Voice Messages
+	initGroup("Тексты")            // Texts
+	initGroup("Прочее")            // Others
 
 	for _, m := range mediaList {
 		var targetGroup *docGroup
 		switch m.FileType {
 		case "scan":
-			targetGroup = groups["Scans"]
+			targetGroup = groups["Снимки"]
 		case "photo", "image":
-			targetGroup = groups["Photos"]
+			targetGroup = groups["Фотографии"]
 		case "voice", "audio":
-			targetGroup = groups["Voice Messages"]
+			targetGroup = groups["Голосовые заметки"]
 		case "video":
-			targetGroup = groups["Videos"]
+			targetGroup = groups["Видео"]
 		case "document", "text":
-			targetGroup = groups["Texts"]
+			targetGroup = groups["Тексты"]
 		default:
-			targetGroup = groups["Others"]
+			targetGroup = groups["Прочее"]
 		}
 
 		if targetGroup != nil {
@@ -463,7 +466,7 @@ func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient, history []doma
 	}
 
 	// Add only populated groups
-	order := []string{"Scans", "Photos", "Videos", "Voice Messages", "Texts", "Others"}
+	order := []string{"Снимки", "Фотографии", "Видео", "Голосовые заметки", "Тексты", "Прочее"}
 	for _, name := range order {
 		if g := groups[name]; g != nil && g.Count > 0 {
 			data.DocGroups = append(data.DocGroups, *g)

@@ -310,22 +310,26 @@ const medicalRecordTemplate = `
                 // START RECORDING
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    mediaRecorder = new MediaRecorder(stream);
+                    // Use a more widely supported codec if available (webm is standard for browser)
+                    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
+                                   ? 'audio/webm;codecs=opus' 
+                                   : 'audio/webm';
+                    mediaRecorder = new MediaRecorder(stream, { mimeType });
                     audioChunks = [];
                     mediaRecorder.addEventListener("dataavailable", event => {
                         audioChunks.push(event.data);
                     });
                     mediaRecorder.addEventListener("stop", async () => {
-                        const audioBlob = new Blob(audioChunks, { type: 'audio/mpeg' }); // or webm
+                        const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
                         await sendAudio(audioBlob);
                     });
                     
                     mediaRecorder.start();
                     btn.classList.add('recording');
                     viz.style.display = 'flex';
-                    status.innerText = "Listening...";
+                    status.innerText = "Слушаю...";
                 } catch (e) {
-                    alert("Microphone access denied or not supported.");
+                    alert("Доступ к микрофону запрещен или не поддерживается. Убедитесь, что вы используете HTTPS.");
                     console.error(e);
                 }
             } else {
@@ -333,7 +337,7 @@ const medicalRecordTemplate = `
                 mediaRecorder.stop();
                 btn.classList.remove('recording');
                 viz.style.display = 'none';
-                status.innerText = "Processing...";
+                status.innerText = "Обработка...";
             }
         }
 
@@ -355,16 +359,16 @@ const medicalRecordTemplate = `
                     const editor = document.getElementById('editNotes');
                     const current = editor.value;
                     const timestamp = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                    editor.value = current + (current ? '\n\n' : '') + '**Voice Note (' + timestamp + '):**\n' + res.text;
-                    document.getElementById('recordStatus').innerText = "Transcribed!";
+                    editor.value = current + (current ? '\n\n' : '') + '**Голосовая заметка (' + timestamp + '):**\n' + res.text;
+                    document.getElementById('recordStatus').innerText = "Готово!";
                 } else {
-                    alert("Transcription error: " + res.error);
-                    document.getElementById('recordStatus').innerText = "Error.";
+                    alert("Ошибка транскрибации: " + res.error);
+                    document.getElementById('recordStatus').innerText = "Ошибка.";
                 }
             } catch (e) {
                 console.error(e);
-                alert("Network error during transcription.");
-                document.getElementById('recordStatus').innerText = "Error.";
+                alert("Сетевая ошибка при транскрибации.");
+                document.getElementById('recordStatus').innerText = "Ошибка.";
             }
         }
 
@@ -380,7 +384,7 @@ const medicalRecordTemplate = `
             e.preventDefault();
             const btn = document.getElementById('saveBtn');
             const originalText = btn.innerText;
-            btn.innerText = 'Saving...';
+            btn.innerText = 'Сохранение...';
             btn.disabled = true;
 
             const name = document.getElementById('editName').value;
@@ -400,13 +404,13 @@ const medicalRecordTemplate = `
                 });
                 const res = await resp.json();
                 if (res.status === 'ok') {
-                    tg.showAlert('Saved.');
+                    tg.showAlert('Сохранено.');
                     window.location.reload();
                 } else {
-                    tg.showAlert('Error: ' + res.error);
+                    tg.showAlert('Ошибка: ' + res.error);
                 }
             } catch (err) {
-                tg.showAlert('Network Error');
+                tg.showAlert('Ошибка сети');
             } finally {
                 btn.innerText = originalText;
                 btn.disabled = false;
@@ -458,11 +462,11 @@ const medicalRecordTemplate = `
              }).then(r => r.json()).then(res => {
                  if (res.status === "ok") {
                      btn.closest('.card').remove();
-                     tg.showAlert("Cancelled");
+                     tg.showAlert("Отменено");
                      setTimeout(() => window.location.reload(), 1000);
                  } else {
-                     tg.showAlert("Error: " + res.error);
-                     btn.innerText = "Cancel";
+                     tg.showAlert("Ошибка: " + res.error);
+                     btn.innerText = "Отменить";
                  }
              });
         }
@@ -473,7 +477,7 @@ const medicalRecordTemplate = `
     <!-- Header Section -->
     <div class="header">
         <div style="display: flex; justify-content: space-between; align-items: center;">
-            <div class="subtitle">MEDICAL CARD</div>
+            <div class="subtitle">МЕДИЦИНСКАЯ КАРТА</div>
             <div style="font-size: 10px; color: var(--text-secondary);">{{.BotVersion}}</div>
         </div>
         <div style="display: flex; justify-content: space-between; align-items: flex-end;">
@@ -487,36 +491,34 @@ const medicalRecordTemplate = `
     <!-- Stats Row -->
     <div class="stats-grid">
         <div class="card" style="margin: 0; padding: 14px;">
-            <div class="stat-label">Next Visit</div>
+            <div class="stat-label">След. визит</div>
             {{if .FutureAppointments}}
                 {{$next := index .FutureAppointments 0}}
                 <div class="stat-value accent">{{$next.Date}}</div>
                 <div class="stat-sub">{{$next.Service}}</div>
                 {{if $next.CanCancel}}
-                    <button onclick="cancelAppointment(event, '{{$next.ID}}', this)" style="margin-top:8px; font-size:11px; color:#FF3B30; background:none; border:1px solid #FF3B30; padding:4px 8px; border-radius:4px;">Cancel</button>
+                    <button onclick="cancelAppointment(event, '{{$next.ID}}', this)" style="margin-top:8px; font-size:11px; color:#FF3B30; background:none; border:1px solid #FF3B30; padding:4px 12px; border-radius:4px;">Отменить</button>
                 {{end}}
             {{else}}
-                <div class="stat-value" style="color:var(--text-secondary); font-size:14px;">None</div>
-                <div class="stat-sub"><a href="https://t.me/{{.BotUsername}}?start=book" style="color:var(--accent); text-decoration:none;">Book Now</a></div>
+                <div class="stat-value" style="color:var(--text-secondary); font-size:14px;">Нет</div>
+                <div class="stat-sub"><a href="https://t.me/{{.BotUsername}}?start=book" style="color:var(--accent); text-decoration:none;">Записаться</a></div>
             {{end}}
         </div>
         <div class="card" style="margin: 0; padding: 14px;">
-            <div class="stat-label">Total Visits</div>
+            <div class="stat-label">Всего визитов</div>
             <div class="stat-value">{{.TotalVisits}}</div>
-            <div class="stat-sub">Since {{if or .FirstVisit.IsZero (lt .FirstVisit.Year 2000)}}-{{else}}{{.FirstVisit.Format "Jan 2006"}}{{end}}</div>
+            <div class="stat-sub">С {{if or .FirstVisit.IsZero (lt .FirstVisit.Year 2000)}}-{{else}}{{.FirstVisit.Format "Jan 2006"}}{{end}}</div>
         </div>
     </div>
 
     <!-- Timeline Stream -->
-    <div class="timeline-label">History</div>
-
-    <!-- Item: Therapist Notes (Pinned/Latest) -->
+    <!-- Items: Therapist Notes -->
     {{if .TherapistNotes}}
     <div class="timeline-item">
         <div class="timeline-icon-box icon-orange">📝</div>
         <div class="timeline-content">
-            <div class="timeline-date">Latest Notes</div>
-            <div class="timeline-title">Therapist Summary</div>
+            <div class="timeline-date">Последние записи</div>
+            <div class="timeline-title">Резюме терапевта</div>
             <div class="timeline-body" style="white-space: normal;">{{.TherapistNotes}}</div>
         </div>
     </div>
@@ -524,7 +526,7 @@ const medicalRecordTemplate = `
 
     <div class="collapsible-group">
         <div class="collapsible-header" onclick="this.classList.toggle('collapsed'); this.nextElementSibling.classList.toggle('collapsed');">
-            Timeline
+            Хронология визитов
         </div>
         <div class="collapsible-content">
 
@@ -535,8 +537,8 @@ const medicalRecordTemplate = `
         <div class="timeline-icon-box icon-blue">👋</div>
         <div class="timeline-content">
             <div class="timeline-date">{{.Date}}</div>
-            <div class="timeline-title">Visit ({{.Service}})</div>
-            <div class="badge">#confirmed</div>
+            <div class="timeline-title">Визит ({{.Service}})</div>
+            <div class="badge">#подтвержден</div>
         </div>
     </div>
     {{end}}
@@ -557,11 +559,11 @@ const medicalRecordTemplate = `
                         {{if eq .FileType "voice"}}🎙️{{else if eq .FileType "image"}}🖼️{{else}}📄{{end}}
                     </div>
                     <div class="timeline-content">
-                        <div class="timeline-date">{{.CreatedAt.Format "02 Jan 15:04"}}</div>
+                        <div class="timeline-date">{{.CreatedAt.Format "02.01 15:04"}}</div>
                         {{if eq .FileType "voice"}}
-                             <button onclick="openMedia('/api/media/{{.ID}}', 'voice')" style="margin-top:8px; background:var(--bg-page); border:none; padding:6px 12px; border-radius:8px;">▶ Play Voice Note</button>
+                             <button onclick="openMedia('/api/media/{{.ID}}', 'voice')" style="margin-top:8px; background:var(--bg-page); border:none; padding:6px 12px; border-radius:8px;">▶ Прослушать</button>
                         {{else}}
-                             <button onclick="openMedia('/api/media/{{.ID}}', '{{.FileType}}')" style="color: var(--accent); background: none; border: none; font-weight: 600; padding: 0; margin-top:4px;">Open File</button>
+                             <button onclick="openMedia('/api/media/{{.ID}}', '{{.FileType}}')" style="color: var(--accent); background: none; border: none; font-weight: 600; padding: 0; margin-top:4px;">Открыть файл</button>
                         {{end}}
                     </div>
                 </div>
@@ -579,7 +581,7 @@ const medicalRecordTemplate = `
     <div id="editModal" class="modal" onclick="if(event.target === this) closeEditModal()">
         <div class="modal-content">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h2 style="margin: 0; font-size: 20px; color: var(--text-primary);">Editor & Voice</h2>
+                <h2 style="margin: 0; font-size: 20px; color: var(--text-primary);">Редактор и Голос</h2>
                 <button onclick="closeEditModal()" style="background:none; border:none; font-size: 24px; color: var(--text-secondary); cursor:pointer;">✕</button>
             </div>
 
@@ -591,19 +593,19 @@ const medicalRecordTemplate = `
                 <div id="recordingViz" class="recording-viz" style="display:none;">
                     <div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div>
                 </div>
-                <div id="recordStatus" style="margin-top:10px; font-size:13px; color:var(--text-secondary);">Tap to Record</div>
+                <div id="recordStatus" style="margin-top:10px; font-size:13px; color:var(--text-secondary);">Нажмите для записи</div>
             </div>
 
             <form onsubmit="savePatient(event)">
                 <div class="form-group">
-                    <label class="form-label">Name</label>
+                    <label class="form-label">Имя</label>
                     <input type="text" id="editName" class="form-input" value="{{.Name}}" required>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Notes (Markdown supported)</label>
+                    <label class="form-label">Заметки (Markdown поддерживается)</label>
                     <textarea id="editNotes" class="form-input form-textarea">{{.RawNotes}}</textarea>
                 </div>
-                <button type="submit" id="saveBtn" class="btn-block">Save Changes</button>
+                <button type="submit" id="saveBtn" class="btn-block">Сохранить изменения</button>
             </form>
         </div>
     </div>
