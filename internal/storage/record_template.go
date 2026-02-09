@@ -309,18 +309,41 @@ const medicalRecordTemplate = `
             if (!mediaRecorder || mediaRecorder.state === "inactive") {
                 // START RECORDING
                 try {
+                    // Force a dummy AudioContext to "wake up" audio on iOS
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    if (AudioContext) {
+                        const ctx = new AudioContext();
+                        if (ctx.state === 'suspended') ctx.resume();
+                    }
+
+                    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                        throw new Error("Ваш браузер не поддерживает доступ к микрофону. Используйте современный браузер и HTTPS.");
+                    }
+
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    // Use a more widely supported codec if available (webm is standard for browser)
-                    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
-                                   ? 'audio/webm;codecs=opus' 
-                                   : 'audio/webm';
-                    mediaRecorder = new MediaRecorder(stream, { mimeType });
+                    
+                    const mimeTypes = [
+                        'audio/webm;codecs=opus',
+                        'audio/webm',
+                        'audio/mp4',
+                        'audio/aac',
+                        'audio/ogg'
+                    ];
+                    let selectedMimeType = '';
+                    for (const type of mimeTypes) {
+                        if (MediaRecorder.isTypeSupported(type)) {
+                            selectedMimeType = type;
+                            break;
+                        }
+                    }
+
+                    mediaRecorder = new MediaRecorder(stream, selectedMimeType ? { mimeType: selectedMimeType } : {});
                     audioChunks = [];
                     mediaRecorder.addEventListener("dataavailable", event => {
                         audioChunks.push(event.data);
                     });
                     mediaRecorder.addEventListener("stop", async () => {
-                        const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
+                        const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
                         await sendAudio(audioBlob);
                     });
                     
@@ -329,7 +352,7 @@ const medicalRecordTemplate = `
                     viz.style.display = 'flex';
                     status.innerText = "Слушаю...";
                 } catch (e) {
-                    alert("Доступ к микрофону запрещен или не поддерживается. Убедитесь, что вы используете HTTPS.");
+                    alert("Ошибка микрофона: " + e.message + "\n\nУбедитесь, что вы используете HTTPS и дали разрешение в настройках браузера/Telegram.");
                     console.error(e);
                 }
             } else {
@@ -519,6 +542,7 @@ const medicalRecordTemplate = `
         <div class="timeline-content">
             <div class="timeline-date">Последние записи</div>
             <div class="timeline-title">Резюме терапевта</div>
+            <!-- Fixed: Ensure HTML is rendered, not as text -->
             <div class="timeline-body" style="white-space: normal;">{{.TherapistNotes}}</div>
         </div>
     </div>

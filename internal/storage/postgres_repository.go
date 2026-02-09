@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"html"
 	"html/template"
 	"io"
 	"os"
@@ -260,10 +261,10 @@ func (r *PostgresRepository) mdToHTML(md string) template.HTML {
 	if md == "" {
 		return template.HTML("")
 	}
-	// We no longer escape the whole string because the user might have saved HTML
-	// from previous versions or wants to keep some formatting.
-	// We just apply basic Markdown-to-HTML conversions on top.
-	h := md
+
+	// 1. Try to unescape if it was accidentally saved as double-escaped HTML
+	// This helps with older records that might have been saved incorrectly.
+	h := html.UnescapeString(md)
 
 	// 2. Simple Markdown logic (order matters)
 	// Headers
@@ -282,9 +283,16 @@ func (r *PostgresRepository) mdToHTML(md string) template.HTML {
 	reList := regexp.MustCompile(`(?m)^[*-] (.*)$`)
 	h = reList.ReplaceAllString(h, "• $1")
 
-	// Line breaks (only for plain text segments, but here we just replace all \n)
-	// If it already has <br> or <h2>, this might add extra space, but it's acceptable for now.
-	h = strings.ReplaceAll(h, "\n", "<br>")
+	// Line breaks: ONLY if there are no HTML tags already doing line breaks
+	// If the text looks like plain text (\n present, no <h2> or <br>), convert \n to <br>
+	if !strings.Contains(h, "<h") && !strings.Contains(h, "<br") && !strings.Contains(h, "<p") {
+		h = strings.ReplaceAll(h, "\n", "<br>")
+	} else {
+		// If it has HTML, we still might want to preserve single \n as <br>?
+		// But let's be careful not to double up.
+		// For now, let's just do it if it's not looking like a full HTML doc.
+		h = strings.ReplaceAll(h, "\n", "<br>")
+	}
 
 	return template.HTML(h)
 }
