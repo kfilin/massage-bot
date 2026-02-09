@@ -122,4 +122,17 @@
 
 ---
 
-#### Last updated: 2026-02-04
+#### Last updated: 2026-02-09
+
+## 🚀 Future Integrations (Added 2026-02-09)
+
+### 27. [TODO] Apple Health Integration
+
+- **Status**: Planned (Backlog)
+- **Goal**: Deep sync of patient data to Apple Health.
+- **Note**: Requires native iOS app or Shortcuts. TWA can mostly just *mimic the look*.
+
+### 28. [TODO] Apple Wallet Pass
+
+- **Status**: Planned (Backlog)
+- **Goal**: Generate `.pkpass` for appointments so patients can add them to Apple Wallet.

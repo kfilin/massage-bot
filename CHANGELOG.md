@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v5.6.5] - 2026-02-09
+
+### Fixed (v5.6.5)
+
+- **Test Deployment**: Resolved critical port conflict (5432 vs 5433) in `test-override` config preventing test DB startup.
+- **Deploy Script**: Added `set -e` and network pre-checks to `deploy_test_server.sh` for robust error handling.
+
+### Added (v5.6.5)
+
+- **Design Prototype**: Created `design_prototype.html` for the new "Apple Health" style Patient Card.
+- **Backlog**: Formalized `backlog.md` for future integrations (Apple Health, Wallet).
+
 ## [v5.6.4] - 2026-02-08
 
 ### Fixed (v5.6.4)
