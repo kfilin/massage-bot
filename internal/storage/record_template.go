@@ -302,10 +302,25 @@ const medicalRecordTemplate = `
         /* Media Gallery */
         .doc-files { display: none; padding: 10px; gap: 8px; flex-wrap: wrap; background: #f8fafc; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }
         .doc-files.open { display: flex; }
-        .media-item { width: 80px; height: 80px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); position: relative; }
+        .media-item { width: 80px; height: 80px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); position: relative; cursor: pointer; background: white; }
         .media-item img { width: 100%; height: 100%; object-fit: cover; }
-        .file-link { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; text-decoration: none; font-size: 10px; color: var(--text-main); background: #fff; text-align: center; padding: 4px; }
-        .doc-item { cursor: pointer; }
+        .file-icon-box { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%; text-align: center; color: var(--text-main); }
+        .file-icon { font-size: 24px; margin-bottom: 4px; }
+        .file-date { font-size: 10px; color: var(--text-muted); }
+        
+        /* Lightbox */
+        .lightbox { 
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0,0,0,0.95); z-index: 2000; justify-content: center; align-items: center; 
+            flex-direction: column; opacity: 0; transition: opacity 0.3s ease;
+            backdrop-filter: blur(5px);
+        }
+        .lightbox.visible { display: flex; opacity: 1; }
+        .lightbox-content { max-width: 95%; max-height: 80vh; object-fit: contain; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+        .lightbox-close { 
+            position: absolute; top: 20px; right: 20px; color: white; font-size: 30px; 
+            cursor: pointer; background: none; border: none; padding: 10px; z-index: 2001;
+        }
 
     </style>
 </head>
@@ -442,14 +457,25 @@ const medicalRecordTemplate = `
                         </div>
                         <div class="doc-files">
                             {{range .Files}}
-                            <div class="media-item">
-                                <a href="/api/media/{{.ID}}" target="_blank">
+                            <div class="media-item" onclick="openMedia('/api/media/{{.ID}}', '{{.FileType}}')">
                                 {{if or (eq .FileType "photo") (eq .FileType "image") (eq .FileType "scan")}}
-                                    <img src="/api/media/{{.ID}}" loading="lazy" alt="Media">
+                                    <img src="/api/media/{{.ID}}" loading="lazy" alt="Image">
+                                {{else if eq .FileType "video"}}
+                                    <div class="file-icon-box">
+                                        <div class="file-icon">📹</div>
+                                        <div class="file-date">{{.CreatedAt.Format "02.01"}}</div>
+                                    </div>
+                                {{else if eq .FileType "voice"}}
+                                    <div class="file-icon-box">
+                                        <div class="file-icon">🎤</div>
+                                        <div class="file-date">{{.CreatedAt.Format "02.01"}}</div>
+                                    </div>
                                 {{else}}
-                                    <div class="file-link">📄<br>{{.CreatedAt.Format "02.01"}}</div>
+                                    <div class="file-icon-box">
+                                        <div class="file-icon">📄</div>
+                                        <div class="file-date">{{.CreatedAt.Format "02.01"}}</div>
+                                    </div>
                                 {{end}}
-                                </a>
                             </div>
                             {{end}}
                         </div>
@@ -464,7 +490,76 @@ const medicalRecordTemplate = `
             </div>
         </section>
         <footer class="footer">Vera Massage Bot {{.BotVersion}}<br>Professional Medical Record Hub</footer>
+        
+        <!-- Lightbox Overlay -->
+        <div id="lightbox" class="lightbox" onclick="if(event.target === this) closeLightbox()">
+            <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+            <div id="lightbox-media"></div>
+        </div>
     </main>
+    <script>
+        function openMedia(url, type) {
+            const lb = document.getElementById('lightbox');
+            const container = document.getElementById('lightbox-media');
+            container.innerHTML = '';
+            
+            // Normalize type
+            if (type === 'image' || type === 'photo' || type === 'scan') type = 'image';
+            
+            try {
+                if (type === 'video') {
+                    const vid = document.createElement('video');
+                    vid.src = url;
+                    vid.controls = true;
+                    vid.autoplay = true;
+                    vid.playsInline = true; // Important for iOS
+                    vid.className = 'lightbox-content';
+                    container.appendChild(vid);
+                } else if (type === 'voice' || type === 'audio') {
+                    const audio = document.createElement('audio');
+                    audio.src = url;
+                    audio.controls = true;
+                    audio.autoplay = true;
+                    audio.className = 'lightbox-content';
+                    // Add a visual placeholder for audio
+                    const icon = document.createElement('div');
+                    icon.innerHTML = '🎤 Аудиозапись';
+                    icon.style.color = 'white';
+                    icon.style.fontSize = '24px';
+                    icon.style.marginBottom = '20px';
+                    container.insertBefore(icon, audio);
+                } else if (type === 'image') {
+                    const img = document.createElement('img');
+                    img.src = url;
+                    img.className = 'lightbox-content';
+                    container.appendChild(img);
+                } else {
+                    // Fallback for documents: try to open in new window (might fail auth, but best effort)
+                    // Or ideally showing a "Cannot preview" message
+                     window.open(url, '_blank');
+                     return;
+                }
+                
+                lb.classList.add('visible');
+            } catch (e) {
+                console.error("Error opening media:", e);
+                window.Telegram.WebApp.showAlert("Ошибка при открытии файла");
+            }
+        }
+
+        function closeLightbox() {
+            const lb = document.getElementById('lightbox');
+            lb.classList.remove('visible');
+            const video = lb.querySelector('video');
+            if (video) video.pause();
+            const audio = lb.querySelector('audio');
+            if (audio) audio.pause();
+            
+            setTimeout(() => {
+                document.getElementById('lightbox-media').innerHTML = '';
+            }, 300);
+        }
+    </script>
 </body>
 </html>
 `
