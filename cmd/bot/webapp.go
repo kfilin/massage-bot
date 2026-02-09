@@ -120,6 +120,7 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 
 	// API Handlers
 	mux.HandleFunc("/api/search", NewSearchHandler(repo, botToken, adminIDs))
+	mux.HandleFunc("/api/patient/update", NewUpdatePatientHandler(repo, botToken, adminIDs))
 	mux.HandleFunc("/cancel", NewCancelHandler(apptService, botToken, adminIDs))
 
 	mediaHandler := NewMediaHandler(repo, secret, adminIDs)

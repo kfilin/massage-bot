@@ -255,6 +255,11 @@ func (m *mockRepository) SavePatient(patient domain.Patient) error {
 	return nil
 }
 
+func (m *mockRepository) UpdatePatientProfile(telegramID string, name string, notes string) error {
+	// Simple mock implementation
+	return nil
+}
+
 func (m *mockRepository) GetPatient(telegramID string) (domain.Patient, error) {
 	if m.getPatientFunc != nil {
 		return m.getPatientFunc(telegramID)

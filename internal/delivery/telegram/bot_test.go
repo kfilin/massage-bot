@@ -180,6 +180,16 @@ func (m *mockRepository) SavePatient(patient domain.Patient) error {
 	return nil
 }
 
+func (m *mockRepository) UpdatePatientProfile(telegramID string, name string, notes string) error {
+	if p, ok := m.patients[telegramID]; ok {
+		p.Name = name
+		p.TherapistNotes = notes
+		m.patients[telegramID] = p
+		return nil
+	}
+	return nil // or error if needed
+}
+
 func (m *mockRepository) GetPatient(telegramID string) (domain.Patient, error) {
 	if m.getPatientFunc != nil {
 		return m.getPatientFunc(telegramID)

@@ -13,6 +13,7 @@ type Repository interface {
 	IsUserBanned(telegramID string, username string) (bool, error)
 	BanUser(telegramID string) error
 	UnbanUser(telegramID string) error
+	UpdatePatientProfile(telegramID string, name string, notes string) error
 
 	// Analytics
 	LogEvent(patientID string, eventType string, details map[string]interface{}) error

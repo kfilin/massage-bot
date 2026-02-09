@@ -322,6 +322,31 @@ const medicalRecordTemplate = `
             cursor: pointer; background: none; border: none; padding: 10px; z-index: 2001;
         }
 
+        /* Edit Modal */
+        .modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); z-index: 3000; justify-content: center; align-items: flex-end;
+            backdrop-filter: blur(2px); animation: fadeIn 0.2s ease;
+        }
+        .modal.visible { display: flex; }
+        .modal-content {
+            background: var(--bg-card); width: 100%; max-width: 600px; padding: 24px;
+            border-top-left-radius: 20px; border-top-right-radius: 20px;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.1); animation: slideUp 0.3s ease;
+        }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        
+        .form-group { margin-bottom: 16px; }
+        .form-label { display: block; font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
+        .form-input { 
+            width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 10px;
+            font-size: 16px; font-family: inherit; background: var(--bg-page); color: var(--text-main);
+        }
+        .form-textarea { min-height: 120px; resize: vertical; }
+        .btn-save { background: var(--accent); color: white; width: 100%; padding: 14px; border-radius: 12px; font-size: 16px; font-weight: 700; border: none; cursor: pointer; }
+        .btn-save:disabled { opacity: 0.7; cursor: wait; }
+
     </style>
 </head>
 <body>
@@ -336,8 +361,14 @@ const medicalRecordTemplate = `
                         <a href="https://t.me/{{.BotUsername}}?start=book" class="btn-primary">🗓 Записаться</a>
                     {{end}}
                 </div>
+                </div>
             </div>
-            <h1>{{.Name}}</h1>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <h1>{{.Name}}</h1>
+                {{if .IsAdmin}}
+                <button onclick="openEditModal()" style="background: none; border: none; cursor: pointer; font-size: 18px; padding: 4px;">✏️</button>
+                {{end}}
+            </div>
             <div class="stat-grid">
                 <div class="stat-card">
                     <div class="stat-desc">Прогресс</div>
@@ -496,8 +527,75 @@ const medicalRecordTemplate = `
             <button class="lightbox-close" onclick="closeLightbox()">✕</button>
             <div id="lightbox-media"></div>
         </div>
+
+        <!-- Edit Profile Modal -->
+        <div id="editModal" class="modal" onclick="if(event.target === this) closeEditModal()">
+            <div class="modal-content">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="margin: 0; font-size: 20px; color: var(--text-main);">Редактировать профиль</h2>
+                    <button onclick="closeEditModal()" style="background:none; border:none; font-size: 24px; color: var(--text-muted); cursor:pointer;">✕</button>
+                </div>
+                <form id="editForm" onsubmit="savePatient(event)">
+                    <div class="form-group">
+                        <label class="form-label">Имя Пациента</label>
+                        <input type="text" id="editName" class="form-input" value="{{.Name}}" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Заметки Терапевта (Markdown)</label>
+                        <textarea id="editNotes" class="form-input form-textarea">{{.TherapistNotes}}</textarea>
+                    </div>
+                    <button type="submit" class="btn-save">Сохранить</button>
+                </form>
+            </div>
+        </div>
     </main>
     <script>
+        // Edit Modal Logic
+        function openEditModal() {
+            document.getElementById('editModal').classList.add('visible');
+        }
+        function closeEditModal() {
+            document.getElementById('editModal').classList.remove('visible');
+        }
+        async function savePatient(e) {
+            e.preventDefault();
+            const btn = e.target.querySelector('button');
+            const originalText = btn.innerText;
+            btn.innerText = 'Сохранение...';
+            btn.disabled = true;
+
+            const name = document.getElementById('editName').value;
+            const notes = document.getElementById('editNotes').value;
+            const tg = window.Telegram.WebApp;
+
+            try {
+                const resp = await fetch('/api/patient/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        initData: tg.initData,
+                        id: '{{.TelegramID}}',
+                        name: name,
+                        notes: notes
+                    })
+                });
+                const res = await resp.json();
+                if (res.status === 'ok') {
+                    tg.showAlert('✅ Профиль обновлен');
+                    closeEditModal();
+                    // Reload to reflect changes
+                    window.location.reload();
+                } else {
+                    tg.showAlert('Ошибка: ' + (res.error || 'Unknown error'));
+                }
+            } catch (err) {
+                tg.showAlert('Ошибка сети');
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        }
+
         function openMedia(url, type) {
             const lb = document.getElementById('lightbox');
             const container = document.getElementById('lightbox-media');

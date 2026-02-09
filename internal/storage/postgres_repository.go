@@ -77,6 +77,41 @@ func (r *PostgresRepository) SavePatient(p domain.Patient) error {
 	return nil
 }
 
+// UpdatePatientProfile updates specific fields of a patient profile (Name, Notes)
+// This is safer than SavePatient for partial updates as it avoids overwriting other fields
+func (r *PostgresRepository) UpdatePatientProfile(telegramID string, name string, notes string) error {
+	query := `
+		UPDATE patients 
+		SET name = :name, therapist_notes = :therapist_notes
+		WHERE telegram_id = :telegram_id
+	`
+	params := map[string]interface{}{
+		"telegram_id":     telegramID,
+		"name":            name,
+		"therapist_notes": notes,
+	}
+
+	logging.Debugf(": Updating patient profile for ID: %s", telegramID)
+	result, err := r.db.NamedExec(query, params)
+	if err != nil {
+		monitoring.DbErrorsTotal.WithLabelValues("update_patient_profile").Inc()
+		return err
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("patient not found")
+	}
+
+	// Update clinical note length metric
+	monitoring.ClinicalNoteLength.Set(float64(len(notes)))
+
+	return nil
+}
+
 func (r *PostgresRepository) getPatientDir(p domain.Patient) string {
 	patientsDir := filepath.Join(r.dataDir, "patients")
 	// 1. Scan for any folder ending with (ID) - allows for manual renames in Obsidian
