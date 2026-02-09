@@ -12,6 +12,15 @@ echo "🧪 Starting deployment on TEST Environment..."
 # Force Network Isolation
 export NETWORK_NAME="massage-bot-internal-test"
 
+# Ensure we stop on errors
+set -e
+
+# Pre-flight: Check for external network
+if ! docker network ls | grep -q "caddy-test-net"; then
+    echo "🌐 Creating missing external network: caddy-test-net"
+    docker network create caddy-test-net
+fi
+
 # 0. Ensure Directory Exists and Grid/Clone
 if [ ! -d "$APP_DIR" ]; then
     echo "📂 Creating test directory at $APP_DIR..."
