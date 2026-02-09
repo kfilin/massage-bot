@@ -12,8 +12,6 @@ services:
 
   db:
     container_name: massage-bot-db-test
-    ports:
-      - "5433:5432" # Override host port
     environment:
       POSTGRES_DB: massage_bot_test
 

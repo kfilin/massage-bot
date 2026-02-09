@@ -53,7 +53,7 @@ services:
       retries: 5
       start_period: 2s
     ports:
-      - "5432:5432"
+      - "${HOST_DB_PORT:-5432}:5432"
     networks:
       - massage-bot-internal
     logging:

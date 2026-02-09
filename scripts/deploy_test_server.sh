@@ -11,6 +11,8 @@ echo "🧪 Starting deployment on TEST Environment..."
 
 # Force Network Isolation
 export NETWORK_NAME="massage-bot-internal-test"
+# Avoid Port Conflict with Prod DB (5432)
+export HOST_DB_PORT=5433
 
 # Ensure we stop on errors
 set -e
