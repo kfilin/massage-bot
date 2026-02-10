@@ -1,3 +1,4 @@
+<!-- [DEPRECATED] Use native workflows in .agent/workflows/ instead -->
 ---
 description: Formal session checkpoint and developer handoff
 ---

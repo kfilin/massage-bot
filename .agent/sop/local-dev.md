@@ -1,3 +1,4 @@
+<!-- [DEPRECATED] Use native workflows in .agent/workflows/ instead -->
 ---
 description: Local development and multi-environment testing guide
 ---

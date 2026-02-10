@@ -1,3 +1,4 @@
+<!-- [DEPRECATED] Use native workflows in .agent/workflows/ instead -->
 ---
 description: How to maintain the parallel Test Environment on the Home Server
 ---

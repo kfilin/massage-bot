@@ -124,15 +124,21 @@
 
 #### Last updated: 2026-02-09
 
-## 🚀 Future Integrations (Added 2026-02-09)
+### 29. [TODO] Native MCP for PostgreSQL
 
-### 27. [TODO] Apple Health Integration
+- **Status**: Backlog
+- **Goal**: Connect a native MCP server to the database for direct structured querying.
+- **Benefit**: Improved accuracy for DB-related tasks and migrations.
 
-- **Status**: Planned (Backlog)
-- **Goal**: Deep sync of patient data to Apple Health.
-- **Note**: Requires native iOS app or Shortcuts. TWA can mostly just *mimic the look*.
+### 30. [TODO] Knowledge Item (KI) for Clinical Patterns
 
-### 28. [TODO] Apple Wallet Pass
+- **Status**: Backlog
+- **Goal**: Document recurring clinical protocols and therapy best practices.
+- **Detail**: See [clinical-patterns-ki.md](file:///home/kirillfilin/Documents/massage-bot/.agent/backlog/clinical-patterns-ki.md) for the full specification.
+- **Benefit**: Provides domain-specific "expertise" for note generation and patient advice.
 
-- **Status**: Planned (Backlog)
-- **Goal**: Generate `.pkpass` for appointments so patients can add them to Apple Wallet.
+### 31. [TODO] Fix metrics.md
+
+- **Status**: Backlog
+- **Goal**: Correct the metrics access paths (local vs home server) and update the documentation.
+- **Note**: The metrics server resides on the home server, not locally.

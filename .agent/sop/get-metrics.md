@@ -1,3 +1,4 @@
+<!-- [DEPRECATED] Use native workflows in .agent/workflows/ instead -->
 ---
 description: How to gather and report bot metrics in a readable format
 ---

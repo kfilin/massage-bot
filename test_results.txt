@@ -1,0 +1,19 @@
+# ./...
+pattern ./...: open postgres_data: permission denied
+FAIL	./... [setup failed]
+ok  	github.com/kfilin/massage-bot/cmd/bot	0.419s
+ok  	github.com/kfilin/massage-bot/internal/adapters/googlecalendar	(cached)
+?   	github.com/kfilin/massage-bot/internal/adapters/transcription	[no test files]
+ok  	github.com/kfilin/massage-bot/internal/config	(cached)
+ok  	github.com/kfilin/massage-bot/internal/delivery/telegram	0.005s
+ok  	github.com/kfilin/massage-bot/internal/delivery/telegram/handlers	0.415s
+?   	github.com/kfilin/massage-bot/internal/delivery/telegram/keyboards	[no test files]
+ok  	github.com/kfilin/massage-bot/internal/domain	(cached)
+ok  	github.com/kfilin/massage-bot/internal/logging	(cached)
+ok  	github.com/kfilin/massage-bot/internal/monitoring	(cached)
+?   	github.com/kfilin/massage-bot/internal/ports	[no test files]
+ok  	github.com/kfilin/massage-bot/internal/services/appointment	0.005s
+?   	github.com/kfilin/massage-bot/internal/services/reminder	[no test files]
+ok  	github.com/kfilin/massage-bot/internal/storage	0.009s
+?   	github.com/kfilin/massage-bot/internal/version	[no test files]
+FAIL

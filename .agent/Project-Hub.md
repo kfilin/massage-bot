@@ -8,12 +8,12 @@ A professional clinical ecosystem for massage therapists. Features interactive b
 
 ## 🏗️ Technical Foundation
 
-- **Version**: v5.6.3 (TWA UI & Voice Fixes)
+- **Version**: v5.7.0 (Native Agentic OS)
 - **Language**: **Go 1.24** (Alpine-based)
 - **Database**: PostgreSQL 15 (Metadata & Sync Status)
 - **Clinical Storage**: **Markdown-mirrored Filesystem** (Clinical Storage 2.0)
 - **Infrastructure**: Docker Compose on Home Server (Prod: 8082, Test: 9082).
-- **Networks**: Shared `caddy-test-net` + Isolated `massage-bot-internal`. **Hardened**: Named bridge for stability.
+- **Networks**: Shared `caddy-test-net` + Isolated `massage-bot-internal`.
 
 ---
 
@@ -53,16 +53,16 @@ A fully isolated environment running on `vera-bot-test.kfilin.icu`:
 
 ## 💎 Gold Standard Checkpoint
 
-- **Commit**: `661a641ac2a72bf89b4936a461a2a5c12350c7d6` (v5.6.5 Dev)
-- **Date**: 2026-02-09
-- **Status**: **STABLE**. Deployment scripts hardened. TWA Design Prototype created.
-- **Rollback**: `f6605dc` (v5.6.3)
+- **Commit**: `[PENDING]` (v5.7.0 Native OS)
+- **Date**: 2026-02-10
+- **Status**: **STABLE**. Native Antigravity OS implemented.
+- **Rollback**: `661a641` (v5.6.5)
 
 ---
 
 ## 🧠 Collaboration Rules (The "Operating System")
 
-1. **Human-Led, AI-Assisted**: You define the goal, I suggest 3 options with trade-offs.
-2. **Docs as Fuel**: Every feature = Code + Tests + Rationale.
-3. **Smart Logs**: Use `git log` and this Hub to track decisions (ADRs).
-4. **Checkpoint**: Follow `.agent/sop/checkpoint.md` to rotate handoffs into `ARCHIVE/` and update this Hub.
+1. **Logic Over Compliance**: I am a partner, not a script. I push back on debt.
+2. **Hypothesis First**: No code changes without Observation -> Hypothesis -> Verification.
+3. **Native Automation**: Use `/checkpoint` and `/changelog` for session management.
+4. **Knowledge Powered**: Use KIs and Skills to load specific domain expertise.
