@@ -702,7 +702,7 @@ func TestHandleTimeSelection(t *testing.T) {
 				// New patient
 				_ = r.SavePatient(domain.Patient{TelegramID: "12345678", TotalVisits: 0})
 			},
-			wantSendMsg: "Пожалуйста, введите ваше имя и фамилию",
+			wantSendMsg: "Пожалуйста, введите ваше",
 			wantErr:     false,
 			checkSession: func(t *testing.T, s ports.SessionStorage, userID int64) {
 				val := s.Get(userID)["time"]

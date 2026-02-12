@@ -102,9 +102,17 @@ func (h *BookingHandler) HandleStart(c telebot.Context) error {
 	}
 
 	// First, send the persistent main menu
-	// Send welcome message
-	if err := c.Send("💆 Добро пожаловать!", h.GetMainMenu()); err != nil {
-		logging.Warnf("Failed to send welcome message: %v", err)
+	// Check if returning patient for personalized greeting
+	existingGreetPatient, errGreet := h.repository.GetPatient(strconv.FormatInt(userID, 10))
+	if errGreet == nil && existingGreetPatient.Name != "" && existingGreetPatient.TotalVisits > 0 {
+		greeting := fmt.Sprintf("💆 С возвращением, %s! 💙", existingGreetPatient.Name)
+		if err := c.Send(greeting, h.GetMainMenu()); err != nil {
+			logging.Warnf("Failed to send welcome message: %v", err)
+		}
+	} else {
+		if err := c.Send("💆 Добро пожаловать!", h.GetMainMenu()); err != nil {
+			logging.Warnf("Failed to send welcome message: %v", err)
+		}
 	}
 
 	h.sessionStorage.Set(userID, SessionKeyIsAdminBlock, false)
@@ -762,8 +770,8 @@ func (h *BookingHandler) HandleTimeSelection(c telebot.Context) error {
 	}
 
 	// Теперь переходим к запросу имени.
-	// Используем c.Send для отправки нового сообщения и удаления ReplyKeyboard
-	return c.Send("Пожалуйста, введите ваше имя и фамилию для записи (например, Иван Иванов).")
+	// Используем c.Send + RemoveKeyboard чтобы клавиатура не закрывала промпт (Bug #3)
+	return c.Send("✍️ Пожалуйста, введите ваше <b>имя и фамилию</b>.\n\nЭто имя будет использоваться в вашей медицинской карте.", telebot.ModeHTML, telebot.RemoveKeyboard)
 }
 
 // HandleNameInput handles the user's name input (regular text message).
@@ -1148,6 +1156,9 @@ func (h *BookingHandler) syncPatientStats(ctx context.Context, telegramID string
 			HealthStatus:   "initial",
 			TherapistNotes: fmt.Sprintf("Зарегистрирован: %s", time.Now().Format("02.01.2006")),
 		}
+	} else if name != "" {
+		// Update name if patient provided a new one during booking
+		patient.Name = name
 	}
 
 	// Fetch ALL history from GCal

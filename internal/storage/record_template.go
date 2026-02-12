@@ -295,6 +295,12 @@ const medicalRecordTemplate = `
             }
             tg.expand();
             tg.ready();
+
+            // Show back button and handle close to restore bot menu
+            tg.BackButton.show();
+            tg.BackButton.onClick(function() {
+                try { tg.sendData('close'); } catch(e) { tg.close(); }
+            });
         })();
 
         // --- Logic: Recording & Transcription ---
@@ -597,11 +603,11 @@ const medicalRecordTemplate = `
     {{end}}
 
     
-    <!-- Floating Action Button -->
+    {{if .IsAdmin}}
+    <!-- Floating Action Button (Admin Only) -->
     <button class="fab" onclick="openEditModal()" title="Add Note / Voice">🎤</button>
-    <!-- We open Edit Modal which now has Voice capabilities! -->
 
-    <!-- Edit/Voice Modal -->
+    <!-- Edit/Voice Modal (Admin Only) -->
     <div id="editModal" class="modal" onclick="if(event.target === this) closeEditModal()">
         <div class="modal-content">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
@@ -633,6 +639,7 @@ const medicalRecordTemplate = `
             </form>
         </div>
     </div>
+    {{end}}
 
     <!-- Lightbox -->
     <div id="lightbox" class="lightbox" onclick="if(event.target === this) closeLightbox()">

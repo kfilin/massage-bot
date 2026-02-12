@@ -694,3 +694,44 @@ func TestGenerateHTMLRecord(t *testing.T) {
 		})
 	}
 }
+
+// TestGenerateHTMLRecord_AdminEditorVisibility verifies the FAB and editModal
+// are only rendered when isAdmin=true (Bug #1 fix regression test)
+func TestGenerateHTMLRecord_AdminEditorVisibility(t *testing.T) {
+	db, _, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Failed to create mock: %v", err)
+	}
+	defer db.Close()
+
+	sqlxDB := sqlx.NewDb(db, "sqlmock")
+	repo := NewPostgresRepository(sqlxDB, t.TempDir())
+	repo.BotVersion = "test"
+
+	patient := domain.Patient{
+		TelegramID:  "123",
+		Name:        "Test",
+		TotalVisits: 1,
+	}
+	history := []domain.Appointment{}
+
+	t.Run("Patient view hides editor", func(t *testing.T) {
+		html := repo.GenerateHTMLRecord(patient, history, false)
+		if strings.Contains(html, `class="fab"`) {
+			t.Error("Patient view should NOT contain FAB button")
+		}
+		if strings.Contains(html, `id="editModal"`) {
+			t.Error("Patient view should NOT contain editModal div")
+		}
+	})
+
+	t.Run("Admin view shows editor", func(t *testing.T) {
+		html := repo.GenerateHTMLRecord(patient, history, true)
+		if !strings.Contains(html, `class="fab"`) {
+			t.Error("Admin view SHOULD contain FAB button")
+		}
+		if !strings.Contains(html, `id="editModal"`) {
+			t.Error("Admin view SHOULD contain editModal div")
+		}
+	})
+}

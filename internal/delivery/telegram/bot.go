@@ -230,6 +230,11 @@ func RunBot(
 	b.Handle(telebot.OnAnimation, bookingHandler.HandleFileMessage)
 	b.Handle(telebot.OnVoice, bookingHandler.HandleFileMessage)
 
+	// Re-send main menu when TWA is closed (BackButton sends data back)
+	b.Handle(telebot.OnWebApp, func(c telebot.Context) error {
+		return c.Send("📋 Главное меню", bookingHandler.GetMainMenu())
+	})
+
 	// Обработчик для всех inline-кнопок
 	b.Handle(telebot.OnCallback, func(c telebot.Context) error {
 		logging.Debugf(": Entered OnCallback handler.")
