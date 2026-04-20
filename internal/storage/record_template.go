@@ -296,10 +296,18 @@ const medicalRecordTemplate = `
             tg.expand();
             tg.ready();
 
-            // Show back button and handle close to restore bot menu
+            // Back Button handling: Context-aware navigation
             tg.BackButton.show();
             tg.BackButton.onClick(function() {
-                try { tg.sendData('close'); } catch(e) { tg.close(); }
+                if (url.searchParams.get('id')) {
+                    // Navigate back to Search List
+                    const backUrl = new URL(window.location.href);
+                    backUrl.searchParams.delete('id');
+                    window.location.href = backUrl.toString();
+                } else {
+                    // Exit to Bot Menu
+                    try { tg.sendData('close'); } catch(e) { tg.close(); }
+                }
             });
         })();
 
@@ -690,6 +698,10 @@ const adminSearchTemplate = `
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand();
+        tg.BackButton.show();
+        tg.BackButton.onClick(function() {
+            try { tg.sendData('close'); } catch(e) { tg.close(); }
+        });
 
         function handleEnter(e) {
             if (e.key === 'Enter') search();

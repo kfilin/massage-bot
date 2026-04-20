@@ -53,10 +53,10 @@ A fully isolated environment running on `vera-bot-test.kfilin.icu`:
 
 ## 💎 Gold Standard Checkpoint
 
-- **Commit**: `Pending` (Test Coverage Expansion)
+- **Commit**: `064cb37` (TWA Back Button Fixed)
 - **Date**: 2026-04-20
-- **Status**: **STABLE**. Test coverage increased to 42.0%.
-- **Rollback**: `d01625e` (Previous state)
+- **Status**: **STABLE**. Test coverage 42.0%.
+- **Rollback**: `064cb37` (Current state)
 
 ---
 

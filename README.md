@@ -1,13 +1,13 @@
-# 💆 Vera Massage Bot (Technical Excellence v5.6.3)
+# 💆 Vera Massage Bot (Technical Excellence v5.7.0)
 
 ![Go Version](https://img.shields.io/badge/Go-1.24-00ADD8?style=flat&logo=go)
-![Test Coverage](https://img.shields.io/badge/coverage-37.8%25-green)
+![Test Coverage](https://img.shields.io/badge/coverage-42.0%25-green)
 ![Docker](https://img.shields.io/badge/Docker-Enabled-blue?logo=docker)
 ![License](https://img.shields.io/badge/License-Private-red)
 
 ## 🚀 Project Status
 
-**Version**: v5.6.3 (Stable)
+**Version**: v5.7.0 (Stable)
 **Status**: Active Production
 **Latest Feature**: Telegram Web App (TWA) & Voice Intelligence
 
@@ -175,4 +175,4 @@ The bot is configured entirely via environment variables.
 | `APPT_CACHE_TTL` | Cache TTL for free/busy | No | Defaults to `5m` |
 
 ---
-*Created by Kirill Filin with Gemini Assistance. Gold Standard Checkpoint: v5.6.3 Stable (2026-02-08).*
+*Created by Kirill Filin with Gemini Assistance. Gold Standard Checkpoint: v5.7.0 Stable (2026-04-20).*

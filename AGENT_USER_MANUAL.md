@@ -62,6 +62,7 @@ Before I modify any file, I will follow this loop:
 ### End-of-Session (`/checkpoint`)
 
 Always run `/checkpoint` before closing the tab.
+
 * It ensures the next session has a clear starting point.
 * It keeps the `Project-Hub.md` and `CHANGELOG.md` updated.
 
@@ -74,6 +75,7 @@ Run `/report` regularly to see if the bot is actually being used and if there ar
 ## 🛠️ 4. Expanding the OS
 
 You can add new capabilities yourself:
+
 * **New Rule?** Create a `.md` file in `.agent/rules/`.
 * **New Workflow?** Create a `.md` file in `.agent/workflows/`.
 * **New Skill?** Create a directory in `.agent/skills/` with a `SKILL.md`.
