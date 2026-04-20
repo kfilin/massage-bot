@@ -122,23 +122,139 @@
 
 ---
 
-#### Last updated: 2026-02-09
+#### Last updated: 2026-03-20
 
 ### 29. [TODO] Native MCP for PostgreSQL
 
 - **Status**: Backlog
+- **Priority**: P3 (ship when a concrete DB-heavy task demands it)
 - **Goal**: Connect a native MCP server to the database for direct structured querying.
-- **Benefit**: Improved accuracy for DB-related tasks and migrations.
+- **Rationale**: Currently, the agent relies on pasted schema snippets or `.md` skill docs for DB context. A live MCP connection enables real-time schema exploration, diagnostic queries, and migration verification without human intermediation.
+- **Dependencies**: Must run in dev/test environments only — never production. Requires Docker network access to the PostgreSQL container.
+- **Implementation Sketch**:
+  1. Evaluate existing PostgreSQL MCP servers (e.g., `@modelcontextprotocol/server-postgres`).
+  2. Add MCP config to `docker-compose.yml` (dev only, gated by env var).
+  3. Update `database-expert` SKILL.md to reference the MCP capability.
+  4. Test: agent can query `information_schema`, describe tables, and verify migration results.
+- **Risk**: MCP injects schemas into context on every step — monitor token consumption. If overhead is too high, consider a CLI-based alternative.
+- **Source**: Article comparison (Level 5), backlog since v5.7.0.
 
 ### 30. [TODO] Knowledge Item (KI) for Clinical Patterns
 
 - **Status**: Backlog
-- **Goal**: Document recurring clinical protocols and therapy best practices.
-- **Detail**: See [clinical-patterns-ki.md](file:///home/kirillfilin/Documents/massage-bot/.agent/backlog/clinical-patterns-ki.md) for the full specification.
-- **Benefit**: Provides domain-specific "expertise" for note generation and patient advice.
+- **Priority**: Medium (daily time savings potential)
+- **Goal**: Build a "Shared Clinical Brain" — structured massage therapy protocols usable by both the Agent (for context) and the TWA (for quick-entry templates).
+- **Detail**: See [clinical-patterns-ki.md](file:///home/kirillfilin/Documents/massage-bot/.agent/backlog/clinical-patterns-ki.md) for the original specification.
+
+#### The Problem
+
+The therapist types similar notes multiple times per day. Common recurring patterns include:
+- **Pre-session assessments**: "Жалобы: напряжение в шейном отделе, ограничение подвижности" — the structure is identical, only the body zone and symptoms change.
+- **Post-session notes**: "Проведён массаж [зона]. Обнаружены триггерные точки в [мышца]. Рекомендовано: [список]" — same template, different fill-ins.
+- **Care instructions**: Standard post-massage recommendations (питьевой режим, ограничение нагрузок, тепло/холод) are given to nearly every patient but re-typed or re-dictated each time.
+- **Contraindication flags**: Checking and documenting contraindications follows the same structure per body zone.
+
+This is manual, repetitive work that a template + AI assist system can reduce from minutes to seconds per patient.
+
+#### Phased Implementation
+
+**Phase 1: Template Snippets (TWA-side, no AI needed)**
+1. Define 10-15 most common clinical templates in a structured format (JSON or Markdown).
+2. Add a "📋 Шаблоны" button to the TWA Edit Modal (next to the 🎙️ voice button).
+3. Clicking a template inserts a pre-filled structure into the `editNotes` textarea with `[placeholder]` markers the therapist can quickly fill in.
+4. Templates are stored in a `data/clinical-templates/` directory, editable by the therapist without code changes.
+
+**Example template** ("Зажим шейного отдела"):
+```markdown
+## Осмотр [DATE]
+**Жалобы:** напряжение в шейном отделе, [доп. жалобы]
+**Пальпация:** триггерные точки в [мышцы], тонус [повышен/норма]
+**Проведено:** массаж ШВЗ, [техники]
+**Рекомендации:**
+- Питьевой режим 1.5-2л
+- Ограничение нагрузок 24ч
+- [доп. рекомендации]
+```
+
+**Phase 2: AI-Assisted Note Generation (Agent-side)**
+1. Create clinical protocol KIs in Russian (sourced from user's materials).
+2. When the therapist records a voice memo, the AI transcription pipeline can:
+   - Detect the body zone mentioned in the recording.
+   - Auto-suggest the matching template, pre-filled with detected values.
+   - Offer to append standard recommendations for that zone.
+3. The therapist reviews and edits before saving — human remains in the loop.
+
+**Phase 3: Pattern Learning (future)**
+1. Analyze existing `therapist_notes` across patients to identify the most frequent note structures.
+2. Propose new templates based on actual usage patterns.
+3. Track which templates are used most and refine them.
+
+#### Dependencies
+- **Phase 1**: TWA changes to `record_template.go` (add template picker UI). New `data/clinical-templates/` directory with `.md` template files.
+- **Phase 2**: Requires `ai-integration-expert` skill enhancement. May benefit from PostgreSQL MCP (backlog #29) for pattern analysis.
+- **Phase 3**: Requires sufficient data volume (50+ notes per template category).
+
+#### Automation Candidates (recurring daily cases)
+
+| Pattern | Frequency | Automation |
+|---|---|---|
+| Neck/shoulder tension assessment | 3-5x/day | Template + voice detect |
+| Lower back pain protocol | 2-3x/day | Template with zone-specific recs |
+| Post-massage care instructions | Every patient | One-tap insert of standard recs |
+| Contraindication checklist | Every new patient | Structured checklist template |
+| Follow-up scheduling notes | Every patient | Auto-generate from appointment data |
+
+#### Success Criteria
+- **Phase 1**: Therapist can insert a structured template in ≤2 taps. Note entry time per patient reduced by 50%+.
+- **Phase 2**: Voice memo → structured note with ≤1 manual edit.
+- **Source**: Original specification + user feedback (March 2026): "There are cases that happen more than once a day. These at least can be somewhat automated."
 
 ### 31. [TODO] Fix metrics.md
 
 - **Status**: Backlog
 - **Goal**: Correct the metrics access paths (local vs home server) and update the documentation.
 - **Note**: The metrics server resides on the home server, not locally.
+
+### 32. [TODO] Background Agent Research
+
+- **Status**: Backlog (Research only — no implementation without findings review)
+- **Priority**: Low (future-facing)
+- **Goal**: Deeply investigate background agent patterns (Ralph loops, Dispatch, cloud sandboxes) and produce an ADR with conclusions on if/how/when to adopt them for this project.
+- **Rationale**: Level 7 of the agentic engineering ladder promises autonomous work, but carries high risk for clinical production data. Unsupervised agents can cause silent regressions, data corruption, or security exposure. A thorough research-first approach is mandatory.
+- **Dependencies**: Requires solid Level 6 (harness engineering) to be fully in place — no background agents without automated backpressure.
+- **Research Scope**:
+  1. Survey existing tools: Dispatch, Inspect (Ramp), Claude Code Background Tasks, GitHub Codex.
+  2. Identify lowest-risk entry points: read-only agents (docs freshness checker, `/report` as cron).
+  3. Evaluate trust boundaries: what can a background agent touch? What must remain human-gated?
+  4. Cost analysis: token consumption, infra complexity, maintenance overhead.
+  5. Produce a formal ADR: "Should we adopt background agents?" with YES/NO/CONDITIONAL recommendation.
+- **Success Criteria**: ADR reviewed and approved by human before any implementation begins.
+- **Source**: Article comparison (Level 7), March 2026.
+
+### 33. [TODO] Universal Agentic OS Template
+
+- **Status**: Backlog
+- **Priority**: Medium (high strategic value for future projects)
+- **Goal**: Extract the project-agnostic patterns from our Agentic OS into a reusable starter kit that can bootstrap any new project.
+- **Rationale**: Our system (rules, skills, workflows, KIs, session management) has matured through 6+ months of real-world use on production software. The patterns are battle-tested but currently coupled to the Massage Bot's domain. Decoupling them creates a competitive advantage for any future project.
+- **Dependencies**: All OS upgrades from this session must be stable and verified first (turbo gates, `/review`, `AGENTS.md`, etc.).
+- **Implementation Scope**:
+  1. **Identify universal vs. project-specific**: Separate domain-agnostic rules (`hypothesis-first`, `constraints-not-checklists`, `logic-over-compliance`) from project-specific ones (`no-server-commits`, `pii-shield`).
+  2. **Template structure**: Create a `.agent-template/` with placeholder `Project-Hub.md`, generic `AGENTS.md`, workflow templates (`/checkpoint`, `/changelog`, `/review`), and empty `skills/` and `rules/` directories.
+  3. **Bootstrap script**: A one-command setup that copies the template into a new project and prompts for project-specific values (name, stack, deployment target).
+  4. **Documentation**: Write a "Getting Started with Agentic OS" guide explaining each component and when to customize it.
+  5. **Version and publish**: Track the template as a standalone repo or Git subtree.
+- **Success Criteria**: A new project can be bootstrapped to Level 4-5 of the agentic engineering ladder within 30 minutes using the template.
+- **Source**: Article comparison + cross-model review, March 2026.
+
+### 34. [TODO] Phase 4: Integration Testing with Testcontainers
+
+- **Status**: Backlog
+- **Priority**: Medium
+- **Goal**: Maximize project test coverage (aiming for >80% total) by implementing integration tests for the `internal/storage` (Postgres) and `internal/delivery/telegram` (bot routing) layers.
+- **Rationale**: Pure unit tests hit a ceiling at ~42% repository coverage due to the heavy reliance on raw DB queries (`postgres_repository.go` is over 1000 lines) and external API interactions (`telebot.Bot` methods). To properly verify the database layer without complex and brittle SQL mocks, we need a real, ephemeral database.
+- **Implementation Scope**:
+  1. Add `github.com/testcontainers/testcontainers-go` and `github.com/testcontainers/testcontainers-go/modules/postgres` to the project.
+  2. Create a test suite for `internal/storage` that spins up an isolated Postgres container before tests run, applies the schemas, and tests the CRUD operations against it.
+  3. Explore using `httptest` servers to mock Telegram API responses so `bot.go` logic can be verified.
+- **Success Criteria**: `internal/storage` achieves >80% test coverage, raising the total project coverage significantly above the current ~42% baseline.

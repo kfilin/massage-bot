@@ -14,14 +14,20 @@ import (
 	"gopkg.in/telebot.v3"
 )
 
+// BotSender is a minimal interface for sending Telegram messages.
+// *telebot.Bot satisfies this interface automatically.
+type BotSender interface {
+	Send(to telebot.Recipient, what interface{}, opts ...interface{}) (*telebot.Message, error)
+}
+
 type Service struct {
 	apptService ports.AppointmentService
 	repo        ports.Repository
-	bot         *telebot.Bot
+	bot         BotSender
 	adminIDs    []string
 }
 
-func NewService(as ports.AppointmentService, repo ports.Repository, bot *telebot.Bot, adminIDs []string) *Service {
+func NewService(as ports.AppointmentService, repo ports.Repository, bot BotSender, adminIDs []string) *Service {
 	return &Service{
 		apptService: as,
 		repo:        repo,

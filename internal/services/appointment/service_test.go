@@ -295,3 +295,160 @@ func TestService_CreateAppointment(t *testing.T) {
 		})
 	}
 }
+
+func TestService_CreateAppointment_NilAppointment(t *testing.T) {
+	repo := newMockRepo()
+	svc := NewServiceWithMetrics(repo, nil, &NoOpCollector{})
+	_, err := svc.CreateAppointment(context.Background(), nil)
+	if err == nil {
+		t.Error("Expected error for nil appointment, got nil")
+	}
+}
+
+func TestService_CreateAppointment_MissingFields(t *testing.T) {
+	repo := newMockRepo()
+	svc := NewServiceWithMetrics(repo, nil, &NoOpCollector{})
+	domain.ApptTimeZone = time.UTC
+
+	// Missing service ID
+	_, err := svc.CreateAppointment(context.Background(), &domain.Appointment{
+		StartTime:    time.Now().Add(24 * time.Hour),
+		Duration:     60,
+		CustomerName: "Alice",
+	})
+	if err == nil {
+		t.Error("Expected error for missing service ID, got nil")
+	}
+
+	// Missing customer name
+	_, err = svc.CreateAppointment(context.Background(), &domain.Appointment{
+		Service:   domain.Service{ID: "1"},
+		StartTime: time.Now().Add(24 * time.Hour),
+		Duration:  60,
+	})
+	if err == nil {
+		t.Error("Expected error for missing customer name, got nil")
+	}
+
+	// Zero duration
+	_, err = svc.CreateAppointment(context.Background(), &domain.Appointment{
+		Service:      domain.Service{ID: "1"},
+		StartTime:    time.Now().Add(24 * time.Hour),
+		Duration:     0,
+		CustomerName: "Alice",
+	})
+	if err == nil {
+		t.Error("Expected error for zero duration, got nil")
+	}
+}
+
+func TestService_CreateAppointment_SlotConflict(t *testing.T) {
+	repo := newMockRepo()
+	svc := NewServiceWithMetrics(repo, nil, &NoOpCollector{})
+	domain.ApptTimeZone = time.UTC
+	mockNow := time.Date(2023, 10, 25, 10, 0, 0, 0, time.UTC)
+	svc.NowFunc = func() time.Time { return mockNow }
+
+	// Busy slot at 10:00–11:00 tomorrow
+	tomorrow := time.Date(2023, 10, 26, 10, 0, 0, 0, time.UTC)
+	busyStart := tomorrow
+	busyEnd := tomorrow.Add(60 * time.Minute)
+	repo.getFreeBusyFunc = func(ctx context.Context, start, end time.Time) ([]domain.TimeSlot, error) {
+		return []domain.TimeSlot{{Start: busyStart, End: busyEnd}}, nil
+	}
+
+	_, err := svc.CreateAppointment(context.Background(), &domain.Appointment{
+		Service:      domain.Service{ID: "1"},
+		StartTime:    tomorrow,
+		Duration:     60,
+		CustomerName: "Bob",
+	})
+	if err != domain.ErrSlotUnavailable {
+		t.Errorf("Expected ErrSlotUnavailable, got %v", err)
+	}
+}
+
+func TestService_FreeBusy_CacheHit(t *testing.T) {
+	callCount := 0
+	repo := newMockRepo()
+	repo.getFreeBusyFunc = func(ctx context.Context, start, end time.Time) ([]domain.TimeSlot, error) {
+		callCount++
+		return nil, nil
+	}
+	svc := NewServiceWithMetrics(repo, nil, &NoOpCollector{})
+
+	start := time.Date(2023, 10, 25, 0, 0, 0, 0, time.UTC)
+	end := start.Add(24 * time.Hour)
+
+	// First call — cache miss → repo called
+	_, _ = svc.getFreeBusy(context.Background(), start, end)
+	// Second call same range — cache hit → repo NOT called again
+	_, _ = svc.getFreeBusy(context.Background(), start, end)
+
+	if callCount != 1 {
+		t.Errorf("Expected repo.GetFreeBusy called once (cache hit on 2nd call), got %d", callCount)
+	}
+}
+
+func TestService_InvalidateCache(t *testing.T) {
+	callCount := 0
+	repo := newMockRepo()
+	repo.getFreeBusyFunc = func(ctx context.Context, start, end time.Time) ([]domain.TimeSlot, error) {
+		callCount++
+		return nil, nil
+	}
+	svc := NewServiceWithMetrics(repo, nil, &NoOpCollector{})
+
+	start := time.Date(2023, 10, 25, 0, 0, 0, 0, time.UTC)
+	end := start.Add(24 * time.Hour)
+
+	_, _ = svc.getFreeBusy(context.Background(), start, end) // miss → callCount=1
+	svc.invalidateCache()
+	_, _ = svc.getFreeBusy(context.Background(), start, end) // miss again → callCount=2
+
+	if callCount != 2 {
+		t.Errorf("Expected 2 repo calls after cache invalidation, got %d", callCount)
+	}
+}
+
+func TestService_GetCustomerAppointments_EmptyID(t *testing.T) {
+	svc := NewService(newMockRepo(), nil)
+	_, err := svc.GetCustomerAppointments(context.Background(), "")
+	if err != domain.ErrInvalidID {
+		t.Errorf("Expected ErrInvalidID, got %v", err)
+	}
+}
+
+func TestService_GetCustomerHistory_EmptyID(t *testing.T) {
+	svc := NewService(newMockRepo(), nil)
+	_, err := svc.GetCustomerHistory(context.Background(), "")
+	if err != domain.ErrInvalidID {
+		t.Errorf("Expected ErrInvalidID, got %v", err)
+	}
+}
+
+func TestService_GetAllUpcomingAppointments_FiltersCancelled(t *testing.T) {
+	repo := newMockRepo()
+	future := time.Now().Add(24 * time.Hour)
+	repo.appointments["a1"] = &domain.Appointment{ID: "a1", Status: "confirmed", StartTime: future}
+	repo.appointments["a2"] = &domain.Appointment{ID: "a2", Status: "cancelled", StartTime: future}
+
+	svc := NewService(repo, nil)
+	upcoming, err := svc.GetAllUpcomingAppointments(context.Background())
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(upcoming) != 1 || upcoming[0].ID != "a1" {
+		t.Errorf("Expected only confirmed appointment, got %v", upcoming)
+	}
+}
+
+func TestService_GetTotalUpcomingCount_RepoError(t *testing.T) {
+	repo := newMockRepo()
+	repo.shouldError = true
+	svc := NewService(repo, nil)
+	_, err := svc.GetTotalUpcomingCount(context.Background())
+	if err == nil {
+		t.Error("Expected error when repo fails, got nil")
+	}
+}

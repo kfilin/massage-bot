@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Kirill Filin - Resume</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 12mm;
+        }
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-size: 10pt;
+            line-height: 1.35;
+            color: #1a1a1a;
+            margin: 0;
+            padding: 0;
+        }
+        h1 {
+            font-size: 20pt;
+            margin: 0 0 2mm 0;
+            text-align: center;
+            letter-spacing: 1px;
+        }
+        .contact {
+            text-align: center;
+            font-size: 9.5pt;
+            margin-bottom: 4mm;
+        }
+        .contact a {
+            color: #1a1a1a;
+            text-decoration: none;
+        }
+        h2 {
+            font-size: 12pt;
+            border-bottom: 1px solid #333;
+            margin: 4mm 0 2mm 0;
+            padding-bottom: 1mm;
+            letter-spacing: 0.5px;
+        }
+        .skills-list {
+            margin: 0;
+            padding: 0 0 0 4mm;
+        }
+        .skills-list li {
+            margin-bottom: 1mm;
+        }
+        .job {
+            margin-bottom: 3.5mm;
+        }
+        .job-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 1mm;
+        }
+        .job-title {
+            font-weight: bold;
+            font-size: 10.5pt;
+        }
+        .job-company {
+            font-style: italic;
+        }
+        .job-date {
+            font-size: 9.5pt;
+        }
+        .job-bullets {
+            margin: 0;
+            padding: 0 0 0 4mm;
+        }
+        .job-bullets li {
+            margin-bottom: 1mm;
+        }
+        .project {
+            margin-bottom: 2mm;
+        }
+        .project-bullet {
+            margin: 0 0 1.5mm 0;
+            padding: 0 0 0 4mm;
+            display: list-item;
+            list-style-type: disc;
+        }
+        .education-list {
+            margin: 0;
+            padding: 0 0 0 4mm;
+        }
+        .education-list li {
+            margin-bottom: 1mm;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>KIRILL FILIN</h1>
+    <div class="contact">
+        kfilin@gmail.com | Fethiye, Türkiye | linkedin.com/in/ksfilin | github.com/kfilin | t.me/vera_massage_bot
+    </div>
+
+    <h2>SKILLS</h2>
+    <ul class="skills-list">
+        <li><strong>Cloud & Containers:</strong> AWS (EKS, EC2, RDS), Azure &middot; Kubernetes, Docker, Helm</li>
+        <li><strong>CI/CD & IaC:</strong> GitLab CI, GitHub Actions &middot; Terraform, Ansible</li>
+        <li><strong>Observability:</strong> Prometheus, Grafana, Loki, Alertmanager</li>
+        <li><strong>DB & Security:</strong> PostgreSQL (admin, tuning, PITR) &middot; HashiCorp Vault, RBAC</li>
+        <li><strong>Languages:</strong> Go, Python, Bash</li>
+    </ul>
+
+    <h2>EXPERIENCE</h2>
+    
+    <div class="job">
+        <div class="job-header">
+            <div><span class="job-title">DevOps Engineer</span> | <span class="job-company">Vantage IIoT (Remote)</span></div>
+            <div class="job-date">Jan 2022 &ndash; Present</div>
+        </div>
+        <ul class="job-bullets">
+            <li>Managed AWS EKS clusters for 60+ enterprise clients, maintaining 99.9% uptime.</li>
+            <li>Architected Terraform modules, reducing environment provisioning from 2 days to 40 minutes.</li>
+            <li>Redesigned GitLab CI pipelines, slashing build-to-deploy times by 60% (22m to 9m).</li>
+            <li>Deployed a Prometheus/Grafana/Loki observability stack, reducing MTTD by 55%.</li>
+            <li>Completed zero-downtime migration of 12 services to HashiCorp Vault.</li>
+            <li>Automated PostgreSQL PITR restore drills, uncovering and fixing a 2-hour backup gap.</li>
+        </ul>
+    </div>
+
+    <div class="job">
+        <div class="job-header">
+            <div><span class="job-title">DevOps / Infrastructure Engineer</span> | <span class="job-company">Softline Group</span></div>
+            <div class="job-date">Mar 2021 &ndash; Dec 2021</div>
+        </div>
+        <ul class="job-bullets">
+            <li>Engineered centralized GitLab CI & Docker pipelines for 5 product teams.</li>
+            <li>Modernized legacy infrastructure by containerizing 3 critical monolithic apps.</li>
+            <li>Led PostgreSQL performance tuning, achieving a 30% reduction in query execution time.</li>
+        </ul>
+    </div>
+
+    <div class="job">
+        <div class="job-header">
+            <div><span class="job-title">Linux Systems Administrator</span> | <span class="job-company">DataLine</span></div>
+            <div class="job-date">Sep 2019 &ndash; Feb 2021</div>
+        </div>
+        <ul class="job-bullets">
+            <li>Administered 120+ Debian/CentOS servers; managed VLANs, iptables, DNS, and BGP.</li>
+            <li>Developed custom Bash/Python automation, saving ~8 manual hours/week.</li>
+            <li>Maintained &gt;99.8% SLA across all monitored infrastructure.</li>
+        </ul>
+    </div>
+
+    <h2>OPEN SOURCE & PRODUCTION PROJECTS</h2>
+    
+    <div class="project-bullet">
+        <strong>@vera_massage_bot</strong> &rsaquo; Production clinic management backend (Go, PostgreSQL, Telegram Web App, Groq/Whisper). Zero-collision scheduling, voice transcription, and WebDAV sync.
+    </div>
+    
+    <div class="project-bullet">
+        <strong>Watchtower Masterbot</strong> &rsaquo; Multi-server Watchtower management via Telegram (Go). Features AES-256 credential storage and a thread-safe multi-user architecture.
+    </div>
+    
+    <div class="project-bullet">
+        <strong>Censorship-Bypass VPN</strong> &rsaquo; SoftEther SSTP VPN masking traffic as HTTPS to evade DPI. Uses HAProxy TLS termination and AdGuard DNS via Caddy.
+    </div>
+
+    <h2>EDUCATION & CERTIFICATIONS</h2>
+    <ul class="education-list">
+        <li><strong>B.Sc. Information Systems</strong> &middot; Moscow Polytechnic University (2015 &ndash; 2019)</li>
+        <li><strong>Certifications:</strong> CKA (2023) | AWS SysOps Admin (2022) | Terraform Associate (2022)</li>
+        <li><strong>Languages:</strong> Russian (Native) | English (Fluent) | Turkish (Conversational)</li>
+    </ul>
+
+</body>
+</html>

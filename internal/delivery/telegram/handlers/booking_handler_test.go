@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -972,5 +973,146 @@ func TestHandleCancel(t *testing.T) {
 	// Verify message
 	if !contains(ctx.sentMsg, "Запись отменена") {
 		t.Errorf("Expected 'Запись отменена' message, got %q", ctx.sentMsg)
+	}
+}
+
+func TestBookingHandler_IsAdmin(t *testing.T) {
+	h := NewBookingHandler(nil, nil, []string{"111", "222"}, nil, nil, nil, "", "")
+
+	if !h.IsAdmin(111) {
+		t.Error("Expected 111 to be admin")
+	}
+	if h.IsAdmin(999) {
+		t.Error("Expected 999 to not be admin")
+	}
+}
+
+func TestBookingHandler_GenerateWebAppURL(t *testing.T) {
+	h := NewBookingHandler(nil, nil, nil, nil, nil, nil, "http://example.com", "secret123")
+	
+	url := h.GenerateWebAppURL("42")
+	
+	if !strings.HasPrefix(url, "https://example.com/card?id=42&token=") {
+		t.Errorf("Unexpected URL format: %s", url)
+	}
+
+	// Empty config
+	hEmpty := NewBookingHandler(nil, nil, nil, nil, nil, nil, "", "")
+	if u := hEmpty.GenerateWebAppURL("42"); u != "" {
+		t.Errorf("Expected empty URL when config is missing, got %s", u)
+	}
+}
+
+func TestBookingHandler_GenerateGoogleCalendarLink(t *testing.T) {
+	h := NewBookingHandler(nil, nil, nil, nil, nil, nil, "", "")
+	
+	appt := domain.Appointment{
+		Service: domain.Service{Name: "Test Massage"},
+		StartTime: time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
+		Duration: 60,
+	}
+
+	domain.ApptTimeZone = time.UTC
+	link := h.generateGoogleCalendarLink(appt)
+	
+	if !strings.Contains(link, "action=TEMPLATE") {
+		t.Errorf("Missing action=TEMPLATE in link: %s", link)
+	}
+	if !strings.Contains(link, "20240101T150405") && !strings.Contains(link, "20240101T150000") { // depending on timezone behavior
+		t.Errorf("Missing time format in link: %s", link)
+	}
+}
+
+func TestHandleMyRecords_PatientExists(t *testing.T) {
+	mockRepo := newMockRepository()
+	_ = mockRepo.SavePatient(domain.Patient{TelegramID: "123", Name: "John Doe"})
+
+	h := NewBookingHandler(nil, nil, nil, nil, nil, mockRepo, "", "")
+	ctx := &mockContext{sender: &telebot.User{ID: 123}}
+
+	err := h.HandleMyRecords(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if ctx.sentMsg == "" {
+		t.Error("Expected a message to be sent")
+	}
+	// "Записей пока нет" might be part of the HTML record, or it might contain the name.
+}
+
+func TestHandleMyRecords_PatientNotFound(t *testing.T) {
+	mockRepo := newMockRepository()
+	h := NewBookingHandler(nil, nil, nil, nil, nil, mockRepo, "", "")
+	ctx := &mockContext{sender: &telebot.User{ID: 999}}
+
+	err := h.HandleMyRecords(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if !strings.Contains(ctx.sentMsg, "КАРТА ПАЦИЕНТА") && !strings.Contains(ctx.sentMsg, "Записей пока нет") {
+		t.Errorf("Unexpected message for missing patient: %s", ctx.sentMsg)
+	}
+}
+
+func TestHandleMyAppointments(t *testing.T) {
+	mockApptService := &mockAppointmentService{
+		getCustomerHistoryFunc: func(ctx context.Context, id string) ([]domain.Appointment, error) {
+			if id == "123" {
+				return []domain.Appointment{{ID: "a1", Service: domain.Service{Name: "A"}, StartTime: time.Now()}}, nil
+			}
+			return []domain.Appointment{}, nil
+		},
+	}
+	h := NewBookingHandler(mockApptService, nil, nil, nil, nil, nil, "", "")
+
+	// Has appointments
+	ctx1 := &mockContext{sender: &telebot.User{ID: 123}}
+	err := h.HandleMyAppointments(ctx1)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if ctx1.sentMsg == "" {
+		t.Error("Expected a message for user with appointments")
+	}
+
+	// No appointments
+	ctx2 := &mockContext{sender: &telebot.User{ID: 999}}
+	err = h.HandleMyAppointments(ctx2)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !strings.Contains(ctx2.sentMsg, "на данный момент у вас нет предстоящих записей") && !strings.Contains(ctx2.sentMsg, "записей не найдено") {
+		t.Errorf("Unexpected message for user without appointments: %s", ctx2.sentMsg)
+	}
+}
+
+func TestHandleStatus_Admin(t *testing.T) {
+	mockApptService := &mockAppointmentService{
+		getTotalUpcomingCountFunc: func(ctx context.Context) (int, error) { return 5, nil },
+	}
+	h := NewBookingHandler(mockApptService, nil, []string{"123"}, nil, nil, nil, "", "")
+	
+	ctx := &mockContext{sender: &telebot.User{ID: 123}}
+	err := h.HandleStatus(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !strings.Contains(ctx.sentMsg, "Статус бота") && !strings.Contains(ctx.sentMsg, "Uptime") {
+		t.Errorf("Expected status message, got: %s", ctx.sentMsg)
+	}
+}
+
+func TestHandleStatus_NonAdmin(t *testing.T) {
+	h := NewBookingHandler(nil, nil, []string{"123"}, nil, nil, nil, "", "")
+	
+	ctx := &mockContext{sender: &telebot.User{ID: 999}}
+	err := h.HandleStatus(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !strings.Contains(ctx.sentMsg, "доступна только администраторам") {
+		t.Errorf("Expected permission denied message, got: %s", ctx.sentMsg)
 	}
 }

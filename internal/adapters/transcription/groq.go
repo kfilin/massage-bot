@@ -37,6 +37,13 @@ type groqResponse struct {
 }
 
 func (a *groqAdapter) Transcribe(ctx context.Context, audio io.Reader, filename string) (string, error) {
+	if a.apiKey == "" {
+		return "", fmt.Errorf("API key not configured")
+	}
+	if audio == nil {
+		return "", fmt.Errorf("nil reader")
+	}
+
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 
