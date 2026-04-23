@@ -53,10 +53,10 @@ A fully isolated environment running on `vera-bot-test.kfilin.icu`:
 
 ## 💎 Gold Standard Checkpoint
 
-- **Commit**: `af0505f` (Password Rotation & Networking Fix)
-- **Date**: 2026-04-23
+- **Commit**: `48823da` (Fix TWA sync, error handling, restore docker bridge)
+- **Date**: 2026-04-24
 - **Status**: **STABLE**.
-- **Rollback**: `af0505f` (Current state)
+- **Rollback**: `48823da` (Current state)
 
 ---
 
