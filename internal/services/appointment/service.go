@@ -370,9 +370,20 @@ func (s *Service) GetCustomerHistory(ctx context.Context, customerTgID string) (
 		return nil, domain.ErrInvalidID
 	}
 
-	// Fetch without time limits (nil, nil)
-	allAppts, err := s.repo.FindEvents(ctx, nil, nil)
+	// Optimize: Set a reasonable timeout for history fetching to prevent TWA hangs
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	// Optimize: Fetch only last 5 years of history to avoid massive payloads
+	timeMin := time.Now().AddDate(-5, 0, 0)
+
+	// Fetch events with time limit
+	allAppts, err := s.repo.FindEvents(ctx, &timeMin, nil)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			logging.Warnf("WARNING: Sync timeout for customer %s. GCal API took too long.", customerTgID)
+			return []domain.Appointment{}, fmt.Errorf("sync timeout: please try again in a few seconds")
+		}
 		if errors.Is(err, domain.ErrAppointmentNotFound) {
 			return []domain.Appointment{}, nil
 		}

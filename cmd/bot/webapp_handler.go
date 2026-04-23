@@ -150,7 +150,9 @@ func NewWebAppHandler(repo ports.Repository, apptService ports.AppointmentServic
 					}
 				}
 			} else {
-				logging.Infof("Failed to fetch history from GCal: %v", err)
+				logging.Errorf("CRITICAL SYNC ERROR for %s: %v", finalID, err)
+				// If sync fails completely and we have NO data, show a slightly different page or a warning
+				// For now, we continue and GenerateHTMLRecord will show an empty list
 			}
 		} else {
 			// CACHE HIT: Fast Return + Background Sync
