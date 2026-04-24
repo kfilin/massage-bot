@@ -53,10 +53,10 @@ A fully isolated environment running on `vera-bot-test.kfilin.icu`:
 
 ## 💎 Gold Standard Checkpoint
 
-- **Commit**: `db59987` (Restore Prod Networking and Caddy Connectivity)
+- **Commit**: `3dbac19` (Security rotation and DB stability fix)
 - **Date**: 2026-04-24
 - **Status**: **STABLE**.
-- **Rollback**: `db59987` (Current state)
+- **Rollback**: `3dbac19` (Current state)
 
 ---
 

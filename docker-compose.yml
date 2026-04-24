@@ -4,7 +4,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    # container_name: massage-bot  <-- REMOVED: Defined in overrides (prod/test)
+    container_name: massage-bot
     user: "1000:1000"
     restart: unless-stopped
     environment:
@@ -30,6 +30,7 @@ services:
       - ./data:/app/data
     networks:
       - massage-bot-internal
+      - caddy-test-net
     depends_on:
       db:
         condition: service_healthy
@@ -66,3 +67,5 @@ networks:
   massage-bot-internal:
     name: ${NETWORK_NAME:-massage-bot-internal} # Configurable network name
     driver: bridge
+  caddy-test-net:
+    external: true
