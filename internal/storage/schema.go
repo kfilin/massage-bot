@@ -64,6 +64,8 @@ CREATE TABLE IF NOT EXISTS patient_media (
     file_type TEXT NOT NULL,
     file_path TEXT NOT NULL,
     telegram_file_id TEXT,
+    transcript TEXT,
+    status TEXT DEFAULT 'approved',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -18,6 +18,7 @@ import (
 	"github.com/kfilin/massage-bot/internal/logging"
 
 	"github.com/kfilin/massage-bot/internal/ports"
+	"github.com/kfilin/massage-bot/internal/presentation"
 	"golang.org/x/net/webdav"
 )
 
@@ -112,8 +113,17 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 
 	mux := http.NewServeMux()
 
+	// Initialize Presenters
+	webPresenter, err := presentation.NewWebPresenter()
+	if err != nil {
+		log.Fatalf("Failed to initialize web presenter: %v", err)
+	}
+
+	// Static Assets (using internal/presentation/templates)
+	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(presentation.TemplatesFS))))
+
 	// Handle both root and /card with the same logic
-	handler := NewWebAppHandler(repo, apptService, botToken, adminIDs, secret)
+	handler := NewWebAppHandler(repo, apptService, webPresenter, botToken, adminIDs, secret)
 
 	mux.HandleFunc("/", handler)
 	mux.HandleFunc("/card", handler)
@@ -123,6 +133,11 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 	mux.HandleFunc("/api/patient/update", NewUpdatePatientHandler(repo, botToken, adminIDs))
 	mux.HandleFunc("/cancel", NewCancelHandler(apptService, botToken, adminIDs))
 	mux.HandleFunc("/api/transcribe", NewTranscribeHandler(transcriptionService, botToken))
+
+	// Draft Handlers
+	draftHandler := NewDraftHandler(repo, botToken, adminIDs, secret)
+	mux.HandleFunc("/api/draft/approve", draftHandler)
+	mux.HandleFunc("/api/draft/discard", draftHandler)
 
 	mediaHandler := NewMediaHandler(repo, secret, adminIDs)
 	mux.Handle("/api/media/", http.StripPrefix("/api/media/", http.HandlerFunc(mediaHandler.GetMedia)))

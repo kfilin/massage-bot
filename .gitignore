@@ -42,6 +42,7 @@ data_test/
 # Internal AI & Development Docs
 .agent/
 .gemini/
+AGENTIC_OS_TEMPLATE/
 verification-checklist.md
 docs/
 # scripts/ - REMOVED: deploy scripts need to be tracked
@@ -70,4 +71,4 @@ docker-compose.override.yml
 !deploy/docker-compose.example.yml
 !deploy/docker-compose.test.yml
 !deploy/Caddyfile.example
-/ARCHIVE/
+ARCHIVE/

@@ -18,6 +18,7 @@ import (
 
 	"github.com/kfilin/massage-bot/internal/domain"
 	"github.com/kfilin/massage-bot/internal/ports"
+	"github.com/kfilin/massage-bot/internal/presentation"
 )
 
 // Minimal mocks
@@ -42,6 +43,9 @@ func (m *mockRepo) GetAppointmentHistory(id string) ([]domain.Appointment, error
 }
 
 func (m *mockRepo) UpsertAppointments(a []domain.Appointment) error { return nil }
+
+func (m *mockRepo) GetPatientMedia(id string) ([]domain.PatientMedia, error) { return nil, nil }
+func (m *mockRepo) UpdateMediaStatus(id, status, transcript string) error { return nil }
 
 func (m *mockRepo) SearchPatients(query string) ([]domain.Patient, error) {
 	if query == "test_patient" {
@@ -125,7 +129,8 @@ func TestAdminViewPatient(t *testing.T) {
 	}
 	service := &mockApptService{}
 
-	handler := NewWebAppHandler(repo, service, botToken, []string{adminID}, "secret")
+	presenter, _ := presentation.NewWebPresenter()
+	handler := NewWebAppHandler(repo, service, presenter, botToken, []string{adminID}, "secret")
 
 	initData := makeInitData(adminID, "Admin", botToken)
 
@@ -140,9 +145,11 @@ func TestAdminViewPatient(t *testing.T) {
 	}
 
 	body := rr.Body.String()
-	expected := "HTML_RECORD_FOR_Target Patient_ADMIN_true"
-	if !strings.Contains(body, expected) {
-		t.Errorf("Expected body to contain %q, got %q", expected, body)
+	if !strings.Contains(body, "Target Patient") {
+		t.Errorf("Expected body to contain patient name, got %q", body)
+	}
+	if !strings.Contains(body, "МЕДИЦИНСКАЯ КАРТА") {
+		t.Errorf("Expected body to contain card title, got %q", body)
 	}
 }
 

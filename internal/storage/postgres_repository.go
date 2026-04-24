@@ -5,14 +5,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"html"
-	"html/template"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 	"time"
 
@@ -195,16 +192,27 @@ func (r *PostgresRepository) GetAppointmentHistory(telegramID string) ([]domain.
 }
 
 func (r *PostgresRepository) SaveMedia(media domain.PatientMedia) error {
+	if media.Status == "" {
+		media.Status = "approved"
+	}
 	query := `
-		INSERT INTO patient_media (id, patient_id, file_type, file_path, telegram_file_id, created_at)
-		VALUES (:id, :patient_id, :file_type, :file_path, :telegram_file_id, :created_at)
-		ON CONFLICT (id) DO NOTHING
+		INSERT INTO patient_media (id, patient_id, file_type, file_path, telegram_file_id, transcript, status, created_at)
+		VALUES (:id, :patient_id, :file_type, :file_path, :telegram_file_id, :transcript, :status, :created_at)
+		ON CONFLICT (id) DO UPDATE SET
+			transcript = EXCLUDED.transcript,
+			status = EXCLUDED.status
 	`
 	_, err := r.db.NamedExec(query, media)
 	if err != nil {
 		return fmt.Errorf("failed to save media: %w", err)
 	}
 	return nil
+}
+
+func (r *PostgresRepository) UpdateMediaStatus(mediaID string, status string, transcript string) error {
+	query := `UPDATE patient_media SET status = $1, transcript = $2 WHERE id = $3`
+	_, err := r.db.Exec(query, status, transcript, mediaID)
+	return err
 }
 
 func (r *PostgresRepository) GetPatientMedia(patientID string) ([]domain.PatientMedia, error) {
@@ -257,257 +265,6 @@ func (r *PostgresRepository) UpsertAppointments(appts []domain.Appointment) erro
 	return nil
 }
 
-func (r *PostgresRepository) mdToHTML(md string) template.HTML {
-	if md == "" {
-		return template.HTML("")
-	}
-
-	// 1. Try to unescape if it was accidentally saved as double-escaped HTML
-	// This helps with older records that might have been saved incorrectly.
-	h := html.UnescapeString(md)
-
-	// 2. Simple Markdown logic (order matters)
-	// Headers
-	reH3 := regexp.MustCompile(`(?m)^### (.*)$`)
-	h = reH3.ReplaceAllString(h, "<h3>$1</h3>")
-	reH2 := regexp.MustCompile(`(?m)^## (.*)$`)
-	h = reH2.ReplaceAllString(h, "<h2>$1</h2>")
-	reH1 := regexp.MustCompile(`(?m)^# (.*)$`)
-	h = reH1.ReplaceAllString(h, "<h1>$1</h1>")
-
-	// Bold
-	reBold := regexp.MustCompile(`\*\*(.*?)\*\*`)
-	h = reBold.ReplaceAllString(h, "<strong>$1</strong>")
-
-	// Lists
-	reList := regexp.MustCompile(`(?m)^[*-] (.*)$`)
-	h = reList.ReplaceAllString(h, "• $1")
-
-	// Line breaks: ONLY if there are no HTML tags already doing line breaks
-	// If the text looks like plain text (\n present, no <h2> or <br>), convert \n to <br>
-	if !strings.Contains(h, "<h") && !strings.Contains(h, "<br") && !strings.Contains(h, "<p") {
-		h = strings.ReplaceAll(h, "\n", "<br>")
-	} else {
-		// If it has HTML, we still might want to preserve single \n as <br>?
-		// But let's be careful not to double up.
-		// For now, let's just do it if it's not looking like a full HTML doc.
-		h = strings.ReplaceAll(h, "\n", "<br>")
-	}
-
-	return template.HTML(h)
-}
-
-func (r *PostgresRepository) GenerateHTMLRecord(p domain.Patient, history []domain.Appointment, isAdmin bool) string {
-	type docGroup struct {
-		Name   string
-		Count  int
-		Latest string
-		Files  []domain.PatientMedia
-	}
-	type visitInfo struct {
-		Date    string
-		Service string
-	}
-	type futureInfo struct {
-		ID        string
-		Date      string
-		Service   string
-		CanCancel bool
-	}
-	type templateData struct {
-		Name               string
-		TelegramID         string
-		TotalVisits        int
-		GeneratedAt        string
-		CurrentService     string
-		BotVersion         string
-		TherapistNotes     template.HTML
-		RawNotes           string
-		VoiceTranscripts   template.HTML
-		FirstVisit         time.Time
-		LastVisit          time.Time
-		FirstVisitLink     string
-		NextVisitLink      string // Renamed from LastVisitLink for clarity in countdown
-		ShowFirstVisitLink bool
-		ShowNextVisitLink  bool // Renamed from ShowLastVisitLink
-		DocGroups          []docGroup
-		RecentVisits       []visitInfo
-		FutureAppointments []futureInfo
-		NextApptUnix       int64
-		IsAdmin            bool
-		BotUsername        string
-		Media              []domain.PatientMedia
-	}
-
-	getCalLink := func(t time.Time, service string) string {
-		start := t.Format("20060102T150405")
-		end := t.Add(time.Hour).Format("20060102T150405")
-		title := "Массаж: " + service
-		return fmt.Sprintf("https://www.google.com/calendar/render?action=TEMPLATE&text=%s&dates=%s/%s", strings.ReplaceAll(title, " ", "+"), start, end)
-	}
-
-	// We'll keep emojis for now as they are part of modern UI
-	// re := regexp.MustCompile(`[\x{1F300}-\x{1FAD6}]|[\x{2600}-\x{26FF}]|[\x{2700}-\x{27BF}]|[\x{1F600}-\x{1F64F}]|[\x{1F680}-\x{1F6FF}]|[\x{1F1E6}-\x{1F1FF}]`)
-	// cleanNotes := re.ReplaceAllString(p.TherapistNotes, "")
-	cleanNotes := p.TherapistNotes
-
-	mediaList, errMedia := r.GetPatientMedia(p.TelegramID)
-	if errMedia != nil {
-		logging.Warnf("Failed to fetch media for patient %s: %v", p.TelegramID, errMedia)
-	}
-
-	data := templateData{
-		Name:               strings.ToUpper(p.Name),
-		TelegramID:         p.TelegramID,
-		TotalVisits:        p.TotalVisits,
-		GeneratedAt:        time.Now().Format("02.01.2006 15:04"),
-		CurrentService:     p.CurrentService,
-		BotVersion:         r.BotVersion,
-		TherapistNotes:     r.mdToHTML(cleanNotes),
-		RawNotes:           p.TherapistNotes,
-		VoiceTranscripts:   template.HTML(strings.ReplaceAll(template.HTMLEscapeString(p.VoiceTranscripts), "\n", "<br>")),
-		FirstVisit:         p.FirstVisit,
-		LastVisit:          p.LastVisit,
-		FirstVisitLink:     getCalLink(p.FirstVisit, p.CurrentService),
-		ShowFirstVisitLink: p.FirstVisit.After(time.Now()),
-		IsAdmin:            isAdmin,
-
-		BotUsername: r.BotUsername,
-		Media:       mediaList,
-	}
-
-	if r.BotUsername == "" {
-		logging.Warn("WARNING: BotUsername is empty in PostgresRepository during HTML generation! TWA links will be broken.")
-	} else {
-		logging.Debugf("GenerateHTMLRecord using BotUsername: %s", r.BotUsername)
-	}
-
-	// Identify Future Appointments and Next Appointment for Countdown
-	now := time.Now().In(domain.ApptTimeZone)
-	var futureAppts []domain.Appointment
-	for _, a := range history {
-		if a.Status != "cancelled" && a.StartTime.After(now) && !strings.Contains(strings.ToLower(a.Service.Name), "block") {
-			futureAppts = append(futureAppts, a)
-		}
-	}
-	sort.Slice(futureAppts, func(i, j int) bool {
-		return futureAppts[i].StartTime.Before(futureAppts[j].StartTime)
-	})
-
-	if len(futureAppts) > 0 {
-		next := futureAppts[0]
-		data.NextApptUnix = next.StartTime.Unix()
-		data.NextVisitLink = getCalLink(next.StartTime, next.Service.Name)
-		data.ShowNextVisitLink = true
-
-		for _, a := range futureAppts {
-			data.FutureAppointments = append(data.FutureAppointments, futureInfo{
-				ID:        a.ID,
-				Date:      a.StartTime.In(domain.ApptTimeZone).Format("02.01.2006 15:04"),
-				Service:   a.Service.Name,
-				CanCancel: isAdmin || a.StartTime.Sub(now) > 72*time.Hour,
-			})
-		}
-	}
-
-	// Populate Recent Visits (only confirmed, non-block)
-	var confirmedRecents []domain.Appointment
-	for _, a := range history {
-		if a.Status != "cancelled" && !strings.Contains(strings.ToLower(a.Service.Name), "block") && !strings.Contains(strings.ToLower(a.CustomerName), "admin block") {
-			confirmedRecents = append(confirmedRecents, a)
-		}
-	}
-	// Sort by date descending
-	sort.Slice(confirmedRecents, func(i, j int) bool {
-		return confirmedRecents[i].StartTime.After(confirmedRecents[j].StartTime)
-	})
-
-	// Take last 5
-	limit := 5
-	if len(confirmedRecents) < limit {
-		limit = len(confirmedRecents)
-	}
-	for i := 0; i < limit; i++ {
-		data.RecentVisits = append(data.RecentVisits, visitInfo{
-			Date:    confirmedRecents[i].StartTime.Format("02.01.2006"),
-			Service: confirmedRecents[i].Service.Name,
-		})
-	}
-
-	// Grouping Logic - FROM DB NOW
-	groups := make(map[string]*docGroup)
-	initGroup := func(name string) {
-		groups[name] = &docGroup{Name: name, Count: 0}
-	}
-	initGroup("Снимки")            // Scans
-	initGroup("Фотографии")        // Photos
-	initGroup("Видео")             // Videos
-	initGroup("Голосовые заметки") // Voice Messages
-	initGroup("Тексты")            // Texts
-	initGroup("Прочее")            // Others
-
-	for _, m := range mediaList {
-		var targetGroup *docGroup
-		switch m.FileType {
-		case "scan":
-			targetGroup = groups["Снимки"]
-		case "photo", "image":
-			targetGroup = groups["Фотографии"]
-		case "voice", "audio":
-			targetGroup = groups["Голосовые заметки"]
-		case "video":
-			targetGroup = groups["Видео"]
-		case "document", "text":
-			targetGroup = groups["Тексты"]
-		default:
-			targetGroup = groups["Прочее"]
-		}
-
-		if targetGroup != nil {
-			targetGroup.Count++
-			targetGroup.Files = append(targetGroup.Files, m)
-			modTime := m.CreatedAt.Format("02.01.2006 15:04")
-			if targetGroup.Latest == "" || m.CreatedAt.After(parseTime(targetGroup.Latest)) {
-				targetGroup.Latest = modTime
-			}
-		}
-	}
-
-	// Add only populated groups
-	order := []string{"Снимки", "Фотографии", "Видео", "Голосовые заметки", "Тексты", "Прочее"}
-	for _, name := range order {
-		if g := groups[name]; g != nil && g.Count > 0 {
-			data.DocGroups = append(data.DocGroups, *g)
-		}
-	}
-
-	var buf bytes.Buffer
-	tmpl, errTmpl := template.New("medicalRecord").Parse(medicalRecordTemplate)
-	if errTmpl != nil {
-		logging.Errorf(": Failed to parse medical record template: %v", errTmpl)
-		return "Error generating record."
-	}
-	errTmpl = tmpl.Execute(&buf, data)
-	if errTmpl != nil {
-		logging.Errorf(": Failed to execute medical record template: %v", errTmpl)
-		return "Error generating record."
-	}
-	return buf.String()
-}
-
-func parseTime(s string) time.Time {
-	t, _ := time.Parse("02.01.2006 15:04", s)
-	return t
-}
-
-func (r *PostgresRepository) GenerateAdminSearchPage() string {
-	if r.BotUsername == "" {
-		logging.Warn("WARNING: BotUsername is empty in PostgresRepository! TWA links will be broken.")
-	} else {
-		logging.Debugf("GenerateAdminSearchPage using BotUsername: %s", r.BotUsername)
-	}
-	return strings.ReplaceAll(adminSearchTemplate, "{{.BotUsername}}", r.BotUsername)
-}
 
 func (r *PostgresRepository) CreateBackup() (string, error) {
 	logging.Debugf(": Starting database backup creation tool...")

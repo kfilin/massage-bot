@@ -9,6 +9,7 @@ import (
 
 	"github.com/kfilin/massage-bot/internal/domain"
 	"github.com/kfilin/massage-bot/internal/ports"
+	"github.com/kfilin/massage-bot/internal/presentation"
 	"gopkg.in/telebot.v3"
 )
 
@@ -332,6 +333,10 @@ func (m *mockRepository) GetMediaByID(mediaID string) (*domain.PatientMedia, err
 	return nil, nil
 }
 
+func (m *mockRepository) UpdateMediaStatus(mediaID string, status string, transcript string) error {
+	return nil
+}
+
 func (m *mockRepository) GetAppointmentHistory(telegramID string) ([]domain.Appointment, error) {
 	if history, ok := m.appointmentHistory[telegramID]; ok {
 		return history, nil
@@ -411,6 +416,7 @@ func TestHandleStart(t *testing.T) {
 				nil,
 				mockTrans,
 				mockRepo,
+				&presentation.BotPresenter{},
 				"http://webapp.test",
 				"secret",
 			)
@@ -497,7 +503,7 @@ func TestHandleCategorySelection(t *testing.T) {
 				mockSession,
 				[]string{},
 				nil,
-				nil, nil, "", "",
+				nil, nil, &presentation.BotPresenter{}, "", "",
 			)
 
 			// Create mock context with Callback
@@ -616,6 +622,7 @@ func TestHandleServiceSelection(t *testing.T) {
 				nil,
 				nil,
 				mockRepo,
+				&presentation.BotPresenter{},
 				"",
 				"",
 			)
@@ -765,6 +772,7 @@ func TestHandleTimeSelection(t *testing.T) {
 				nil,
 				nil,
 				mockRepo,
+				&presentation.BotPresenter{},
 				"",
 				"",
 			)
@@ -894,6 +902,7 @@ func TestHandleConfirmBooking(t *testing.T) {
 				nil,
 				nil,
 				mockRepo,
+				&presentation.BotPresenter{},
 				"",
 				"",
 			)
@@ -948,6 +957,7 @@ func TestHandleCancel(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		&presentation.BotPresenter{},
 		"",
 		"",
 	)
@@ -977,7 +987,7 @@ func TestHandleCancel(t *testing.T) {
 }
 
 func TestBookingHandler_IsAdmin(t *testing.T) {
-	h := NewBookingHandler(nil, nil, []string{"111", "222"}, nil, nil, nil, "", "")
+	h := NewBookingHandler(nil, nil, []string{"111", "222"}, nil, nil, nil, &presentation.BotPresenter{}, "", "")
 
 	if !h.IsAdmin(111) {
 		t.Error("Expected 111 to be admin")
@@ -988,7 +998,7 @@ func TestBookingHandler_IsAdmin(t *testing.T) {
 }
 
 func TestBookingHandler_GenerateWebAppURL(t *testing.T) {
-	h := NewBookingHandler(nil, nil, nil, nil, nil, nil, "http://example.com", "secret123")
+	h := NewBookingHandler(nil, nil, nil, nil, nil, nil, &presentation.BotPresenter{}, "http://example.com", "secret123")
 	
 	url := h.GenerateWebAppURL("42")
 	
@@ -997,14 +1007,14 @@ func TestBookingHandler_GenerateWebAppURL(t *testing.T) {
 	}
 
 	// Empty config
-	hEmpty := NewBookingHandler(nil, nil, nil, nil, nil, nil, "", "")
+	hEmpty := NewBookingHandler(nil, nil, nil, nil, nil, nil, &presentation.BotPresenter{}, "", "")
 	if u := hEmpty.GenerateWebAppURL("42"); u != "" {
 		t.Errorf("Expected empty URL when config is missing, got %s", u)
 	}
 }
 
 func TestBookingHandler_GenerateGoogleCalendarLink(t *testing.T) {
-	h := NewBookingHandler(nil, nil, nil, nil, nil, nil, "", "")
+	h := NewBookingHandler(nil, nil, nil, nil, nil, nil, &presentation.BotPresenter{}, "", "")
 	
 	appt := domain.Appointment{
 		Service: domain.Service{Name: "Test Massage"},
@@ -1027,7 +1037,7 @@ func TestHandleMyRecords_PatientExists(t *testing.T) {
 	mockRepo := newMockRepository()
 	_ = mockRepo.SavePatient(domain.Patient{TelegramID: "123", Name: "John Doe"})
 
-	h := NewBookingHandler(nil, nil, nil, nil, nil, mockRepo, "", "")
+	h := NewBookingHandler(nil, nil, nil, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
 	ctx := &mockContext{sender: &telebot.User{ID: 123}}
 
 	err := h.HandleMyRecords(ctx)
@@ -1043,7 +1053,7 @@ func TestHandleMyRecords_PatientExists(t *testing.T) {
 
 func TestHandleMyRecords_PatientNotFound(t *testing.T) {
 	mockRepo := newMockRepository()
-	h := NewBookingHandler(nil, nil, nil, nil, nil, mockRepo, "", "")
+	h := NewBookingHandler(nil, nil, nil, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
 	ctx := &mockContext{sender: &telebot.User{ID: 999}}
 
 	err := h.HandleMyRecords(ctx)
@@ -1065,7 +1075,7 @@ func TestHandleMyAppointments(t *testing.T) {
 			return []domain.Appointment{}, nil
 		},
 	}
-	h := NewBookingHandler(mockApptService, nil, nil, nil, nil, nil, "", "")
+	h := NewBookingHandler(mockApptService, nil, nil, nil, nil, nil, &presentation.BotPresenter{}, "", "")
 
 	// Has appointments
 	ctx1 := &mockContext{sender: &telebot.User{ID: 123}}
@@ -1092,7 +1102,7 @@ func TestHandleStatus_Admin(t *testing.T) {
 	mockApptService := &mockAppointmentService{
 		getTotalUpcomingCountFunc: func(ctx context.Context) (int, error) { return 5, nil },
 	}
-	h := NewBookingHandler(mockApptService, nil, []string{"123"}, nil, nil, nil, "", "")
+	h := NewBookingHandler(mockApptService, nil, []string{"123"}, nil, nil, nil, &presentation.BotPresenter{}, "", "")
 	
 	ctx := &mockContext{sender: &telebot.User{ID: 123}}
 	err := h.HandleStatus(ctx)
@@ -1105,7 +1115,7 @@ func TestHandleStatus_Admin(t *testing.T) {
 }
 
 func TestHandleStatus_NonAdmin(t *testing.T) {
-	h := NewBookingHandler(nil, nil, []string{"123"}, nil, nil, nil, "", "")
+	h := NewBookingHandler(nil, nil, []string{"123"}, nil, nil, nil, &presentation.BotPresenter{}, "", "")
 	
 	ctx := &mockContext{sender: &telebot.User{ID: 999}}
 	err := h.HandleStatus(ctx)
@@ -1114,5 +1124,49 @@ func TestHandleStatus_NonAdmin(t *testing.T) {
 	}
 	if !strings.Contains(ctx.sentMsg, "доступна только администраторам") {
 		t.Errorf("Expected permission denied message, got: %s", ctx.sentMsg)
+	}
+}
+func TestHandleApproveDraft(t *testing.T) {
+	mockRepo := newMockRepository()
+	media := domain.PatientMedia{ID: "m1", PatientID: "p1", Transcript: "Test Transcript", CreatedAt: time.Now()}
+	mockRepo.getMediaByIDFunc = func(id string) (*domain.PatientMedia, error) { return &media, nil }
+	mockRepo.getPatientFunc = func(id string) (domain.Patient, error) { return domain.Patient{TelegramID: "p1", Name: "John"}, nil }
+	
+	h := NewBookingHandler(nil, nil, nil, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+	
+	ctx := &mockContext{
+		callback: &telebot.Callback{Data: "approve_draft|m1"},
+	}
+
+	err := h.HandleApproveDraft(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	
+	edited, _ := ctx.editedMsg.(string)
+	if !strings.Contains(edited, "ДОБАВЛЕНО В КАРТУ") {
+		t.Errorf("Unexpected response message: %s", edited)
+	}
+}
+
+func TestHandleDiscardDraft(t *testing.T) {
+	mockRepo := newMockRepository()
+	media := domain.PatientMedia{ID: "m1", PatientID: "p1", Transcript: "Test Transcript"}
+	mockRepo.getMediaByIDFunc = func(id string) (*domain.PatientMedia, error) { return &media, nil }
+
+	h := NewBookingHandler(nil, nil, nil, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+	
+	ctx := &mockContext{
+		callback: &telebot.Callback{Data: "discard_draft|m1"},
+	}
+
+	err := h.HandleDiscardDraft(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	
+	edited, _ := ctx.editedMsg.(string)
+	if !strings.Contains(edited, "УДАЛЕН") {
+		t.Errorf("Unexpected response message: %s", edited)
 	}
 }

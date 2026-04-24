@@ -91,6 +91,8 @@ type PatientMedia struct {
 	FileType       string    `json:"file_type" db:"file_type"` // photo, voice, video, document
 	FilePath       string    `json:"file_path" db:"file_path"` // absolute path on disk
 	TelegramFileID string    `json:"telegram_file_id,omitempty" db:"telegram_file_id"`
+	Transcript     string    `json:"transcript,omitempty" db:"transcript"` // Voice transcription draft
+	Status         string    `json:"status" db:"status"`                   // pending, approved, discarded
 	CreatedAt      time.Time `json:"created_at" db:"created_at"`
 }
 

@@ -50,6 +50,11 @@ func InitDB() (*sqlx.DB, error) {
 	if _, err := db.Exec(Schema); err != nil {
 		return nil, fmt.Errorf("failed to initialize schema: %w", err)
 	}
+
+	// Manual Migration for patient_media (Draft workflow)
+	_, _ = db.Exec("ALTER TABLE patient_media ADD COLUMN IF NOT EXISTS transcript TEXT")
+	_, _ = db.Exec("ALTER TABLE patient_media ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'approved'")
+
 	log.Println("DEBUG: Database schema initialized/verified.")
 
 	DB = db

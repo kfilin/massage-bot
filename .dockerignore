@@ -4,6 +4,8 @@
 .dockerignore
 .agent/
 .gemini/
+AGENTIC_OS_TEMPLATE/
+ARCHIVE/
 
 # Documentation and Scripts
 docs/

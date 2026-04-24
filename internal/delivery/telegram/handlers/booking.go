@@ -22,7 +22,8 @@ import (
 	"github.com/kfilin/massage-bot/internal/domain"
 	"github.com/kfilin/massage-bot/internal/monitoring"
 	"github.com/kfilin/massage-bot/internal/ports" // Alias to avoid conflict with package name "appointment"
-	"gopkg.in/telebot.v3"                          // Ensure telebot.v3 is correctly imported
+	"github.com/kfilin/massage-bot/internal/presentation"
+	"gopkg.in/telebot.v3" // Ensure telebot.v3 is correctly imported
 )
 
 // BookingHandler handles booking-related commands and callbacks.
@@ -33,6 +34,7 @@ type BookingHandler struct {
 	therapistIDs         []string // Added to notify Vera and other admins
 	transcriptionService ports.TranscriptionService
 	repository           ports.Repository
+	presenter            *presentation.BotPresenter
 	WebAppURL            string
 	webAppSecret         string
 }
@@ -52,7 +54,7 @@ const (
 )
 
 // NewBookingHandler creates a new BookingHandler.
-func NewBookingHandler(as ports.AppointmentService, ss ports.SessionStorage, admins []string, therapistIDs []string, trans ports.TranscriptionService, repo ports.Repository, webAppURL string, webAppSecret string) *BookingHandler {
+func NewBookingHandler(as ports.AppointmentService, ss ports.SessionStorage, admins []string, therapistIDs []string, trans ports.TranscriptionService, repo ports.Repository, presenter *presentation.BotPresenter, webAppURL string, webAppSecret string) *BookingHandler {
 	return &BookingHandler{
 		appointmentService:   as,
 		sessionStorage:       ss,
@@ -60,6 +62,7 @@ func NewBookingHandler(as ports.AppointmentService, ss ports.SessionStorage, adm
 		therapistIDs:         therapistIDs,
 		transcriptionService: trans,
 		repository:           repo,
+		presenter:            presenter,
 		WebAppURL:            webAppURL,
 		webAppSecret:         webAppSecret,
 	}
@@ -71,12 +74,12 @@ func (h *BookingHandler) HandleStart(c telebot.Context) error {
 	logging.Debugf(": Entered HandleStart for user %d", userID)
 	h.sessionStorage.ClearSession(userID)
 
+	// 1. Handle deep links
 	args := c.Args()
 	if len(args) > 0 {
 		arg := args[0]
 		if strings.HasPrefix(arg, "manual_") {
 			targetID := strings.TrimPrefix(arg, "manual_")
-			// Only admins can use manual booking
 			isAdmin := false
 			userIDStr := strconv.FormatInt(userID, 10)
 			for _, id := range h.adminIDs {
@@ -101,19 +104,9 @@ func (h *BookingHandler) HandleStart(c telebot.Context) error {
 		}
 	}
 
-	// First, send the persistent main menu
-	// Check if returning patient for personalized greeting
-	existingGreetPatient, errGreet := h.repository.GetPatient(strconv.FormatInt(userID, 10))
-	if errGreet == nil && existingGreetPatient.Name != "" && existingGreetPatient.TotalVisits > 0 {
-		greeting := fmt.Sprintf("💆 С возвращением, %s! 💙", existingGreetPatient.Name)
-		if err := c.Send(greeting, h.GetMainMenu()); err != nil {
-			logging.Warnf("Failed to send welcome message: %v", err)
-		}
-	} else {
-		if err := c.Send("💆 Добро пожаловать!", h.GetMainMenu()); err != nil {
-			logging.Warnf("Failed to send welcome message: %v", err)
-		}
-	}
+	// 2. Welcome message
+	welcomeMsg := h.presenter.FormatWelcome(c.Sender().FirstName)
+	_ = c.Send(welcomeMsg, h.GetMainMenu(), telebot.ModeHTML)
 
 	h.sessionStorage.Set(userID, SessionKeyIsAdminBlock, false)
 
@@ -1019,33 +1012,16 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 	}
 
 	// 1. Notify Admin(s)
+	adminMsg := h.presenter.FormatAppointment(appt, true)
 	for _, adminIDStr := range h.adminIDs {
 		adminID, _ := strconv.ParseInt(adminIDStr, 10, 64)
-		msg := fmt.Sprintf("🆕 *Новая запись!*\n\nПациент: %s (ID: %s)\nУслуга: %s\nДата: %s\nВремя: %s\nВсего посещений: %d",
-			name, patient.TelegramID, service.Name,
-			appointmentTime.Format("02.01.2006"),
-			appointmentTime.Format("15:04"), patient.TotalVisits)
-		if appt.MeetLink != "" {
-			msg += fmt.Sprintf("\n\n💻 *Google Meet:* %s", appt.MeetLink)
-		}
-		h.BotNotify(c.Bot(), adminID, msg)
+		h.BotNotify(c.Bot(), adminID, adminMsg)
 	}
 
 	// 2. Notify Therapists
 	for _, tID := range h.therapistIDs {
-		therapistID, err := strconv.ParseInt(tID, 10, 64)
-		if err != nil {
-			logging.Warnf("Invalid therapist ID: %s", tID)
-			continue
-		}
-		msg := fmt.Sprintf("🆕 *Новая запись!*\n\nПациент: %s\nУслуга: %s\nДата: %s\nВремя: %s",
-			name, service.Name,
-			appointmentTime.Format("02.01.2006"),
-			appointmentTime.Format("15:04"))
-		if appt.MeetLink != "" {
-			msg += fmt.Sprintf("\n\n💻 *Google Meet:* %s", appt.MeetLink)
-		}
-		h.BotNotify(c.Bot(), therapistID, msg)
+		therapistID, _ := strconv.ParseInt(tID, 10, 64)
+		h.BotNotify(c.Bot(), therapistID, adminMsg)
 	}
 
 	// Increment booking metric
@@ -1054,89 +1030,30 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 	// Clear session on successful booking
 	h.sessionStorage.ClearSession(userID)
 
-	// 3. Confirm to User (Admin or Patient) with a visually rich confirmation card
-	var confirmationMsg string
+	// 3. Confirm to User (Admin or Patient)
+	confirmationMsg := h.presenter.FormatAppointment(appt, false)
 	if isAdminManual {
-		confirmationMsg = fmt.Sprintf(`✅ <b>РУЧНАЯ ЗАПИСЬ СОЗДАНА</b>
-━━━━━━━━━━━━━━━━━
-
-📅  <b>%s</b>
-⏰  <b>%s</b>
-💆  %s
-👤  %s
-
-━━━━━━━━━━━━━━━━━
-<i>Запись добавлена в календарь</i>`,
-			appointmentTime.Format("02.01.2006"),
-			appointmentTime.Format("15:04"),
-			service.Name, name)
-	} else {
-		confirmationMsg = fmt.Sprintf(`
-✅ <b>ЗАПИСЬ ПОДТВЕРЖДЕНА</b>
-
-📅  <b>Дата:</b>     %s
-⏰  <b>Время:</b>    %s
-💆  <b>Услуга:</b>   %s
-⏳  <b>Длительность:</b> %d мин
-
-━━━━━━━━━━━━━━━━━
-
-💡 <b>Важно:</b>
-• Приходите за 5 минут до приема
-• Отмена возможна за 72 часа
-• Для изменений напишите @VeraFethiye
-
-<i>До встречи! 💙</i>`,
-			appointmentTime.Format("02.01.2006"),
-			appointmentTime.Format("15:04"),
-			service.Name,
-			service.DurationMinutes)
-	}
-
-	if appt.MeetLink != "" {
-		confirmationMsg += fmt.Sprintf("\n\n💻 <b>Ссылка на Google Meet:</b>\n%s", appt.MeetLink)
+		confirmationMsg = "✅ <b>РУЧНАЯ ЗАПИСЬ СОЗДАНА</b>\n" + confirmationMsg
 	}
 
 	// Add Calendar Link
 	calendarLink := h.generateGoogleCalendarLink(appt)
-	confirmationMsg += fmt.Sprintf("\n\n<a href=\"%s\">📅 Добавить в Google Календарь</a>", calendarLink)
+	confirmationMsg += fmt.Sprintf("\n\n<a href=\"%s\">📅 Добавить в Календарь</a>", calendarLink)
 
 	selector := &telebot.ReplyMarkup{}
 	url := h.GenerateWebAppURL(patient.TelegramID)
-
 	if url != "" {
 		selector.Inline(
 			selector.Row(selector.WebApp("📱 ОТКРЫТЬ МЕД-КАРТУ (LIVE)", &telebot.WebApp{URL: url})),
 		)
 	}
 
-	// 4. Also notify patient if it was a manual booking by admin
+	// 4. Notify patient if manual
 	if isAdminManual {
 		patientIDStr, ok := session[SessionKeyPatientID].(string)
 		if ok && patientIDStr != "" {
-			patientID, err := strconv.ParseInt(patientIDStr, 10, 64)
-			if err == nil {
-				patientNotice := fmt.Sprintf(`💆 <b>ЗАПИСЬ СОЗДАНА</b>
-
-Вас записали на прием к Вере:
-
-📅  <b>%s</b>
-⏰  <b>%s</b>
-💆  %s
-
-━━━━━━━━━━━━━━━━━
-<i>Ждем вас! 💙</i>`,
-					appointmentTime.Format("02.01.2006"),
-					appointmentTime.Format("15:04"),
-					service.Name)
-
-				// Generate calendar link for patient
-				calendarLink := h.generateGoogleCalendarLink(appt)
-				linkHTML := fmt.Sprintf("\n\n<a href=\"%s\">📅 Добавить в Google Календарь</a>", calendarLink)
-				patientNotice += linkHTML
-
-				h.BotNotify(c.Bot(), patientID, patientNotice)
-			}
+			patientID, _ := strconv.ParseInt(patientIDStr, 10, 64)
+			h.BotNotify(c.Bot(), patientID, h.presenter.FormatAppointment(appt, false))
 		}
 	}
 
@@ -1210,7 +1127,6 @@ func (h *BookingHandler) HandleCancel(c telebot.Context) error {
 	return c.Send("Запись отменена. Сессия очищена. Вы можете начать /start снова.", h.GetMainMenu())
 }
 
-// HandleMyRecords shows patient their records summary
 func (h *BookingHandler) HandleMyRecords(c telebot.Context) error {
 	userID := c.Sender().ID
 	telegramID := strconv.FormatInt(userID, 10)
@@ -1224,21 +1140,7 @@ func (h *BookingHandler) HandleMyRecords(c telebot.Context) error {
 Запишитесь на прием через меню бота!`, telebot.ModeHTML)
 	}
 
-	card := fmt.Sprintf(`📋 <b>КАРТА ПАЦИЕНТА #%s</b>
-──────────────────
-👤 <b>ФИО:</b> %s
-🔢 <b>ВСЕГО ВИЗИТОВ:</b> %d
-💆 <b>ПРОГРАММА:</b> %s
-
-<b>КЛИНИЧЕСКИЕ ЗАМЕТКИ:</b>
-<i>%s</i>
-──────────────────
-📂 <i>Все файлы и анализы доступны в онлайн мед-карте.</i>`,
-		patient.TelegramID,
-		html.EscapeString(patient.Name),
-		patient.TotalVisits,
-		html.EscapeString(patient.CurrentService),
-		html.EscapeString(patient.TherapistNotes))
+	card := h.presenter.FormatPatientCard(patient)
 
 	// Compact menu for record management
 	selector := &telebot.ReplyMarkup{}
@@ -1616,7 +1518,7 @@ func (h *BookingHandler) HandleFileMessage(c telebot.Context) error {
 		}
 	}
 
-	// Special handling for voice: Transcribe and append to notes
+	// Special handling for voice: Transcribe and save as Draft
 	if voice := msg.Voice; voice != nil {
 		transMsg, _ := c.Bot().Send(c.Recipient(), "📝 Расшифровываю ваше аудио-сообщение...")
 
@@ -1625,39 +1527,38 @@ func (h *BookingHandler) HandleFileMessage(c telebot.Context) error {
 		transcript, err := h.transcriptionService.Transcribe(context.Background(), fileReader, fileName)
 
 		if transMsg != nil {
-			if err := c.Bot().Delete(transMsg); err != nil {
-				logging.Warnf("Failed to delete transcription status message: %v", err)
-			}
+			_ = c.Bot().Delete(transMsg)
 		}
 
 		if err == nil && transcript != "" {
-			// Save transcripts to dedicated field AND TherapistNotes for dialogue view
-			prefix := fmt.Sprintf("\n\n[🎙 %s]: ", time.Now().Format("02.01.2006 15:04"))
-			patient.VoiceTranscripts += prefix + transcript
+			// Save to media record as a draft
+			media.Transcript = transcript
+			media.Status = "pending"
+			_ = h.repository.SaveMedia(media)
 
-			// Append to TherapistNotes for chronological dialogue
-			today := time.Now().In(domain.ApptTimeZone).Format("02.01.2006")
-			dateHeader := fmt.Sprintf("\n\n📅 %s", today)
-			if !strings.Contains(patient.TherapistNotes, dateHeader) {
-				patient.TherapistNotes += dateHeader
-			}
+			// Notify Admins
+			reviewMsg := h.presenter.FormatDraftNotification(patient.Name, transcript)
+			
+			// Inline buttons for quick action in the bot
+			selector := &telebot.ReplyMarkup{}
+			btnApprove := selector.Data("✅ В карту", "approve_draft", mediaID)
+			btnDiscard := selector.Data("🗑️ Удалить", "discard_draft", mediaID)
+			btnOpenTWA := selector.WebApp("📱 Открыть TWA", &telebot.WebApp{URL: h.GenerateWebAppURL(patient.TelegramID)})
+			
+			selector.Inline(
+				selector.Row(btnApprove, btnDiscard),
+				selector.Row(btnOpenTWA),
+			)
 
-			notePrefix := fmt.Sprintf("\n\n[🎙 Пациент %s]: ", time.Now().In(domain.ApptTimeZone).Format("15:04"))
-			patient.TherapistNotes += notePrefix + transcript
-
-			if err := h.repository.SavePatient(patient); err != nil {
-				logging.Errorf("Failed to save transcript to patient record: %v", err)
+			for _, adminID := range h.adminIDs {
+				recipient := &telebot.User{ID: func() int64 { id, _ := strconv.ParseInt(adminID, 10, 64); return id }()}
+				_, _ = c.Bot().Send(recipient, reviewMsg, selector, telebot.ModeHTML)
 			}
-			if err := c.Send("✅ Аудио расшифровано и сохранено в архиве записей."); err != nil {
-				logging.Warnf("Failed to send success message: %v", err)
-			}
-		} else {
-			logging.Errorf(": Transcription failed for user %d: %v", userID, err)
-			if err := c.Send("⚠️ Аудио сохранено, но не удалось его расшифровать."); err != nil {
-				logging.Warnf("Failed to send warning message: %v", err)
-			}
+			
+			return c.Send("✅ Сообщение получено. Терапевт скоро его изучит.")
 		}
 	} else {
+		// Non-voice files
 		if err := c.Send(fmt.Sprintf("✅ Файл '%s' успешно сохранен в вашу медицинскую карту!", fileName)); err != nil {
 			logging.Warnf("Failed to send file saved message: %v", err)
 		}
@@ -1940,4 +1841,58 @@ func (h *BookingHandler) HandleListPatients(c telebot.Context) error {
 	}
 
 	return c.Send(sb.String(), telebot.ModeHTML)
+}
+
+// HandleApproveDraft moves a pending transcription to approved clinical notes
+func (h *BookingHandler) HandleApproveDraft(c telebot.Context) error {
+	data := strings.TrimPrefix(c.Callback().Data, "approve_draft|")
+	parts := strings.Split(data, "|")
+	if len(parts) < 1 {
+		return c.Respond(&telebot.CallbackResponse{Text: "Ошибка данных"})
+	}
+	mediaID := parts[0]
+
+	media, err := h.repository.GetMediaByID(mediaID)
+	if err != nil {
+		return c.Respond(&telebot.CallbackResponse{Text: "Запись не найдена"})
+	}
+
+	// 1. Update status to approved
+	err = h.repository.UpdateMediaStatus(mediaID, "approved", media.Transcript)
+	if err != nil {
+		return c.Respond(&telebot.CallbackResponse{Text: "Ошибка БД"})
+	}
+
+	// 2. Append to patient's clinical notes
+	patient, err := h.repository.GetPatient(media.PatientID)
+	if err == nil {
+		newNotes := patient.TherapistNotes
+		if newNotes != "" {
+			newNotes += "\n\n"
+		}
+		timestamp := media.CreatedAt.Format("02.01.2006 15:04")
+		newNotes += fmt.Sprintf("**Запись от %s:**\n%s", timestamp, media.Transcript)
+		_ = h.repository.UpdatePatientProfile(media.PatientID, patient.Name, newNotes)
+	}
+
+	return c.Edit("✅ <b>ДОБАВЛЕНО В КАРТУ</b>\n\n" + media.Transcript, telebot.ModeHTML)
+}
+
+// HandleDiscardDraft removes a pending transcription draft
+func (h *BookingHandler) HandleDiscardDraft(c telebot.Context) error {
+	data := strings.TrimPrefix(c.Callback().Data, "discard_draft|")
+	parts := strings.Split(data, "|")
+	if len(parts) < 1 {
+		return c.Respond(&telebot.CallbackResponse{Text: "Ошибка данных"})
+	}
+	mediaID := parts[0]
+
+	media, err := h.repository.GetMediaByID(mediaID)
+	if err == nil {
+		_ = h.repository.UpdateMediaStatus(mediaID, "discarded", media.Transcript)
+	} else {
+		_ = h.repository.UpdateMediaStatus(mediaID, "discarded", "")
+	}
+
+	return c.Edit("🗑 <b>ЧЕРНОВИК УДАЛЕН</b>", telebot.ModeHTML)
 }

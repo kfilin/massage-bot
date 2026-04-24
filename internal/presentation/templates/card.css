@@ -1,0 +1,120 @@
+/* Vera Massage Clinic — Minimalist Sage Design System */
+
+:root {
+    --bg-page: #F0F4F0; /* Pale Sage Green */
+    --bg-card: #FFFFFF;
+    --text-primary: #1C1C1E;
+    --text-secondary: #8E8E93;
+    --accent: #4A674A; /* Deep Sage */
+    --danger: #FF3B30;
+    --warning: #FF9500; /* Draft Orange */
+    --separator: #E5E5EA;
+    --glass: rgba(240, 244, 240, 0.8);
+}
+
+body {
+    background-color: var(--bg-page);
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+    margin: 0;
+    padding: 20px;
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+    padding-bottom: 100px;
+}
+
+/* Typography */
+.large-title {
+    font-size: 34px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 0 0 8px 0;
+}
+
+.subtitle {
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+}
+
+/* Card Style */
+.card {
+    background: var(--bg-card);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 8px rgba(74, 103, 74, 0.05);
+    border: 1px solid rgba(0,0,0,0.02);
+}
+
+/* Segmented Control (New) */
+.segmented-control {
+    display: flex;
+    background: rgba(0,0,0,0.05);
+    border-radius: 10px;
+    padding: 2px;
+    margin-bottom: 24px;
+}
+
+.segment-item {
+    flex: 1;
+    text-align: center;
+    padding: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+
+.segment-item.active {
+    background: var(--bg-card);
+    color: var(--text-primary);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Draft Styling */
+.draft-card {
+    border: 2px solid var(--warning);
+    background: #FFF9F0;
+}
+
+.draft-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    color: var(--warning);
+    font-weight: 700;
+    font-size: 12px;
+    text-transform: uppercase;
+}
+
+/* FAB */
+.fab {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    width: 60px;
+    height: 60px;
+    background: var(--accent);
+    border-radius: 30px;
+    box-shadow: 0 4px 12px rgba(74, 103, 74, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 24px;
+    border: none;
+    cursor: pointer;
+    z-index: 100;
+}
+
+/* Phosphor Icon Spacing */
+.ph-duotone {
+    vertical-align: middle;
+    margin-right: 4px;
+}

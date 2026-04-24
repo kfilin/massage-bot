@@ -456,93 +456,6 @@ func TestUpsertAppointments_Empty(t *testing.T) {
 	}
 }
 
-// TestMdToHTML tests markdown to HTML conversion
-func TestMdToHTML(t *testing.T) {
-	db, _, err := sqlmock.New()
-	if err != nil {
-		t.Fatalf("Failed to create mock: %v", err)
-	}
-	defer db.Close()
-
-	sqlxDB := sqlx.NewDb(db, "sqlmock")
-	repo := NewPostgresRepository(sqlxDB, t.TempDir())
-
-	tests := []struct {
-		name     string
-		input    string
-		wantHTML string
-	}{
-		{
-			name:     "Bold text",
-			input:    "**bold**",
-			wantHTML: "<strong>bold</strong>",
-		},
-
-		{
-			name:     "Plain text",
-			input:    "plain text",
-			wantHTML: "plain text",
-		},
-		{
-			name:     "Empty string",
-			input:    "",
-			wantHTML: "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := repo.mdToHTML(tt.input)
-			resultStr := string(result)
-
-			if resultStr != tt.wantHTML {
-				t.Errorf("mdToHTML(%q) = %q, want %q", tt.input, resultStr, tt.wantHTML)
-			}
-		})
-	}
-}
-
-// TestParseTime tests the parseTime helper function
-func TestParseTime(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		wantZero bool
-	}{
-		{
-			name:     "Valid format",
-			input:    "03.02.2026 10:00",
-			wantZero: false,
-		},
-		{
-			name:     "Empty string",
-			input:    "",
-			wantZero: true,
-		},
-		{
-			name:     "Invalid format",
-			input:    "not-a-date",
-			wantZero: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := parseTime(tt.input)
-
-			if tt.wantZero {
-				if !result.IsZero() {
-					t.Errorf("parseTime(%q) should return zero time, got %v", tt.input, result)
-				}
-			} else {
-				if result.IsZero() {
-					t.Errorf("parseTime(%q) returned zero time unexpectedly", tt.input)
-				}
-			}
-		})
-	}
-}
-
 // TestGetPatientDir tests patient directory path generation
 func TestGetPatientDir(t *testing.T) {
 	db, _, err := sqlmock.New()
@@ -568,28 +481,13 @@ func TestGetPatientDir(t *testing.T) {
 	}
 
 	// Should contain telegram ID
-	if !contains(dir, patient.TelegramID) {
+	if !strings.Contains(dir, patient.TelegramID) {
 		t.Errorf("Patient dir should contain telegram ID %s, got %s", patient.TelegramID, dir)
 	}
 }
-
-// Helper function for string contains check
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && (s[:len(substr)] == substr || s[len(s)-len(substr):] == substr || containsMiddle(s, substr)))
-}
-
-func containsMiddle(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
-}
-
-// TestGenerateHTMLRecord tests HTML record generation
-func TestGenerateHTMLRecord(t *testing.T) {
-	db, _, err := sqlmock.New()
+// TestUpdateMediaStatus tests updating media status and transcript
+func TestUpdateMediaStatus(t *testing.T) {
+	db, mock, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("Failed to create mock: %v", err)
 	}
@@ -597,141 +495,21 @@ func TestGenerateHTMLRecord(t *testing.T) {
 
 	sqlxDB := sqlx.NewDb(db, "sqlmock")
 	repo := NewPostgresRepository(sqlxDB, t.TempDir())
-	repo.BotVersion = "v5.3.6"
 
-	tests := []struct {
-		name            string
-		patient         domain.Patient
-		history         []domain.Appointment
-		wantContains    []string
-		wantNotContains []string
-	}{
-		{
-			name: "Patient with notes and future appointment",
-			patient: domain.Patient{
-				TelegramID:     "123456789",
-				Name:           "Test Patient",
-				FirstVisit:     time.Now().Add(-30 * 24 * time.Hour),
-				LastVisit:      time.Now().Add(-7 * 24 * time.Hour),
-				TotalVisits:    5,
-				TherapistNotes: "**Important** notes about patient",
-				CurrentService: "Massage",
-			},
-			history: []domain.Appointment{
-				{
-					ID:        "appt-1",
-					StartTime: time.Now().Add(24 * time.Hour),
-					Service:   domain.Service{Name: "Classic Massage", DurationMinutes: 60},
-					Status:    "confirmed",
-				},
-			},
-			wantContains: []string{
-				"TEST PATIENT",
-				"<strong>Important</strong>",
-				"Classic Massage",
-				"v5.3.6",
-			},
-			wantNotContains: []string{},
-		},
-		{
-			name: "Patient with empty notes",
-			patient: domain.Patient{
-				TelegramID:  "987654321",
-				Name:        "Empty Notes Patient",
-				FirstVisit:  time.Now(),
-				LastVisit:   time.Now(),
-				TotalVisits: 1,
-			},
-			history: []domain.Appointment{},
-			wantContains: []string{
-				"EMPTY NOTES PATIENT",
-			},
-			wantNotContains: []string{},
-		},
-		{
-			name: "Patient with past appointments only",
-			patient: domain.Patient{
-				TelegramID:  "111222333",
-				Name:        "Past Patient",
-				FirstVisit:  time.Now().Add(-60 * 24 * time.Hour),
-				LastVisit:   time.Now().Add(-30 * 24 * time.Hour),
-				TotalVisits: 3,
-			},
-			history: []domain.Appointment{
-				{
-					ID:        "appt-past",
-					StartTime: time.Now().Add(-30 * 24 * time.Hour),
-					Service:   domain.Service{Name: "Massage"},
-					Status:    "confirmed",
-				},
-			},
-			wantContains: []string{
-				"PAST PATIENT",
-			},
-			wantNotContains: []string{},
-		},
-	}
+	mediaID := "media-123"
+	status := "approved"
+	transcript := "New transcript content"
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			html := repo.GenerateHTMLRecord(tt.patient, tt.history, false)
+	mock.ExpectExec("UPDATE patient_media SET status = \\$1, transcript = \\$2 WHERE id = \\$3").
+		WithArgs(status, transcript, mediaID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
 
-			if html == "" {
-				t.Error("GenerateHTMLRecord returned empty string")
-			}
-
-			for _, want := range tt.wantContains {
-				if !strings.Contains(html, want) {
-					t.Errorf("HTML should contain %q", want)
-				}
-			}
-
-			for _, notWant := range tt.wantNotContains {
-				if strings.Contains(html, notWant) {
-					t.Errorf("HTML should not contain %q", notWant)
-				}
-			}
-		})
-	}
-}
-
-// TestGenerateHTMLRecord_AdminEditorVisibility verifies the FAB and editModal
-// are only rendered when isAdmin=true (Bug #1 fix regression test)
-func TestGenerateHTMLRecord_AdminEditorVisibility(t *testing.T) {
-	db, _, err := sqlmock.New()
+	err = repo.UpdateMediaStatus(mediaID, status, transcript)
 	if err != nil {
-		t.Fatalf("Failed to create mock: %v", err)
+		t.Errorf("UpdateMediaStatus failed: %v", err)
 	}
-	defer db.Close()
 
-	sqlxDB := sqlx.NewDb(db, "sqlmock")
-	repo := NewPostgresRepository(sqlxDB, t.TempDir())
-	repo.BotVersion = "test"
-
-	patient := domain.Patient{
-		TelegramID:  "123",
-		Name:        "Test",
-		TotalVisits: 1,
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Unfulfilled expectations: %v", err)
 	}
-	history := []domain.Appointment{}
-
-	t.Run("Patient view hides editor", func(t *testing.T) {
-		html := repo.GenerateHTMLRecord(patient, history, false)
-		if strings.Contains(html, `class="fab"`) {
-			t.Error("Patient view should NOT contain FAB button")
-		}
-		if strings.Contains(html, `id="editModal"`) {
-			t.Error("Patient view should NOT contain editModal div")
-		}
-	})
-
-	t.Run("Admin view shows editor", func(t *testing.T) {
-		html := repo.GenerateHTMLRecord(patient, history, true)
-		if !strings.Contains(html, `class="fab"`) {
-			t.Error("Admin view SHOULD contain FAB button")
-		}
-		if !strings.Contains(html, `id="editModal"`) {
-			t.Error("Admin view SHOULD contain editModal div")
-		}
-	})
 }

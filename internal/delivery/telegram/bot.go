@@ -16,6 +16,7 @@ import (
 	"github.com/kfilin/massage-bot/internal/logging"
 	"github.com/kfilin/massage-bot/internal/monitoring"
 	"github.com/kfilin/massage-bot/internal/ports" // Import ports for interfaces
+	"github.com/kfilin/massage-bot/internal/presentation"
 	"github.com/kfilin/massage-bot/internal/services/reminder"
 
 	// Added reminder service
@@ -38,6 +39,8 @@ const (
 	CallbackCancelBooking         = "cancel_booking"
 	CallbackBackToServices        = "back_to_services"
 	CallbackBackToDate            = "back_to_date"
+	CallbackApproveDraft          = "approve_draft"
+	CallbackDiscardDraft          = "discard_draft"
 	CallbackIgnore                = "ignore"
 )
 
@@ -121,7 +124,8 @@ func RunBot(
 		finalAdminIDs = append(finalAdminIDs, id)
 	}
 
-	bookingHandler := handlers.NewBookingHandler(appointmentService, sessionStorage, finalAdminIDs, therapistIDs, trans, repo, webAppURL, webAppSecret)
+	botPresenter := presentation.NewBotPresenter()
+	bookingHandler := handlers.NewBookingHandler(appointmentService, sessionStorage, finalAdminIDs, therapistIDs, trans, repo, botPresenter, webAppURL, webAppSecret)
 
 	// Initialize and start Reminder Service
 	reminderService := reminder.NewService(appointmentService, repo, b, finalAdminIDs)
@@ -282,6 +286,12 @@ func RunBot(
 		} else if strings.HasPrefix(trimmedData, CallbackPrefixAdminReply) {
 			logging.Debug("DEBUG: OnCallback: Matched 'admin_reply' prefix.")
 			return bookingHandler.HandleAdminReplyRequest(c)
+		} else if strings.HasPrefix(trimmedData, CallbackApproveDraft) {
+			logging.Debug("DEBUG: OnCallback: Matched 'approve_draft' prefix.")
+			return bookingHandler.HandleApproveDraft(c)
+		} else if strings.HasPrefix(trimmedData, CallbackDiscardDraft) {
+			logging.Debug("DEBUG: OnCallback: Matched 'discard_draft' prefix.")
+			return bookingHandler.HandleDiscardDraft(c)
 		} else if trimmedData == CallbackIgnore {
 			logging.Debug("DEBUG: OnCallback: Matched 'ignore' data.")
 			return nil // Просто игнорируем кнопки-заглушки

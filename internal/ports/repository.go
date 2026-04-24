@@ -20,11 +20,10 @@ type Repository interface {
 
 	// Clinical Records & Documents
 	// Clinical Records & Documents
-	GenerateHTMLRecord(patient domain.Patient, history []domain.Appointment, isAdmin bool) string
-	GenerateAdminSearchPage() string
 	SaveMedia(media domain.PatientMedia) error
 	GetPatientMedia(patientID string) ([]domain.PatientMedia, error)
 	GetMediaByID(mediaID string) (*domain.PatientMedia, error)
+	UpdateMediaStatus(mediaID string, status string, transcript string) error
 	CreateBackup() (string, error)
 	GetAppointmentHistory(telegramID string) ([]domain.Appointment, error)
 	UpsertAppointments(appts []domain.Appointment) error

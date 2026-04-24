@@ -5,16 +5,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/kfilin/massage-bot/internal/domain"
 	"github.com/kfilin/massage-bot/internal/logging"
 	"github.com/kfilin/massage-bot/internal/ports"
+	"github.com/kfilin/massage-bot/internal/presentation"
 )
 
 // NewWebAppHandler creates the main handler for the WebApp
-func NewWebAppHandler(repo ports.Repository, apptService ports.AppointmentService, botToken string, adminIDs []string, secret string) http.HandlerFunc {
+func NewWebAppHandler(repo ports.Repository, apptService ports.AppointmentService, presenter *presentation.WebPresenter, botToken string, adminIDs []string, secret string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		logging.Debugf(" [WebApp]: Incoming Request: %s %s RemoteAddr: %s", r.Method, r.URL.String(), r.RemoteAddr)
 		// Prepare paths for query parsing (supports both root and /card)
@@ -91,7 +93,14 @@ func NewWebAppHandler(repo ports.Repository, apptService ports.AppointmentServic
 				} else {
 					// Admin, no specific target (or target is self) -> Show Search Page
 					w.Header().Set("Content-Type", "text/html; charset=utf-8")
-					fmt.Fprint(w, repo.GenerateAdminSearchPage())
+					data := struct {
+						BotUsername string
+					}{
+						BotUsername: os.Getenv("BOT_USERNAME"), // We'll need to make sure this is available
+					}
+					if err := presenter.RenderSearch(w, data); err != nil {
+						logging.Errorf("Search template rendering failed: %v", err)
+					}
 					return
 				}
 			} else {
@@ -99,7 +108,10 @@ func NewWebAppHandler(repo ports.Repository, apptService ports.AppointmentServic
 				// In HMAC flow, the 'id' param is the authenticated user.
 				// If that user is admin, show search page.
 				w.Header().Set("Content-Type", "text/html; charset=utf-8")
-				fmt.Fprint(w, repo.GenerateAdminSearchPage())
+				data := struct{ BotUsername string }{BotUsername: os.Getenv("BOT_USERNAME")}
+				if err := presenter.RenderSearch(w, data); err != nil {
+					logging.Errorf("Search template rendering failed: %v", err)
+				}
 				return
 			}
 		}
@@ -199,9 +211,148 @@ func NewWebAppHandler(repo ports.Repository, apptService ports.AppointmentServic
 			// repo.SavePatient(patient)
 		}
 
-		html := repo.GenerateHTMLRecord(patient, appts, isAdmin)
+		// Fetch Media (including Drafts)
+		allMedia, _ := repo.GetPatientMedia(finalID)
+		var drafts []map[string]interface{}
+		
+		// Grouping Logic for Files Tab
+		groups := make(map[string]*struct {
+			Name  string
+			Count int
+			Files []domain.PatientMedia
+		})
+		
+		initGroup := func(name string) {
+			groups[name] = &struct {
+				Name  string
+				Count int
+				Files []domain.PatientMedia
+			}{Name: name}
+		}
+		initGroup("Снимки")
+		initGroup("Фотографии")
+		initGroup("Видео")
+		initGroup("Голосовые заметки")
+		initGroup("Прочее")
+
+		for _, m := range allMedia {
+			// 1. Separate Drafts (pending voice only)
+			if m.FileType == "voice" && m.Status == "pending" {
+				drafts = append(drafts, map[string]interface{}{
+					"ID":         m.ID,
+					"Transcript": m.Transcript,
+					"Date":       m.CreatedAt.Format("02.01 15:04"),
+				})
+				continue // Don't show drafts in "Files" yet
+			}
+
+			// 2. Populate DocGroups (approved OR discarded)
+			// Discarded files are still accessible as raw media
+			var targetGroup string
+			switch m.FileType {
+			case "scan": targetGroup = "Снимки"
+			case "photo", "image": targetGroup = "Фотографии"
+			case "voice", "audio": targetGroup = "Голосовые заметки"
+			case "video": targetGroup = "Видео"
+			default: targetGroup = "Прочее"
+			}
+
+			if g, ok := groups[targetGroup]; ok {
+				g.Count++
+				g.Files = append(g.Files, m)
+			}
+		}
+
+		// Prepare ordered list of populated groups
+		var docGroups []interface{}
+		order := []string{"Снимки", "Фотографии", "Видео", "Голосовые заметки", "Прочее"}
+		for _, name := range order {
+			if g := groups[name]; g != nil && g.Count > 0 {
+				docGroups = append(docGroups, g)
+			}
+		}
+
+		// Prepare Template Data
+		data := struct {
+			Title        string
+			Patient      domain.Patient
+			RecentVisits []domain.Appointment
+			Drafts       []map[string]interface{}
+			DocGroups    []interface{}
+			BotVersion   string
+			IsAdmin      bool
+		}{
+			Title:        "Карта пациента",
+			Patient:      patient,
+			RecentVisits: appts,
+			Drafts:       drafts,
+			DocGroups:    docGroups,
+			BotVersion:   "v6.0.0-sage",
+			IsAdmin:      isAdmin,
+		}
+
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprint(w, html)
+		if err := presenter.RenderCard(w, data); err != nil {
+			logging.Errorf("Template rendering failed: %v", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		}
+	}
+}
+
+// NewDraftHandler handles Draft Approval/Discard
+func NewDraftHandler(repo ports.Repository, botToken string, adminIDs []string, secret string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req struct {
+			ID       string `json:"id"`
+			InitData string `json:"initData"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Bad request", http.StatusBadRequest)
+			return
+		}
+
+		userID, _, err := validateInitData(req.InitData, botToken)
+		if err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		isAdmin := false
+		for _, adminID := range adminIDs {
+			if adminID == userID {
+				isAdmin = true
+				break
+			}
+		}
+		if !isAdmin {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+
+		media, err := repo.GetMediaByID(req.ID)
+		if err != nil {
+			http.Error(w, "Draft not found", http.StatusNotFound)
+			return
+		}
+
+		if strings.HasSuffix(r.URL.Path, "/approve") {
+			// Approve: Add to therapist notes
+			patient, _ := repo.GetPatient(media.PatientID)
+			newNotes := patient.TherapistNotes + "\n\n--- 🎤 Расшифровка ---\n" + media.Transcript
+			_ = repo.UpdatePatientProfile(media.PatientID, patient.Name, newNotes)
+			_ = repo.UpdateMediaStatus(req.ID, "approved", media.Transcript)
+		} else {
+			// Discard
+			_ = repo.UpdateMediaStatus(req.ID, "discarded", media.Transcript)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	}
 }
 

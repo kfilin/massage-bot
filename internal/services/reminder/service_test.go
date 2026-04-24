@@ -111,6 +111,7 @@ func (m *mockReminderRepo) GetPatientMedia(pid string) ([]domain.PatientMedia, e
 	return nil, nil
 }
 func (m *mockReminderRepo) GetMediaByID(mid string) (*domain.PatientMedia, error) { return nil, nil }
+func (m *mockReminderRepo) UpdateMediaStatus(mid, status, transcript string) error { return nil }
 func (m *mockReminderRepo) GetAppointmentHistory(tid string) ([]domain.Appointment, error) {
 	return nil, nil
 }

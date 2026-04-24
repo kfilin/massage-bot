@@ -3,6 +3,7 @@ package handlers
 import (
 	"testing"
 
+	"github.com/kfilin/massage-bot/internal/presentation"
 	"gopkg.in/telebot.v3"
 )
 
@@ -102,6 +103,7 @@ func TestAdminHandlers(t *testing.T) {
 				nil,
 				nil,
 				mockRepo,
+				&presentation.BotPresenter{},
 				"",
 				"",
 			)
@@ -162,6 +164,7 @@ func TestHandleBlock(t *testing.T) {
 				nil,
 				nil,
 				mockRepo,
+				&presentation.BotPresenter{},
 				"",
 				"",
 			)

@@ -261,6 +261,10 @@ func (m *mockRepository) GetMediaByID(mediaID string) (*domain.PatientMedia, err
 	return nil, nil
 }
 
+func (m *mockRepository) UpdateMediaStatus(mediaID string, status string, transcript string) error {
+	return nil
+}
+
 func (m *mockRepository) GetAppointmentHistory(telegramID string) ([]domain.Appointment, error) {
 	if history, ok := m.appointmentHistory[telegramID]; ok {
 		return history, nil

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Поиск пациентов</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link rel="stylesheet" href="/static/card.css">
+    <script src="/static/app.js" defer></script>
+</head>
+<body class="search-page">
+    <div id="app">
+        <div class="header">
+            <div class="subtitle">АДМИНИСТРИРОВАНИЕ</div>
+            <h1 class="large-title">Поиск пациентов</h1>
+        </div>
+
+        <div class="card" style="padding: 12px;">
+            <div style="position: relative;">
+                <input type="text" id="searchInput" placeholder="Имя или ID..." oninput="performSearch(this.value)" style="width: 100%; padding: 12px 12px 12px 40px; border-radius: 12px; border: 1px solid var(--separator); background: var(--bg-card); color: var(--text-primary);">
+                <i class="ph-duotone ph-magnifying-glass" style="position: absolute; left: 12px; top: 14px; font-size: 20px; color: var(--text-secondary);"></i>
+            </div>
+        </div>
+
+        <div id="searchResults" style="margin-top: 16px;">
+            <!-- Results injected here -->
+        </div>
+    </div>
+
+    <script>
+        function performSearch(query) {
+            if (query.length < 2) {
+                document.getElementById('searchResults').innerHTML = '';
+                return;
+            }
+            fetch('/api/search?q=' + encodeURIComponent(query), {
+                headers: { 'X-Telegram-Init-Data': window.Telegram.WebApp.initData }
+            })
+            .then(r => r.json())
+            .then(results => {
+                let html = '';
+                results.forEach(p => {
+                    html += `
+                        <div class="card" onclick="window.location.href='/?id=${p.telegram_id}&initData=' + encodeURIComponent(window.Telegram.WebApp.initData)">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <div style="font-weight: 600;">${p.name}</div>
+                                    <div class="subtitle">#${p.telegram_id}</div>
+                                </div>
+                                <i class="ph-duotone ph-caret-right" style="color: var(--accent);"></i>
+                            </div>
+                        </div>
+                    `;
+                });
+                document.getElementById('searchResults').innerHTML = html;
+            });
+        }
+    </script>
+</body>
+</html>
