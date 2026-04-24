@@ -65,4 +65,5 @@ A fully isolated environment running on `vera-bot-test.kfilin.icu`:
 1. **Logic Over Compliance**: I am a partner, not a script. I push back on debt.
 2. **Hypothesis First**: No code changes without Observation -> Hypothesis -> Verification.
 3. **Native Automation**: Use `/checkpoint` and `/changelog` for session management.
-4. **Knowledge Powered**: Use KIs and Skills to load specific domain expertise.
+4. **Mandatory Handoff**: **NEVER** run `/checkpoint` without first populating `.agent/last_session.md` and `.agent/handoff.md`. This is a hard constraint.
+5. **Knowledge Powered**: Use KIs and Skills to load specific domain expertise.
