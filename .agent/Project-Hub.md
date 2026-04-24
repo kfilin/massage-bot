@@ -53,10 +53,10 @@ A fully isolated environment running on `vera-bot-test.kfilin.icu`:
 
 ## 💎 Gold Standard Checkpoint
 
-- **Commit**: `3dbac19` (Security rotation and DB stability fix)
+- **Commit**: `ec54d54` (Security Hardening & Documentation Audit)
 - **Date**: 2026-04-24
 - **Status**: **STABLE**.
-- **Rollback**: `3dbac19` (Current state)
+- **Rollback**: `ec54d54` (Current state)
 
 ---
 

@@ -65,38 +65,73 @@ A full-featured Mini App integrated directly into Telegram:
 - **Context**: Transcriptions are saved to the patient's medical card (Postgres + Markdown) and forwarded to the therapist.
 - **Filtering**: Intelligent filtering removes "hallucinations" (e.g., "Silence", "Thank you") from empty voice notes.
 
-### 🔒 Enterprise Logic
+### 🛡️ Security & Hardening (v5.7.0)
 
-- **Smart Replies**: Admins can reply to patient messages (Text/Voice) directly via the bot using the `[✍️ Ответить]` button. The bot routes the reply and logs the conversation.
-- **Discreet Blocking**: Polite rejection of unwanted users through the "No slots available" middleware.
-- **DB Resilience**: Built-in 5-attempt retry loop for PostgreSQL connectivity.
+- **Gitleaks Protection**: Integrated pre-commit hooks to prevent accidental leakage of API keys or bot tokens.
+- **Environment Isolation**: Strict separation between `.env`, `.env.test`, and production secrets.
+- **PII Shielding**: Medical records are stored in a dedicated `data/` volume with restricted filesystem access.
+
+### 🛠️ System Resilience
+
+- **Health Monitoring**: Dedicated `/health` endpoint and Prometheus metrics for real-time stability tracking.
+- **Auto-Recovery**: Built-in 5-attempt retry loop for PostgreSQL connectivity and self-healing TWA authentication.
+- **Graceful Shutdown**: Orchestrated termination of goroutines to ensure data integrity during updates.
 
 ---
 
 ## 🏗 System Architecture
 
-The project follows a clean architecture pattern, prioritizing stability and dependency isolation.
+The project follows a **Hexagonal / Clean Architecture** pattern, prioritizing stability and dependency isolation.
 
-- **Backend**: Go 1.24 (Fiber / Telebot v3)
+```mermaid
+graph TD
+    User((Patient/Admin)) <--> TG[Telegram Bot API]
+    TG <--> App[Massage Bot Core]
+    
+    subgraph "Internal Services"
+        App <--> Booking[Booking Engine]
+        App <--> Trans[Whisper Transcription]
+        App <--> Remind[Reminder Service]
+    end
+    
+    subgraph "External Adapters"
+        Booking <--> Google[(Google Calendar)]
+        Trans <--> Groq[Groq AI]
+    end
+    
+    subgraph "Persistence & Sync"
+        App <--> DB[(PostgreSQL 15)]
+        App <--> MD[Markdown Records]
+        MD <--> WebDAV[WebDAV Server]
+        WebDAV <--> Obsidian[[Obsidian Mobile]]
+    end
+    
+    subgraph "Observability"
+        App --> Prom[Prometheus]
+        Prom --> Graf[Grafana]
+    end
+```
+
+- **Backend**: Go 1.24 (Standard Library HTTP + Telebot v3)
 - **Database**: PostgreSQL 15+ (Transactional integrity)
-- **Sync**: WebDAV Server (CORS/OPTIONS enabled for Mobile clients)
-- **Monitoring**: Prometheus/Grafana stack on port 8083 (with decoupled `MetricsCollector`).
-- **Deployment**: Docker Compose with `scripts/` automation.
+- **Frontend**: Telegram Web App (Vanilla JS + CSS, zero-dependency)
+- **Sync**: WebDAV Server for Obsidian mobility.
+- **Monitoring**: Prometheus/Grafana stack on port 8083. [View API Docs](docs/API.md).
+- **Deployment**: "Twin Strategy" (Staging & Production) using Docker Compose.
 
 ---
 
-## � Project Structure
+## 📂 Project Structure
 
-- `cmd/bot`: Main application entry point.
-- `internal/domain`: Core business logic and shared models.
-- `internal/services`: Business logic implementation (appointments, reminder, transcription).
-- `internal/storage`: Database persistence (PostgreSQL + Markdown).
-- `internal/delivery`: Transport layer (Telegram bot & Web App handlers).
-- `internal/adapters`: External integrations (Google Calendar, Groq).
-- `internal/ports`: Interfaces defining the hexagonal architecture boundaries.
-- `internal/config`: Configuration loading and validation.
-- `internal/monitoring`: Prometheus metrics.
-- `internal/logging`: Structured logging.
+- `cmd/bot`: Application entry point, Health server, and **Web App routing**.
+- `internal/domain`: Core entities (Patient, Appointment, Slot).
+- `internal/services`: Domain logic (Booking engine, Reminders, Transcription).
+- `internal/storage`: Persistence layer (PostgreSQL, Sessions, and **HTML Templates**).
+- `internal/delivery/telegram`: Telegram bot handlers and middleware.
+- `internal/adapters`: Third-party integrations (Google Calendar, Groq).
+- `internal/ports`: Interface definitions for architectural boundaries.
+- `internal/config`: Environment-based configuration management.
+- `internal/monitoring`: Prometheus metrics and performance collectors.
 
 ---
 

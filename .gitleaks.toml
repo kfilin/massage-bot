@@ -1,0 +1,19 @@
+# Gitleaks configuration for Vera Massage Bot
+# To ignore false positives, add the fingerprint to the 'allowlist'
+
+[allowlist]
+description = "Ignore known test tokens and examples"
+regexes = [
+    '123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11', # WebApp Test Token
+    'my_secret_key',                            # WebApp Test Secret
+    'fake-key'                                  # Groq Test Key
+]
+paths = [
+    'go.sum',
+    'webapp_test.go',
+    'webapp_handlers_test.go',
+    'groq_test.go',
+    '.env.example',
+    '.env.test.example',
+    'config.example.yml'
+]
