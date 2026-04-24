@@ -258,3 +258,20 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
   2. Create a test suite for `internal/storage` that spins up an isolated Postgres container before tests run, applies the schemas, and tests the CRUD operations against it.
   3. Explore using `httptest` servers to mock Telegram API responses so `bot.go` logic can be verified.
 - **Success Criteria**: `internal/storage` achieves >80% test coverage, raising the total project coverage significantly above the current ~42% baseline.
+### 35. [TODO] WebApp Handler Refactoring
+- **Status**: Backlog
+- **Priority**: Medium
+- **Goal**: Move WebApp handlers from `cmd/bot/webapp_handler.go` to `internal/delivery/web/`.
+- **Rationale**: Currently, handlers are mixed with application entry logic. Moving them to `internal/` ensures better architecture alignment and follows the "package by feature/layer" pattern used in the rest of the project.
+
+### 36. [TODO] Test Coverage Hardening (80%+)
+- **Status**: Backlog
+- **Priority**: High
+- **Goal**: Increase repository test coverage from ~42% to 80%+.
+- **Rationale**: Critical logic in `internal/storage` and `internal/delivery/telegram` needs better verification. Complements item #34 (Testcontainers).
+
+### 37. [TODO] Grafana Dashboard Sync
+- **Status**: Backlog
+- **Priority**: Medium
+- **Goal**: Update Grafana dashboards to include the new metrics documented in `docs/API.md`.
+- **Rationale**: Ensures the therapist and admin have visual parity with the underlying telemetry.

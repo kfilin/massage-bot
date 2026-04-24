@@ -1,6 +1,6 @@
 # 💆 Vera Massage Bot (Technical Excellence v5.7.0)
 
-![Go Version](https://img.shields.io/badge/Go-1.24-00ADD8?style=flat&logo=go)
+![Go Version](https://img.shields.io/badge/Go-1.25.3-00ADD8?style=flat&logo=go)
 ![Test Coverage](https://img.shields.io/badge/coverage-42.0%25-green)
 ![Docker](https://img.shields.io/badge/Docker-Enabled-blue?logo=docker)
 ![License](https://img.shields.io/badge/License-Private-red)
@@ -112,7 +112,7 @@ graph TD
     end
 ```
 
-- **Backend**: Go 1.24 (Standard Library HTTP + Telebot v3)
+- **Backend**: Go 1.25.3 (Standard Library HTTP + Telebot v3)
 - **Database**: PostgreSQL 15+ (Transactional integrity)
 - **Frontend**: Telegram Web App (Vanilla JS + CSS, zero-dependency)
 - **Sync**: WebDAV Server for Obsidian mobility.

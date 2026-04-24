@@ -4,7 +4,7 @@ stages:
   - deploy
 
 variables:
-  GO_VERSION: "1.23"
+  GO_VERSION: "1.25.3"
 
 # =====================
 # STAGE 1: TESTS
