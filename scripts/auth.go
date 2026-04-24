@@ -57,14 +57,22 @@ func main() {
 		}
 	}()
 
-	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline, oauth2.ApprovalForce)
-	fmt.Printf("\n=== ACTION REQUIRED ===\nGo to the following link in your browser:\n\n%v\n\nWaiting for authorization...\n", authURL)
+	fmt.Printf("\n=== ACTION REQUIRED ===\nGo to the following link in your browser:\n\n%v\n\n", authURL)
+	fmt.Printf("After authorizing, you will be redirected to localhost:8080/?code=...\n")
+	fmt.Printf("Copy the value of the 'code' parameter from your browser's URL bar.\n\n")
+	
+	fmt.Print("Paste the authorization code here: ")
+	
+	// Read from stdin for headless servers
+	reader := bufio.NewReader(os.Stdin)
+	authCode, err = reader.ReadString('\n')
+	if err != nil {
+		log.Fatalf("Failed to read code: %v", err)
+	}
+	authCode = strings.TrimSpace(authCode)
 
-	var authCode string
-	select {
-	case authCode = <-authCodeChan:
-	case <-time.After(5 * time.Minute):
-		log.Fatalf("authorization timed out")
+	if authCode == "" {
+		log.Fatalf("No code provided")
 	}
 
 	go server.Shutdown(context.Background())

@@ -53,10 +53,10 @@ A fully isolated environment running on `vera-bot-test.kfilin.icu`:
 
 ## 💎 Gold Standard Checkpoint
 
-- **Commit**: `48823da` (Fix TWA sync, error handling, restore docker bridge)
+- **Commit**: `db59987` (Restore Prod Networking and Caddy Connectivity)
 - **Date**: 2026-04-24
 - **Status**: **STABLE**.
-- **Rollback**: `48823da` (Current state)
+- **Rollback**: `db59987` (Current state)
 
 ---
 

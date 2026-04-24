@@ -1,4 +1,10 @@
 # Handoff
 
-- Currently focusing on remaining minor fixes for the TWA integration tomorrow.
-- Everything is stable and backed up under commit `48823da`.
+## Current Status
+- What is working?
+
+## Open Issues
+- What is pending?
+
+## Immediate Next Step
+- Where should the next agent begin?
