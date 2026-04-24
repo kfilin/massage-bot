@@ -5,20 +5,24 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"io/fs"
 	"strings"
 
 	"github.com/kfilin/massage-bot/internal/domain"
 )
 
 //go:embed templates/*
-var TemplatesFS embed.FS
+var templatesFS embed.FS
+
+// StaticFS provides access to the templates directory
+var StaticFS, _ = fs.Sub(templatesFS, "templates")
 
 type WebPresenter struct {
 	templates *template.Template
 }
 
 func NewWebPresenter() (*WebPresenter, error) {
-	tmpl, err := template.ParseFS(TemplatesFS, "templates/*.html")
+	tmpl, err := template.ParseFS(templatesFS, "templates/*.html")
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse templates: %w", err)
 	}

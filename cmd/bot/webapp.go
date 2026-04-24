@@ -120,7 +120,7 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 	}
 
 	// Static Assets (using internal/presentation/templates)
-	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(presentation.TemplatesFS))))
+	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(presentation.StaticFS))))
 
 	// Handle both root and /card with the same logic
 	handler := NewWebAppHandler(repo, apptService, webPresenter, botToken, adminIDs, secret)
