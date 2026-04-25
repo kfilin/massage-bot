@@ -1,4 +1,6 @@
-/* Vera Massage Clinic — Minimalist Sage Design System */
+/* Vera Massage Clinic — Minimalist Sage Design System (Premium) */
+
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap');
 
 :root {
     --bg-page: #F0F4F0; /* Pale Sage Green */
@@ -6,116 +8,184 @@
     --text-primary: #1C1C1E;
     --text-secondary: #8E8E93;
     --accent: #4A674A; /* Deep Sage */
+    --accent-light: #6A8E6A;
     --danger: #FF3B30;
     --warning: #FF9500; /* Draft Orange */
-    --separator: #E5E5EA;
-    --glass: rgba(240, 244, 240, 0.8);
+    --separator: rgba(0,0,0,0.08);
+    --glass: rgba(255, 255, 255, 0.7);
+    --shadow: 0 8px 32px rgba(74, 103, 74, 0.08);
 }
 
 body {
     background-color: var(--bg-page);
+    background-image: radial-gradient(at 0% 0%, rgba(74, 103, 74, 0.05) 0px, transparent 50%),
+                      radial-gradient(at 100% 100%, rgba(74, 103, 74, 0.05) 0px, transparent 50%);
     color-scheme: light;
-    font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+    font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
     margin: 0;
-    padding: 20px;
+    padding: 24px;
     color: var(--text-primary);
     -webkit-font-smoothing: antialiased;
-    padding-bottom: 100px;
+    padding-bottom: 120px;
+    overflow-x: hidden;
 }
 
 /* Typography */
 .large-title {
-    font-size: 34px;
+    font-size: 38px;
     font-weight: 700;
-    letter-spacing: -0.02em;
-    margin: 0 0 8px 0;
+    letter-spacing: -0.03em;
+    margin: 0 0 4px 0;
+    color: var(--accent);
 }
 
 .subtitle {
-    font-size: 13px;
+    font-size: 11px;
     color: var(--text-secondary);
-    font-weight: 600;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-bottom: 4px;
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
 }
 
-/* Card Style */
+/* Header Enhancement */
+.header {
+    margin-bottom: 32px;
+}
+
+/* Card Style — Premium Glassmorphism */
 .card {
     background: var(--bg-card);
-    border-radius: 16px;
-    padding: 16px;
+    border-radius: 24px;
+    padding: 20px;
     margin-bottom: 16px;
-    box-shadow: 0 2px 8px rgba(74, 103, 74, 0.05);
-    border: 1px solid rgba(0,0,0,0.02);
+    box-shadow: var(--shadow);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-/* Segmented Control (New) */
+.card:active {
+    transform: scale(0.98);
+}
+
+/* Segmented Control (Glass) */
 .segmented-control {
     display: flex;
-    background: rgba(0,0,0,0.05);
-    border-radius: 10px;
-    padding: 2px;
-    margin-bottom: 24px;
+    background: rgba(0,0,0,0.04);
+    backdrop-filter: blur(10px);
+    border-radius: 16px;
+    padding: 4px;
+    margin-bottom: 28px;
+    position: sticky;
+    top: 16px;
+    z-index: 100;
+    border: 1px solid rgba(255,255,255,0.5);
 }
 
 .segment-item {
     flex: 1;
     text-align: center;
-    padding: 8px;
-    font-size: 13px;
+    padding: 10px 4px;
+    font-size: 14px;
     font-weight: 600;
     color: var(--text-secondary);
     cursor: pointer;
-    border-radius: 8px;
-    transition: all 0.2s;
+    border-radius: 12px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
 }
 
 .segment-item.active {
     background: var(--bg-card);
-    color: var(--text-primary);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    color: var(--accent);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    transform: translateY(-1px);
+}
+
+.segment-item i {
+    font-size: 18px;
 }
 
 /* Draft Styling */
 .draft-card {
-    border: 2px solid var(--warning);
-    background: #FFF9F0;
+    border: 1px solid rgba(255, 149, 0, 0.3);
+    background: linear-gradient(135deg, #FFF9F0 0%, #FFFFFF 100%);
 }
 
 .draft-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 10px;
+    margin-bottom: 12px;
     color: var(--warning);
-    font-weight: 700;
-    font-size: 12px;
+    font-weight: 800;
+    font-size: 11px;
     text-transform: uppercase;
 }
 
-/* FAB */
+/* FAB — Floating Action Button */
 .fab {
     position: fixed;
-    bottom: 24px;
-    right: 24px;
-    width: 60px;
-    height: 60px;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+    height: 56px;
+    padding: 0 24px;
     background: var(--accent);
-    border-radius: 30px;
-    box-shadow: 0 4px 12px rgba(74, 103, 74, 0.3);
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-light) 100%);
+    border-radius: 28px;
+    box-shadow: 0 8px 24px rgba(74, 103, 74, 0.3);
     display: flex;
     align-items: center;
     justify-content: center;
     color: white;
-    font-size: 24px;
+    font-size: 16px;
+    font-weight: 600;
+    gap: 8px;
     border: none;
     cursor: pointer;
-    z-index: 100;
+    z-index: 1000;
+    transition: all 0.2s ease;
 }
 
-/* Phosphor Icon Spacing */
-.ph-duotone {
-    vertical-align: middle;
-    margin-right: 4px;
+.fab:active {
+    transform: translateX(-50%) scale(0.95);
+    box-shadow: 0 4px 12px rgba(74, 103, 74, 0.2);
+}
+
+/* Search Input Styling */
+.search-input-wrapper {
+    position: relative;
+    margin-bottom: 24px;
+}
+
+.search-input {
+    width: 100%;
+    padding: 16px 16px 16px 48px;
+    border-radius: 20px;
+    border: 2px solid transparent;
+    background: var(--bg-card);
+    box-shadow: var(--shadow);
+    font-size: 16px;
+    font-family: inherit;
+    transition: all 0.3s ease;
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 12px 40px rgba(74, 103, 74, 0.12);
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.segment-content {
+    animation: fadeIn 0.4s ease-out;
 }

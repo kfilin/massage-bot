@@ -4,7 +4,10 @@ const tg = window.Telegram.WebApp;
 tg.expand();
 tg.ready();
 
+// Tab Switching Logic
 function switchSegment(el) {
+    if (!el) return;
+    
     // UI Update
     document.querySelectorAll('.segment-item').forEach(item => item.classList.remove('active'));
     el.classList.add('active');
@@ -14,11 +17,46 @@ function switchSegment(el) {
     document.querySelectorAll('.segment-content').forEach(content => {
         content.style.display = 'none';
     });
-    document.getElementById('content-' + target).style.display = 'block';
+    
+    const content = document.getElementById('content-' + target);
+    if (content) {
+        content.style.display = 'block';
+        // Simple animation
+        content.style.opacity = '0';
+        setTimeout(() => {
+            content.style.transition = 'opacity 0.3s ease';
+            content.style.opacity = '1';
+        }, 10);
+    }
     
     // Haptic Feedback
     tg.HapticFeedback.selectionChanged();
 }
+
+// Back Button Management
+function setupBackButton() {
+    // If we have a 'back=true' in URL or if history > 1, show back button
+    const urlParams = new URLSearchParams(window.location.search);
+    const canGoBack = window.history.length > 1 || urlParams.has('from_search');
+
+    if (canGoBack) {
+        tg.BackButton.show();
+        tg.BackButton.onClick(() => {
+            window.history.back();
+        });
+    } else {
+        tg.BackButton.hide();
+    }
+}
+
+// Initialize on Load
+window.addEventListener('DOMContentLoaded', () => {
+    setupBackButton();
+    
+    // Set Theme Colors
+    tg.setBackgroundColor('#F0F4F0');
+    tg.setHeaderColor('#F0F4F0');
+});
 
 async function approveDraft(id) {
     if (!confirm('Добавить эту расшифровку в постоянную карту?')) return;
@@ -61,12 +99,6 @@ async function discardDraft(id) {
     }
 }
 
-// Media Handling
 function openMedia(url, type) {
-    // Use Telegram's native photo viewer if it's an image
-    if (type === 'image' || type === 'photo') {
-        tg.showScanQrPopup({ text: 'Previewing image...' }); // Not ideal, but Telegram doesn't have a native image gallery API yet for local URLs
-        // For now, we open in a lightbox (implemented in next step or use existing one)
-    }
     window.open(url, '_blank');
 }

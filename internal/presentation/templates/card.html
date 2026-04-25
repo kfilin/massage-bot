@@ -3,19 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>{{.Title}}</title>
+    <title>Мед-карта: {{.Patient.Name}}</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <link rel="stylesheet" href="/static/card.css">
     <script src="/static/app.js" defer></script>
-    <script>
-        // Set Theme Colors via Telegram SDK
-        const tg = window.Telegram.WebApp;
-        tg.ready();
-        tg.expand();
-        tg.setBackgroundColor('#F0F4F0');
-        tg.setHeaderColor('#F0F4F0');
-    </script>
 </head>
 <body>
     <div id="app">
@@ -23,12 +15,12 @@
         <div class="header">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div class="subtitle">МЕДИЦИНСКАЯ КАРТА</div>
-                <div style="font-size: 10px; color: var(--text-secondary);">{{.BotVersion}}</div>
+                <div style="font-size: 10px; color: var(--text-secondary); font-weight: 600;">v{{.BotVersion}}</div>
             </div>
-            <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 4px;">
                 <h1 class="large-title">{{.Patient.Name}}</h1>
-                <div onclick="openEditModal()" style="width: 38px; height: 38px; background: var(--separator); border-radius: 19px; display: flex; align-items: center; justify-content: center; margin-bottom: 6px; cursor: pointer;">
-                    <i class="ph-duotone ph-user" style="font-size: 20px; color: var(--accent);"></i>
+                <div onclick="tg.HapticFeedback.impactOccurred('medium')" style="width: 44px; height: 44px; background: var(--bg-card); border-radius: 22px; display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow); cursor: pointer;">
+                    <i class="ph-duotone ph-user-circle" style="font-size: 28px; color: var(--accent);"></i>
                 </div>
             </div>
         </div>
@@ -39,66 +31,90 @@
                 <i class="ph-duotone ph-clock"></i> История
             </div>
             <div class="segment-item" data-target="notes" onclick="switchSegment(this)">
-                <i class="ph-duotone ph-file-text"></i> Заметки
+                <i class="ph-duotone ph-notebook"></i> Заметки
             </div>
             <div class="segment-item" data-target="files" onclick="switchSegment(this)">
-                <i class="ph-duotone ph-folder"></i> Файлы
+                <i class="ph-duotone ph-folder-open"></i> Файлы
             </div>
         </div>
 
         <!-- Content Area -->
         <div id="content-history" class="segment-content">
              <!-- History Items -->
-              {{range .RecentVisits}}
-              <div class="card">
-                  <div class="subtitle">{{.StartTime.Format "02.01.2006"}}</div>
-                  <div style="font-weight: 600;">{{.Service.Name}}</div>
-                  <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">#подтвержден</div>
-              </div>
+              {{if .RecentVisits}}
+                  {{range .RecentVisits}}
+                  <div class="card">
+                      <div class="subtitle">{{.StartTime.Format "02.01.2006"}}</div>
+                      <div style="font-weight: 600; font-size: 17px;">{{.Service.Name}}</div>
+                      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+                          <div style="font-size: 12px; color: var(--accent); background: rgba(74, 103, 74, 0.1); padding: 4px 8px; border-radius: 6px; font-weight: 600;">#подтвержден</div>
+                          <div style="font-size: 13px; color: var(--text-secondary);">{{.StartTime.Format "15:04"}}</div>
+                      </div>
+                  </div>
+                  {{end}}
+              {{else}}
+                  <div style="text-align: center; padding: 40px 20px; color: var(--text-secondary);">
+                      <i class="ph-duotone ph-calendar-blank" style="font-size: 48px; opacity: 0.3;"></i>
+                      <p style="margin-top: 12px;">История посещений пуста</p>
+                  </div>
               {{end}}
         </div>
 
         <div id="content-notes" class="segment-content" style="display:none;">
-            <!-- Drafts first -->
+            <!-- Orange Drafts (Review Needed) -->
             {{range .Drafts}}
-            <div class="card draft-card" id="draft-{{.ID}}">
+            <div id="draft-{{.ID}}" class="card draft-card">
                 <div class="draft-header">
-                    <span><i class="ph-duotone ph-warning-circle"></i> ЧЕРНОВИК</span>
+                    <span>🟠 ЧЕРНОВИК (ГОЛОСОВОЕ)</span>
                     <span>{{.Date}}</span>
                 </div>
-                <div style="font-size: 14px; line-height: 1.5;">{{.Transcript}}</div>
+                <div style="font-style: italic; color: var(--text-primary); margin-bottom: 12px; line-height: 1.4;">"{{.Transcript}}"</div>
                 <div style="display: flex; gap: 8px; margin-top: 12px;">
-                    <button class="btn-small btn-approve" onclick="approveDraft('{{.ID}}')">✅ В карту</button>
-                    <button class="btn-small btn-discard" onclick="discardDraft('{{.ID}}')">🗑️ Удалить</button>
+                    <button class="btn-small btn-approve" onclick="approveDraft('{{.ID}}')" style="flex: 1; padding: 10px; border-radius: 12px; border: none; background: var(--accent); color: white; font-weight: 600; cursor: pointer;">✅ В карту</button>
+                    <button class="btn-small btn-discard" onclick="discardDraft('{{.ID}}')" style="flex: 1; padding: 10px; border-radius: 12px; border: 1px solid var(--danger); background: none; color: var(--danger); font-weight: 600; cursor: pointer;">🗑️ Удалить</button>
                 </div>
             </div>
             {{end}}
 
             <!-- Permanent Notes -->
             <div class="card">
-                <div style="white-space: pre-wrap;">{{.Patient.TherapistNotes}}</div>
+                <div class="subtitle">ТЕРАПЕВТИЧЕСКИЕ ЗАМЕТКИ</div>
+                <div style="white-space: pre-wrap; line-height: 1.6; color: var(--text-primary);">{{if .Patient.TherapistNotes}}{{.Patient.TherapistNotes}}{{else}}<span style="color: var(--text-secondary); font-style: italic;">Записей пока нет...</span>{{end}}</div>
             </div>
         </div>
 
         <div id="content-files" class="segment-content" style="display:none;">
-            {{range .DocGroups}}
-            <div class="card">
-                <div class="subtitle">{{.Name}} ({{.Count}})</div>
-                {{range .Files}}
-                <div style="display: flex; align-items: center; margin-top: 8px; gap: 10px;">
-                    <i class="ph-duotone {{if eq .FileType "voice"}}ph-microphone{{else if eq .FileType "image"}}ph-image{{else}}ph-file{{end}}" style="font-size: 24px; color: var(--accent);"></i>
-                    <div style="flex-grow: 1; font-size: 14px;">{{.CreatedAt.Format "02.01 15:04"}}</div>
-                    <button onclick="openMedia('/api/media/{{.ID}}', '{{.FileType}}')" style="color: var(--accent); background: none; border: none; font-weight: 600;">Открыть</button>
+            {{if .DocGroups}}
+                {{range .DocGroups}}
+                <div class="card">
+                    <div class="subtitle">{{.Name}} ({{.Count}})</div>
+                    {{range .Files}}
+                    <div style="display: flex; align-items: center; margin-top: 12px; gap: 12px; padding-top: 12px; border-top: 1px solid var(--separator);">
+                        <div style="width: 40px; height: 40px; background: rgba(74, 103, 74, 0.05); border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                            <i class="ph-duotone {{if eq .FileType "voice"}}ph-microphone-stage{{else if eq .FileType "image"}}ph-image-square{{else}}ph-file-text{{end}}" style="font-size: 20px; color: var(--accent);"></i>
+                        </div>
+                        <div style="flex-grow: 1;">
+                            <div style="font-size: 14px; font-weight: 600;">{{.CreatedAt.Format "02.01.2006"}}</div>
+                            <div style="font-size: 12px; color: var(--text-secondary);">{{.CreatedAt.Format "15:04"}}</div>
+                        </div>
+                        <button onclick="openMedia('/api/media/{{.ID}}', '{{.FileType}}')" style="color: var(--accent); background: rgba(74, 103, 74, 0.08); border: none; padding: 6px 12px; border-radius: 8px; font-weight: 700; font-size: 12px;">ОТКРЫТЬ</button>
+                    </div>
+                    {{end}}
                 </div>
                 {{end}}
-            </div>
+            {{else}}
+                <div style="text-align: center; padding: 40px 20px; color: var(--text-secondary);">
+                    <i class="ph-duotone ph-files" style="font-size: 48px; opacity: 0.3;"></i>
+                    <p style="margin-top: 12px;">Файлы не найдены</p>
+                </div>
             {{end}}
         </div>
-
     </div>
 
-    <!-- FAB -->
-    <button class="fab" onclick="openEditModal()"><i class="ph-duotone ph-microphone"></i></button>
-
+    <!-- Global FAB -->
+    <button class="fab" onclick="tg.HapticFeedback.impactOccurred('heavy'); tg.close();">
+        <i class="ph-duotone ph-house"></i>
+        ГЛАВНОЕ МЕНЮ
+    </button>
 </body>
 </html>

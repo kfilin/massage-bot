@@ -58,9 +58,8 @@ func (p *BotPresenter) FormatAppointment(appt *domain.Appointment, isAdmin bool)
 	sb.WriteString("──────────────────\n")
 	sb.WriteString(fmt.Sprintf("👤 <b>Пациент:</b> %s\n", appt.CustomerName))
 	sb.WriteString(fmt.Sprintf("💆 <b>Услуга:</b> %s\n", appt.Service.Name))
-	sb.WriteString(fmt.Sprintf("🕒 <b>Время:</b> %s в %s\n", 
-		appt.StartTime.Format("02.01.2006"),
-		appt.StartTime.Format("15:04")))
+	sb.WriteString(fmt.Sprintf("📅 <b>Дата:</b> %s\n", appt.StartTime.Format("02.01.2006")))
+	sb.WriteString(fmt.Sprintf("⏰ <b>Время:</b> %s\n", appt.StartTime.Format("15:04")))
 	
 	if appt.Duration > 0 {
 		sb.WriteString(fmt.Sprintf("⏳ <b>Длительность:</b> %d мин\n", appt.Duration))
