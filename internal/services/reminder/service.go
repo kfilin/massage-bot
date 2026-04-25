@@ -83,17 +83,17 @@ func (s *Service) ScanAndSendReminders(ctx context.Context) {
 
 		// 1. 72h Reminder (3 days)
 		if timeToAppt <= 72*time.Hour && timeToAppt > 71*time.Hour {
-			s.sendReminder(appt, "72h")
+			s.sendReminder(&appt, "72h")
 		}
 
 		// 2. 24h Reminder (1 day)
 		if timeToAppt <= 24*time.Hour && timeToAppt > 23*time.Hour {
-			s.sendReminder(appt, "24h")
+			s.sendReminder(&appt, "24h")
 		}
 	}
 }
 
-func (s *Service) sendReminder(appt domain.Appointment, reminderType string) {
+func (s *Service) sendReminder(appt *domain.Appointment, reminderType string) {
 	// Check if already sent
 	confirmedAt, sentMap, err := s.repo.GetAppointmentMetadata(appt.ID)
 	if err == nil && sentMap[reminderType] {

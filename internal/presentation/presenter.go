@@ -48,7 +48,7 @@ func NewBotPresenter() *BotPresenter {
 }
 
 // FormatAppointment formats a clinical concierge-style appointment message
-func (p *BotPresenter) FormatAppointment(appt domain.Appointment, isAdmin bool) string {
+func (p *BotPresenter) FormatAppointment(appt *domain.Appointment, isAdmin bool) string {
 	var sb strings.Builder
 	if isAdmin {
 		sb.WriteString("🆕 <b>НОВАЯ ЗАПИСЬ</b>\n")
@@ -79,7 +79,7 @@ func (p *BotPresenter) FormatAppointment(appt domain.Appointment, isAdmin bool) 
 }
 
 // FormatCancellation formats a cancellation message
-func (p *BotPresenter) FormatCancellation(appt domain.Appointment, isAdmin bool) string {
+func (p *BotPresenter) FormatCancellation(appt *domain.Appointment, isAdmin bool) string {
 	var sb strings.Builder
 	if isAdmin {
 		sb.WriteString("⚠️ <b>ЗАПИСЬ ОТМЕНЕНА</b>\n")
