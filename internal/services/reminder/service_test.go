@@ -97,6 +97,7 @@ func (m *mockReminderRepo) SaveAppointmentMetadata(apptID string, confirmedAt *t
 func (m *mockReminderRepo) SavePatient(p domain.Patient) error                      { return nil }
 func (m *mockReminderRepo) UpdatePatientProfile(id, name, notes string) error        { return nil }
 func (m *mockReminderRepo) GetPatient(id string) (domain.Patient, error)             { return domain.Patient{}, nil }
+func (m *mockReminderRepo) GetAllPatients() ([]domain.Patient, error)              { return nil, nil }
 func (m *mockReminderRepo) SearchPatients(q string) ([]domain.Patient, error)        { return nil, nil }
 func (m *mockReminderRepo) IsUserBanned(tid, un string) (bool, error)                { return false, nil }
 func (m *mockReminderRepo) BanUser(id string) error                                  { return nil }

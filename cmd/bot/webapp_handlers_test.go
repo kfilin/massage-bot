@@ -34,6 +34,8 @@ func (m *mockRepo) GetPatient(id string) (domain.Patient, error) {
 	return domain.Patient{}, fmt.Errorf("not found")
 }
 
+func (m *mockRepo) GetAllPatients() ([]domain.Patient, error) { return nil, nil }
+
 func (m *mockRepo) GenerateHTMLRecord(p domain.Patient, h []domain.Appointment, isAdmin bool) string {
 	return fmt.Sprintf("HTML_RECORD_FOR_%s_ADMIN_%v", p.Name, isAdmin)
 }

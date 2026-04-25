@@ -272,6 +272,8 @@ func (m *mockRepository) GetPatient(telegramID string) (domain.Patient, error) {
 	return domain.Patient{TelegramID: telegramID}, nil
 }
 
+func (m *mockRepository) GetAllPatients() ([]domain.Patient, error) { return nil, nil }
+
 func (m *mockRepository) SearchPatients(query string) ([]domain.Patient, error) {
 	if m.searchPatientsFunc != nil {
 		return m.searchPatientsFunc(query)

@@ -9,6 +9,7 @@ import (
 type Repository interface {
 	SavePatient(patient domain.Patient) error
 	GetPatient(telegramID string) (domain.Patient, error)
+	GetAllPatients() ([]domain.Patient, error)
 	SearchPatients(query string) ([]domain.Patient, error)
 	IsUserBanned(telegramID string, username string) (bool, error)
 	BanUser(telegramID string) error

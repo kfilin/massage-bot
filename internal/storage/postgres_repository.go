@@ -428,3 +428,14 @@ func (r *PostgresRepository) SearchPatients(query string) ([]domain.Patient, err
 	}
 	return patients, nil
 }
+
+// GetAllPatients returns all patients sorted alphabetically
+func (r *PostgresRepository) GetAllPatients() ([]domain.Patient, error) {
+	var patients []domain.Patient
+	query := `SELECT * FROM patients ORDER BY name ASC`
+	err := r.db.Select(&patients, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get all patients: %w", err)
+	}
+	return patients, nil
+}
