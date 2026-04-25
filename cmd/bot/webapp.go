@@ -118,6 +118,7 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 	if err != nil {
 		log.Fatalf("Failed to initialize web presenter: %v", err)
 	}
+	botPresenter := presentation.NewBotPresenter()
 
 	// Static Assets (using internal/presentation/templates)
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(presentation.StaticFS))))
@@ -131,7 +132,7 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 	// API Handlers
 	mux.HandleFunc("/api/search", NewSearchHandler(repo, botToken, adminIDs))
 	mux.HandleFunc("/api/patient/update", NewUpdatePatientHandler(repo, botToken, adminIDs))
-	mux.HandleFunc("/cancel", NewCancelHandler(apptService, botToken, adminIDs))
+	mux.HandleFunc("/cancel", NewCancelHandler(apptService, botToken, adminIDs, botPresenter))
 	mux.HandleFunc("/api/transcribe", NewTranscribeHandler(transcriptionService, botToken))
 
 	// Draft Handlers
@@ -258,7 +259,7 @@ func sendTelegramMessage(token, chatID, text string) {
 	payload, _ := json.Marshal(map[string]string{
 		"chat_id":    chatID,
 		"text":       text,
-		"parse_mode": "Markdown",
+		"parse_mode": "HTML",
 	})
 
 	resp, err := http.Post(apiURL, "application/json", strings.NewReader(string(payload)))

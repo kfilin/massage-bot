@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/kfilin/massage-bot/internal/domain"
+	"github.com/kfilin/massage-bot/internal/presentation"
 	"gopkg.in/telebot.v3"
 )
 
@@ -122,7 +123,7 @@ func (m *mockReminderRepo) DeleteAppointment(id string) error                   
 
 func TestScanAndSendReminders_NoAppointments(t *testing.T) {
 	bot := &mockBotSender{}
-	svc := NewService(&mockApptService{}, newMockReminderRepo(), bot, nil)
+	svc := NewService(&mockApptService{}, newMockReminderRepo(), bot, nil, presentation.NewBotPresenter())
 
 	// Should not panic with an empty list
 	svc.ScanAndSendReminders(context.Background())
@@ -142,7 +143,7 @@ func TestScanAndSendReminders_SkipsNoTgID(t *testing.T) {
 	}
 
 	bot := &mockBotSender{}
-	svc := NewService(&mockApptService{upcomingAppts: []domain.Appointment{appt}}, newMockReminderRepo(), bot, nil)
+	svc := NewService(&mockApptService{upcomingAppts: []domain.Appointment{appt}}, newMockReminderRepo(), bot, nil, presentation.NewBotPresenter())
 	svc.ScanAndSendReminders(context.Background())
 
 	if len(bot.sentTo) != 0 {
@@ -160,7 +161,7 @@ func TestScanAndSendReminders_SkipsCancelled(t *testing.T) {
 	}
 
 	bot := &mockBotSender{}
-	svc := NewService(&mockApptService{upcomingAppts: []domain.Appointment{appt}}, newMockReminderRepo(), bot, nil)
+	svc := NewService(&mockApptService{upcomingAppts: []domain.Appointment{appt}}, newMockReminderRepo(), bot, nil, presentation.NewBotPresenter())
 	svc.ScanAndSendReminders(context.Background())
 
 	if len(bot.sentTo) != 0 {
@@ -181,7 +182,7 @@ func TestScanAndSendReminders_Sends72hReminder(t *testing.T) {
 
 	bot := &mockBotSender{}
 	repo := newMockReminderRepo()
-	svc := NewService(&mockApptService{upcomingAppts: []domain.Appointment{appt}}, repo, bot, nil)
+	svc := NewService(&mockApptService{upcomingAppts: []domain.Appointment{appt}}, repo, bot, nil, presentation.NewBotPresenter())
 	svc.ScanAndSendReminders(context.Background())
 
 	if len(bot.sentTo) != 1 {
@@ -205,7 +206,7 @@ func TestScanAndSendReminders_Sends24hReminder(t *testing.T) {
 
 	bot := &mockBotSender{}
 	repo := newMockReminderRepo()
-	svc := NewService(&mockApptService{upcomingAppts: []domain.Appointment{appt}}, repo, bot, nil)
+	svc := NewService(&mockApptService{upcomingAppts: []domain.Appointment{appt}}, repo, bot, nil, presentation.NewBotPresenter())
 	svc.ScanAndSendReminders(context.Background())
 
 	if len(bot.sentTo) != 1 {
@@ -218,7 +219,7 @@ func TestScanAndSendReminders_Sends24hReminder(t *testing.T) {
 
 func TestScanAndSendReminders_RepoError(t *testing.T) {
 	bot := &mockBotSender{}
-	svc := NewService(&mockApptService{err: errors.New("db error")}, newMockReminderRepo(), bot, nil)
+	svc := NewService(&mockApptService{err: errors.New("db error")}, newMockReminderRepo(), bot, nil, presentation.NewBotPresenter())
 
 	// Should not panic — just log and return
 	svc.ScanAndSendReminders(context.Background())
@@ -243,7 +244,7 @@ func TestSendReminder_AlreadySent_Skip(t *testing.T) {
 	// Mark 72h as already sent
 	repo.metadataReminderMap["72h"] = true
 
-	svc := NewService(&mockApptService{upcomingAppts: []domain.Appointment{appt}}, repo, bot, nil)
+	svc := NewService(&mockApptService{upcomingAppts: []domain.Appointment{appt}}, repo, bot, nil, presentation.NewBotPresenter())
 	svc.ScanAndSendReminders(context.Background())
 
 	// Should be skipped
@@ -268,7 +269,7 @@ func TestSendReminder_Confirmed24h_Skip(t *testing.T) {
 	confirmedTime := now.Add(-1 * time.Hour)
 	repo.metadataConfirmedAt = &confirmedTime
 
-	svc := NewService(&mockApptService{upcomingAppts: []domain.Appointment{appt}}, repo, bot, nil)
+	svc := NewService(&mockApptService{upcomingAppts: []domain.Appointment{appt}}, repo, bot, nil, presentation.NewBotPresenter())
 	svc.ScanAndSendReminders(context.Background())
 
 	// 24h reminder should be skipped when appointment is already confirmed
@@ -288,7 +289,7 @@ func TestSendReminder_BotSendError_DoesNotPanic(t *testing.T) {
 	}
 
 	bot := &mockBotSender{err: errors.New("telegram unavailable")}
-	svc := NewService(&mockApptService{upcomingAppts: []domain.Appointment{appt}}, newMockReminderRepo(), bot, nil)
+	svc := NewService(&mockApptService{upcomingAppts: []domain.Appointment{appt}}, newMockReminderRepo(), bot, nil, presentation.NewBotPresenter())
 
 	// Should not panic even if bot.Send fails
 	svc.ScanAndSendReminders(context.Background())

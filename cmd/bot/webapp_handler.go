@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -391,19 +392,31 @@ func NewSearchHandler(repo ports.Repository, botToken string, adminIDs []string)
 		}
 
 		query := r.URL.Query().Get("q")
-		patients, err := repo.SearchPatients(query)
+		var patients []domain.Patient
+		if query == "" {
+			// Get all patients for the initial view
+			patients, err = repo.GetAllPatients()
+		} else {
+			patients, err = repo.SearchPatients(query)
+		}
+
 		if err != nil {
 			logging.Errorf("Search failed: %v", err)
 			http.Error(w, "Search failed", http.StatusInternalServerError)
 			return
 		}
 
+		// Sort alphabetically by name
+		sort.Slice(patients, func(i, j int) bool {
+			return strings.ToLower(patients[i].Name) < strings.ToLower(patients[j].Name)
+		})
+
 		type patResult struct {
 			TelegramID  string `json:"telegram_id"`
 			Name        string `json:"name"`
 			TotalVisits int    `json:"total_visits"`
 		}
-		var results []patResult
+		results := make([]patResult, 0)
 		for _, p := range patients {
 			results = append(results, patResult{
 				TelegramID:  p.TelegramID,
@@ -416,7 +429,7 @@ func NewSearchHandler(repo ports.Repository, botToken string, adminIDs []string)
 }
 
 // NewCancelHandler creates the handler for Appointment Cancellation
-func NewCancelHandler(apptService ports.AppointmentService, botToken string, adminIDs []string) http.HandlerFunc {
+func NewCancelHandler(apptService ports.AppointmentService, botToken string, adminIDs []string, presenter *presentation.BotPresenter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
@@ -487,7 +500,7 @@ func NewCancelHandler(apptService ports.AppointmentService, botToken string, adm
 			return
 		}
 
-		notificationMsg := fmt.Sprintf("⚠️ *Запись отменена!*\n\nПациент: %s\nДата: %s", appt.CustomerName, appt.StartTime.Format("02.01 15:04"))
+		notificationMsg := presenter.FormatCancellation(appt, true)
 		for _, adminID := range adminIDs {
 			sendTelegramMessage(botToken, adminID, notificationMsg)
 		}

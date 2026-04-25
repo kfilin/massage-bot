@@ -566,8 +566,7 @@ func (h *BookingHandler) HandleReminderConfirmation(c telebot.Context) error {
 	// Notify Vera
 	appt, err := h.appointmentService.FindByID(context.Background(), apptID)
 	if err == nil {
-		notification := fmt.Sprintf("✅ <b>Запись подтверждена!</b>\n\nПациент: %s\nДата: %s\nУслуга: %s",
-			appt.CustomerName, appt.StartTime.Format("02.01 15:04"), appt.Service.Name)
+		notification := h.presenter.FormatAppointment(appt, true)
 
 		for _, adminIDStr := range h.adminIDs {
 			adminID, _ := strconv.ParseInt(adminIDStr, 10, 64)
@@ -816,23 +815,7 @@ func (h *BookingHandler) askForConfirmation(c telebot.Context) error {
 		title = "<b>Подтвердите создание ручной записи:</b>"
 	}
 
-	confirmMessage := fmt.Sprintf(
-		"%s\n\n"+
-			"Услуга: <b>%s</b>\n"+
-			"Длительность: <b>%d мин</b>\n"+
-			"Цена: <b>%.0f ₺</b>\n"+
-			"Дата: <b>%s</b>\n"+
-			"Время: <b>%s</b>\n"+
-			"Пациент: <b>%s</b>\n\n"+
-			"Всё верно?",
-		title,
-		service.Name,
-		service.DurationMinutes,
-		service.Price,
-		appointmentTime.Format("02.01.2006"),
-		appointmentTime.Format("15:04"),
-		name,
-	)
+	confirmMessage := h.presenter.FormatBookingSummary(title, name, service.Name, appointmentTime, service.DurationMinutes, service.Price)
 
 	// Inline Keyboard - One button per row for maximum prominence
 	selector := &telebot.ReplyMarkup{}
@@ -958,19 +941,23 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 		for _, adminIDStr := range h.adminIDs {
 			adminID, _ := strconv.ParseInt(adminIDStr, 10, 64)
 			if adminID != userID { // Don't notify the admin who created the block
-				h.BotNotify(c.Bot(), adminID, fmt.Sprintf("🔒 *Время заблокировано*\n\nАдмин: %s\nДата: %s\nВремя: %s\nДлительность: %s",
-					blockerName,
-					appointmentTime.Format("02.01.2006"),
-					appointmentTime.Format("15:04"),
-					service.Name))
+				details := map[string]string{
+					"Админ":  blockerName,
+					"Дата":   appointmentTime.Format("02.01.2006"),
+					"Время":  appointmentTime.Format("15:04"),
+					"Услуга": service.Name,
+				}
+				h.BotNotify(c.Bot(), adminID, h.presenter.FormatNotification("Время заблокировано", details))
 			}
 		}
 
 		// Use createdAppt info if available, otherwise use request data
-		return c.Send(fmt.Sprintf("✅ <b>Время заблокировано!</b>\n\n📅 %s\n⏰ %s\n⏳ %s",
-			appointmentTime.Format("02.01.2006"),
-			appointmentTime.Format("15:04"),
-			service.Name), telebot.ModeHTML)
+		details := map[string]string{
+			"Дата":         appointmentTime.Format("02.01.2006"),
+			"Время":        appointmentTime.Format("15:04"),
+			"Услуга":       service.Name,
+		}
+		return c.Send(h.presenter.FormatNotification("Время заблокировано", details), telebot.ModeHTML)
 	}
 	// Update or create patient record using robust sync
 	var nameInSync string
@@ -1273,10 +1260,7 @@ func (h *BookingHandler) HandleCancelAppointmentCallback(c telebot.Context) erro
 	if appt != nil {
 		for _, adminIDStr := range h.adminIDs {
 			adminID, _ := strconv.ParseInt(adminIDStr, 10, 64)
-			h.BotNotify(c.Bot(), adminID, fmt.Sprintf("⚠️ *Запись отменена!*\n\nПациент: %s (ID: %s)\nУслуга: %s\nДата: %s\nВремя: %s",
-				appt.CustomerName, appt.CustomerTgID, appt.Service.Name,
-				appt.StartTime.In(domain.ApptTimeZone).Format("02.01.2006"),
-				appt.StartTime.In(domain.ApptTimeZone).Format("15:04")))
+			h.BotNotify(c.Bot(), adminID, h.presenter.FormatCancellation(appt, true))
 		}
 
 		// Robust sync after cancellation
@@ -1550,9 +1534,9 @@ func (h *BookingHandler) HandleFileMessage(c telebot.Context) error {
 				selector.Row(btnOpenTWA),
 			)
 
-			for _, adminID := range h.adminIDs {
-				recipient := &telebot.User{ID: func() int64 { id, _ := strconv.ParseInt(adminID, 10, 64); return id }()}
-				_, _ = c.Bot().Send(recipient, reviewMsg, selector, telebot.ModeHTML)
+			for _, adminIDStr := range h.adminIDs {
+				adminID, _ := strconv.ParseInt(adminIDStr, 10, 64)
+				h.BotNotify(c.Bot(), adminID, reviewMsg, selector)
 			}
 			
 			return c.Send("✅ Сообщение получено. Терапевт скоро его изучит.")
@@ -1565,11 +1549,13 @@ func (h *BookingHandler) HandleFileMessage(c telebot.Context) error {
 	}
 
 	// Notify admins with HTML to avoid parsing errors with underscores in filenames
-	notification := fmt.Sprintf("📂 <b>Новый файл в мед-карте!</b>\n\nПациент: %s (ID: %s)\nФайл: <code>%s</code>\nРазмер: %.2f MB",
-		html.EscapeString(patient.Name),
-		html.EscapeString(telegramID),
-		html.EscapeString(fileName),
-		float64(fileSize)/(1024*1024))
+	details := map[string]string{
+		"Пациент": html.EscapeString(patient.Name),
+		"ID":      html.EscapeString(telegramID),
+		"Файл":    fmt.Sprintf("<code>%s</code>", html.EscapeString(fileName)),
+		"Размер":  fmt.Sprintf("%.2f MB", float64(fileSize)/(1024*1024)),
+	}
+	notification := h.presenter.FormatNotification("Новый файл в мед-карте", details)
 
 	// Add link to med-card and Reply button
 	selector := &telebot.ReplyMarkup{}

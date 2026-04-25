@@ -6,7 +6,9 @@ import (
 	"html/template"
 	"io"
 	"io/fs"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/kfilin/massage-bot/internal/domain"
 )
@@ -60,6 +62,10 @@ func (p *BotPresenter) FormatAppointment(appt domain.Appointment, isAdmin bool) 
 		appt.StartTime.Format("02.01.2006"),
 		appt.StartTime.Format("15:04")))
 	
+	if appt.Duration > 0 {
+		sb.WriteString(fmt.Sprintf("⏳ <b>Длительность:</b> %d мин\n", appt.Duration))
+	}
+
 	if appt.MeetLink != "" {
 		sb.WriteString(fmt.Sprintf("💻 <b>Meet:</b> <a href=\"%s\">Перейти</a>\n", appt.MeetLink))
 	}
@@ -69,6 +75,63 @@ func (p *BotPresenter) FormatAppointment(appt domain.Appointment, isAdmin bool) 
 		sb.WriteString("<i>💡 Приходите за 5 минут до начала. До встречи! 💙</i>")
 	}
 	
+	return sb.String()
+}
+
+// FormatCancellation formats a cancellation message
+func (p *BotPresenter) FormatCancellation(appt domain.Appointment, isAdmin bool) string {
+	var sb strings.Builder
+	if isAdmin {
+		sb.WriteString("⚠️ <b>ЗАПИСЬ ОТМЕНЕНА</b>\n")
+	} else {
+		sb.WriteString("🚫 <b>ВАША ЗАПИСЬ ОТМЕНЕНА</b>\n")
+	}
+	sb.WriteString("──────────────────\n")
+	sb.WriteString(fmt.Sprintf("👤 <b>Пациент:</b> %s\n", appt.CustomerName))
+	sb.WriteString(fmt.Sprintf("🕒 <b>Было назначено:</b> %s в %s\n", 
+		appt.StartTime.Format("02.01.2006"),
+		appt.StartTime.Format("15:04")))
+	sb.WriteString("──────────────────\n")
+	if !isAdmin {
+		sb.WriteString("<i>Для выбора другого времени используйте /start</i>")
+	}
+	return sb.String()
+}
+
+// FormatNotification formats a generic clinical notification (e.g. locks, admin actions)
+func (p *BotPresenter) FormatNotification(header string, details map[string]string) string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("🔔 <b>%s</b>\n", strings.ToUpper(header)))
+	sb.WriteString("──────────────────\n")
+	
+	// Sort keys for consistent output
+	keys := make([]string, 0, len(details))
+	for k := range details {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		sb.WriteString(fmt.Sprintf("• %s: %s\n", k, details[k]))
+	}
+	sb.WriteString("──────────────────\n")
+	return sb.String()
+}
+
+// FormatBookingSummary formats a pre-confirmation booking summary
+func (p *BotPresenter) FormatBookingSummary(title string, patientName string, serviceName string, date time.Time, duration int, price float64) string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("📖 <b>%s</b>\n", strings.ToUpper(title)))
+	sb.WriteString("──────────────────\n")
+	sb.WriteString(fmt.Sprintf("👤 <b>Пациент:</b> %s\n", patientName))
+	sb.WriteString(fmt.Sprintf("💆 <b>Услуга:</b> %s\n", serviceName))
+	sb.WriteString(fmt.Sprintf("🕒 <b>Время:</b> %s в %s\n", date.Format("02.01.2006"), date.Format("15:04")))
+	sb.WriteString(fmt.Sprintf("⏳ <b>Длительность:</b> %d мин\n", duration))
+	if price > 0 {
+		sb.WriteString(fmt.Sprintf("💰 <b>Цена:</b> %.0f ₺\n", price))
+	}
+	sb.WriteString("──────────────────\n")
+	sb.WriteString("<i>Всё верно?</i>")
 	return sb.String()
 }
 

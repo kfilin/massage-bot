@@ -128,7 +128,7 @@ func RunBot(
 	bookingHandler := handlers.NewBookingHandler(appointmentService, sessionStorage, finalAdminIDs, therapistIDs, trans, repo, botPresenter, webAppURL, webAppSecret)
 
 	// Initialize and start Reminder Service
-	reminderService := reminder.NewService(appointmentService, repo, b, finalAdminIDs)
+	reminderService := reminder.NewService(appointmentService, repo, b, finalAdminIDs, botPresenter)
 	reminderService.Start(context.Background())
 
 	// Start Daily Backup Worker (Sent to Primary Admin)

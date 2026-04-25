@@ -8,6 +8,14 @@
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <link rel="stylesheet" href="/static/card.css">
     <script src="/static/app.js" defer></script>
+    <script>
+        // Set Theme Colors via Telegram SDK
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+        tg.setBackgroundColor('#F0F4F0');
+        tg.setHeaderColor('#F0F4F0');
+    </script>
 </head>
 <body>
     <div id="app">
@@ -41,13 +49,13 @@
         <!-- Content Area -->
         <div id="content-history" class="segment-content">
              <!-- History Items -->
-             {{range .RecentVisits}}
-             <div class="card">
-                 <div class="subtitle">{{.Date}}</div>
-                 <div style="font-weight: 600;">{{.Service}}</div>
-                 <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">#подтвержден</div>
-             </div>
-             {{end}}
+              {{range .RecentVisits}}
+              <div class="card">
+                  <div class="subtitle">{{.StartTime.Format "02.01.2006"}}</div>
+                  <div style="font-weight: 600;">{{.Service.Name}}</div>
+                  <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">#подтвержден</div>
+              </div>
+              {{end}}
         </div>
 
         <div id="content-notes" class="segment-content" style="display:none;">

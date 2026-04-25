@@ -2,12 +2,11 @@ package reminder
 
 import (
 	"context"
-	"fmt"
-	"log"
 	"strconv"
 	"time"
 
 	"github.com/kfilin/massage-bot/internal/logging"
+	"github.com/kfilin/massage-bot/internal/presentation"
 
 	"github.com/kfilin/massage-bot/internal/domain"
 	"github.com/kfilin/massage-bot/internal/ports"
@@ -25,20 +24,22 @@ type Service struct {
 	repo        ports.Repository
 	bot         BotSender
 	adminIDs    []string
+	presenter   *presentation.BotPresenter
 }
 
-func NewService(as ports.AppointmentService, repo ports.Repository, bot BotSender, adminIDs []string) *Service {
+func NewService(as ports.AppointmentService, repo ports.Repository, bot BotSender, adminIDs []string, p *presentation.BotPresenter) *Service {
 	return &Service{
 		apptService: as,
 		repo:        repo,
 		bot:         bot,
 		adminIDs:    adminIDs,
+		presenter:   p,
 	}
 }
 
 func (s *Service) Start(ctx context.Context) {
 	ticker := time.NewTicker(10 * time.Minute)
-	log.Println("Reminder Service started.")
+	logging.Infof("Reminder Service started.")
 
 	go func() {
 		for {
@@ -54,7 +55,7 @@ func (s *Service) Start(ctx context.Context) {
 }
 
 func (s *Service) ScanAndSendReminders(ctx context.Context) {
-	log.Println("Scanning for appointments to send reminders...")
+	logging.Infof("Scanning for appointments to send reminders...")
 
 	now := time.Now().In(domain.ApptTimeZone)
 	// Scan window: from now up to 73 hours ahead (to catch 72h + 24h)
@@ -111,23 +112,18 @@ func (s *Service) sendReminder(appt domain.Appointment, reminderType string) {
 	var msg string
 	var menu *telebot.ReplyMarkup
 
+	// Use presenter for clinical style
+	msg = s.presenter.FormatAppointment(appt, false)
 	if reminderType == "72h" {
-		msg = fmt.Sprintf("🔔 <b>Напоминание о записи!</b>\n\nЧерез 3 дня (%s) у вас запись: <b>%s</b> в <b>%s</b>.\n\nПожалуйста, подтвердите ваше присутствие или отмените запись, если ваши планы изменились.",
-			appt.StartTime.Format("02.01"), appt.Service.Name, appt.StartTime.Format("15:04"))
-
-		menu = &telebot.ReplyMarkup{}
-		btnConfirm := menu.Data("✅ Подтвердить", "confirm_appt_reminder", appt.ID)
-		btnCancel := menu.Data("❌ Отменить", "cancel_appt_reminder", appt.ID)
-		menu.Inline(menu.Row(btnConfirm, btnCancel))
+		msg = "🔔 <b>Напоминание (за 3 дня)</b>\n" + msg + "\n\n<i>Пожалуйста, подтвердите ваше присутствие.</i>"
 	} else if reminderType == "24h" {
-		msg = fmt.Sprintf("🔔 <b>Напоминание о записи!</b>\n\nЗавтра (%s) у вас запись: <b>%s</b> в <b>%s</b>.\n\nПожалуйста, подтвердите ваше присутствие.",
-			appt.StartTime.Format("02.01"), appt.Service.Name, appt.StartTime.Format("15:04"))
-
-		menu = &telebot.ReplyMarkup{}
-		btnConfirm := menu.Data("✅ Подтвердить", "confirm_appt_reminder", appt.ID)
-		btnCancel := menu.Data("❌ Отменить", "cancel_appt_reminder", appt.ID)
-		menu.Inline(menu.Row(btnConfirm, btnCancel))
+		msg = "🔔 <b>Напоминание (завтра)</b>\n" + msg + "\n\n<i>Пожалуйста, подтвердите ваше присутствие.</i>"
 	}
+
+	menu = &telebot.ReplyMarkup{}
+	btnConfirm := menu.Data("✅ Подтвердить", "confirm_appt_reminder", appt.ID)
+	btnCancel := menu.Data("❌ Отменить", "cancel_appt_reminder", appt.ID)
+	menu.Inline(menu.Row(btnConfirm, btnCancel))
 
 	_, err = s.bot.Send(user, msg, telebot.ModeHTML, menu)
 	if err != nil {

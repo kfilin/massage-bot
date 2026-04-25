@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="/static/card.css">
     <script src="/static/app.js" defer></script>
 </head>
-<body class="search-page">
+<body class="search-page" onload="performSearch('')">
     <div id="app">
         <div class="header">
             <div class="subtitle">АДМИНИСТРИРОВАНИЕ</div>
@@ -18,7 +18,13 @@
 
         <div class="card" style="padding: 12px;">
             <div style="position: relative;">
-                <input type="text" id="searchInput" placeholder="Имя или ID..." oninput="performSearch(this.value)" style="width: 100%; padding: 12px 12px 12px 40px; border-radius: 12px; border: 1px solid var(--separator); background: var(--bg-card); color: var(--text-primary);">
+                <input type="text" id="searchInput" 
+                    placeholder="Имя или ID..." 
+                    oninput="performSearch(this.value)" 
+                    inputmode="text" 
+                    lang="ru"
+                    spellcheck="true"
+                    style="width: 100%; padding: 12px 12px 12px 40px; border-radius: 12px; border: 1px solid var(--separator); background: var(--bg-card); color: var(--text-primary);">
                 <i class="ph-duotone ph-magnifying-glass" style="position: absolute; left: 12px; top: 14px; font-size: 20px; color: var(--text-secondary);"></i>
             </div>
         </div>
@@ -30,10 +36,6 @@
 
     <script>
         function performSearch(query) {
-            if (query.length < 2) {
-                document.getElementById('searchResults').innerHTML = '';
-                return;
-            }
             fetch('/api/search?q=' + encodeURIComponent(query), {
                 headers: { 'X-Telegram-Init-Data': window.Telegram.WebApp.initData }
             })
