@@ -999,7 +999,7 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 	}
 
 	// 1. Notify Admin(s)
-	adminMsg := h.presenter.FormatAppointment(appt, true)
+	adminMsg := h.presenter.FormatAppointment(&appt, true)
 	for _, adminIDStr := range h.adminIDs {
 		adminID, _ := strconv.ParseInt(adminIDStr, 10, 64)
 		h.BotNotify(c.Bot(), adminID, adminMsg)
@@ -1018,7 +1018,7 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 	h.sessionStorage.ClearSession(userID)
 
 	// 3. Confirm to User (Admin or Patient)
-	confirmationMsg := h.presenter.FormatAppointment(appt, false)
+	confirmationMsg := h.presenter.FormatAppointment(&appt, false)
 	if isAdminManual {
 		confirmationMsg = "✅ <b>РУЧНАЯ ЗАПИСЬ СОЗДАНА</b>\n" + confirmationMsg
 	}
@@ -1040,7 +1040,7 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 		patientIDStr, ok := session[SessionKeyPatientID].(string)
 		if ok && patientIDStr != "" {
 			patientID, _ := strconv.ParseInt(patientIDStr, 10, 64)
-			h.BotNotify(c.Bot(), patientID, h.presenter.FormatAppointment(appt, false))
+			h.BotNotify(c.Bot(), patientID, h.presenter.FormatAppointment(&appt, false))
 		}
 	}
 
