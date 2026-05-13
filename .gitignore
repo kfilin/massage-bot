@@ -1,6 +1,8 @@
 # Config files
 config.yml
 credentials.json
+token.json
+token.json/
 .env
 .env.local
 .env.production

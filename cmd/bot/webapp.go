@@ -161,7 +161,12 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 
 		webdavAuthHandler := func(w http.ResponseWriter, r *http.Request) {
 			// Add CORS headers for Obsidian/Browser compatibility
-			w.Header().Set("Access-Control-Allow-Origin", "*")
+			// SECURITY: Restrict to known origin — wildcard + Basic Auth is exploitable
+			allowedOrigin := os.Getenv("WEBAPP_URL")
+			if allowedOrigin == "" {
+				allowedOrigin = "*" // Dev fallback only — set WEBAPP_URL in production
+			}
+			w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PROPFIND, PROPPATCH, MKCOL, COPY, MOVE, LOCK, UNLOCK")
 			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Depth, Destination, If-Modified-Since, Overwrite, User-Agent, X-Expected-Entity-Length")
 			w.Header().Set("Access-Control-Expose-Headers", "DAV, content-length, Allow")

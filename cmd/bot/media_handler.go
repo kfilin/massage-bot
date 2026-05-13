@@ -8,7 +8,9 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/kfilin/massage-bot/internal/logging"
 	"github.com/kfilin/massage-bot/internal/ports"
@@ -44,15 +46,16 @@ func (h *MediaHandler) GetMedia(w http.ResponseWriter, r *http.Request) {
 	}
 
 	parts := strings.Split(cookie.Value, ":")
-	if len(parts) != 2 {
+	if len(parts) != 3 {
 		http.Error(w, "Invalid auth format", http.StatusUnauthorized)
 		return
 	}
 	telegramID := parts[0]
-	signature := parts[1]
+	timestamp := parts[1]
+	signature := parts[2]
 
-	if !h.validateSignature(telegramID, signature) {
-		http.Error(w, "Invalid signature", http.StatusForbidden)
+	if !h.validateSignature(telegramID, timestamp, signature) {
+		http.Error(w, "Invalid or expired signature", http.StatusForbidden)
 		return
 	}
 
@@ -92,20 +95,57 @@ func (h *MediaHandler) GetMedia(w http.ResponseWriter, r *http.Request) {
 		finalPath = filepath.Join(dataDir, finalPath)
 	}
 
-	http.ServeFile(w, r, finalPath)
+	// SECURITY: Verify resolved path stays within dataDir (prevent path traversal)
+	absPath, err := filepath.Abs(finalPath)
+	if err != nil {
+		logging.Warnf("Media path resolution failed for %s: %v", mediaID, err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	absDataDir, err := filepath.Abs(dataDir)
+	if err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	if !strings.HasPrefix(absPath, absDataDir+string(filepath.Separator)) {
+		logging.Warnf("Path traversal attempt blocked: mediaID=%s resolved to %s (dataDir=%s)", mediaID, absPath, absDataDir)
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	http.ServeFile(w, r, absPath)
 }
 
-func (h *MediaHandler) validateSignature(telegramID, signature string) bool {
+// validateSignature verifies the HMAC signature and checks the timestamp is within the 24h TTL.
+// Cookie format: telegramID:unixTimestamp:signature
+func (h *MediaHandler) validateSignature(telegramID, timestamp, signature string) bool {
+	ts, err := strconv.ParseInt(timestamp, 10, 64)
+	if err != nil {
+		logging.Warnf("[validateSignature]: Invalid timestamp for ID=%s", telegramID)
+		return false
+	}
+	const tokenTTL = 24 * 60 * 60 // 24 hours in seconds
+	if time.Now().Unix()-ts > tokenTTL {
+		logging.Warnf("[validateSignature]: Expired token for ID=%s (age=%ds)", telegramID, time.Now().Unix()-ts)
+		return false
+	}
 	mac := hmac.New(sha256.New, []byte(h.secret))
-	mac.Write([]byte(telegramID))
+	mac.Write([]byte(telegramID + ":" + timestamp))
 	expectedSignature := hex.EncodeToString(mac.Sum(nil))
-	return hmac.Equal([]byte(signature), []byte(expectedSignature))
+	match := hmac.Equal([]byte(signature), []byte(expectedSignature))
+	if !match {
+		logging.Debugf("[validateSignature]: Signature mismatch for ID=%s", telegramID)
+	}
+	return match
 }
 
-// GenerateAuthCookie creates the cookie value
+// GenerateAuthCookie creates a time-limited cookie value.
+// Format: telegramID:unixTimestamp:HMAC_SHA256(telegramID:unixTimestamp, secret)
+// Tokens expire after 24 hours, preventing replay attacks from leaked URLs/logs.
 func GenerateAuthCookie(telegramID, secret string) string {
+	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
 	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write([]byte(telegramID))
+	mac.Write([]byte(telegramID + ":" + timestamp))
 	signature := hex.EncodeToString(mac.Sum(nil))
-	return fmt.Sprintf("%s:%s", telegramID, signature)
+	return fmt.Sprintf("%s:%s:%s", telegramID, timestamp, signature)
 }

@@ -67,7 +67,7 @@ func NewWebAppHandler(repo ports.Repository, apptService ports.AppointmentServic
 				HttpOnly: true,
 				Secure:   true,
 				SameSite: http.SameSiteNoneMode,
-				MaxAge:   86400 * 30, // 30 days
+				MaxAge:   86400, // 24 hours — clinical data re-auth daily
 			})
 		}
 
@@ -536,6 +536,14 @@ func NewUpdatePatientHandler(repo ports.Repository, botToken string, adminIDs []
 		if reqBody.InitData == "" || reqBody.ID == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Missing initData or ID"})
+			return
+		}
+
+		// SECURITY: Cap notes length to prevent payload stuffing
+		const maxNotesLength = 50_000 // ~50KB
+		if len(reqBody.Notes) > maxNotesLength {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Notes too long (max 50KB)"})
 			return
 		}
 
