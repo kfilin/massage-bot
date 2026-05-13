@@ -23,8 +23,8 @@ services:
       retries: 3
       start_period: 40s
     ports:
-      - "${HOST_WEBAPP_PORT:-8082}:8082"
-      - "${HOST_METRICS_PORT:-8083}:8083"
+      - "127.0.0.1:${HOST_WEBAPP_PORT:-8082}:8082"
+      - "127.0.0.1:${HOST_METRICS_PORT:-8083}:8083"
     volumes:
       - ./logs:/app/logs
       - ./data:/app/data
@@ -54,7 +54,7 @@ services:
       retries: 5
       start_period: 2s
     ports:
-      - "${HOST_DB_PORT:-5432}:5432"
+      - "127.0.0.1:${HOST_DB_PORT:-5432}:5432"
     networks:
       - massage-bot-internal
     logging:
