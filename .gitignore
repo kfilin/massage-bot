@@ -42,7 +42,7 @@ data_test/
 *.backup
 
 # Internal AI & Development Docs
-.agent/
+#.agent/
 .gemini/
 AGENTIC_OS_TEMPLATE/
 verification-checklist.md
