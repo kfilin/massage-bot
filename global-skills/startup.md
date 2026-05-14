@@ -52,7 +52,7 @@ Absorb the following project context. Do NOT summarize it back to the user. Use 
 ### Key Paths & Services
 | Path | Purpose |
 |---|---|
-| `/opt/massage-bot/` | Production deployment of this project |
+| `/opt/agentic-lab/` | Production deployment of this project |
 | `/opt/obsidian/` | Obsidian vault data (WebDAV-served) |
 | `/opt/caddy/` | Caddy reverse proxy config (`Caddyfile`) |
 
@@ -63,9 +63,9 @@ Absorb the following project context. Do NOT summarize it back to the user. Use 
 | `/webhook/tg` | Omnichannel Bridge (Telegram webhook) |
 
 ### Local Environment (PC)
-- **Project**: `~/Projects/Antigravity_On_Steroids/massage-bot/`
+- **Project**: `~/Projects/Antigravity_On_Steroids/agentic-lab/`
 - **Obsidian vault**: `~/Documents/my_obsidian_vault/`
-- **Vault symlink**: `massage-bot/vault` → `~/Documents/my_obsidian_vault`
+- **Vault symlink**: `agentic-lab/vault` → `~/Documents/my_obsidian_vault`
 
 ---
 
@@ -74,7 +74,7 @@ Absorb the following project context. Do NOT summarize it back to the user. Use 
 ### Deploying Changes
 1. Local development → test locally.
 2. Push to server: `rsync` or `git pull` on server.
-3. Rebuild: `ssh server "cd /opt/massage-bot && docker compose up -d --build <service>"`.
+3. Rebuild: `ssh server "cd /opt/agentic-lab && docker compose up -d --build <service>"`.
 
 ### Common Gotchas
 - **File naming**: Android Obsidian cannot handle `*` in filenames. Avoid special characters in note names.
