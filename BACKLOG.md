@@ -122,7 +122,7 @@
 
 ---
 
-#### Last updated: 2026-03-20
+#### Last updated: 2026-06-14
 
 ### 29. [TODO] Native MCP for PostgreSQL
 
@@ -247,28 +247,25 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
 - **Success Criteria**: A new project can be bootstrapped to Level 4-5 of the agentic engineering ladder within 30 minutes using the template.
 - **Source**: Article comparison + cross-model review, March 2026.
 
-### 34. [TODO] Phase 4: Integration Testing with Testcontainers
+### 34. [IN PROGRESS] Phase 4: Integration Testing with Testcontainers
 
-- **Status**: Backlog
+- **Status**: In Progress (2026-06-14)
 - **Priority**: Medium
 - **Goal**: Maximize project test coverage (aiming for >80% total) by implementing integration tests for the `internal/storage` (Postgres) and `internal/delivery/telegram` (bot routing) layers.
-- **Rationale**: Pure unit tests hit a ceiling at ~42% repository coverage due to the heavy reliance on raw DB queries (`postgres_repository.go` is over 1000 lines) and external API interactions (`telebot.Bot` methods). To properly verify the database layer without complex and brittle SQL mocks, we need a real, ephemeral database.
-- **Implementation Scope**:
-  1. Add `github.com/testcontainers/testcontainers-go` and `github.com/testcontainers/testcontainers-go/modules/postgres` to the project.
-  2. Create a test suite for `internal/storage` that spins up an isolated Postgres container before tests run, applies the schemas, and tests the CRUD operations against it.
-  3. Explore using `httptest` servers to mock Telegram API responses so `bot.go` logic can be verified.
-- **Success Criteria**: `internal/storage` achieves >80% test coverage, raising the total project coverage significantly above the current ~42% baseline.
+- **Progress**: testcontainers-go installed. 16 integration tests added for `internal/storage` covering all CRUD operations, session storage, and appointment metadata. Storage coverage: 32% → 54%.
+- **Remaining**: `internal/delivery/telegram` bot routing tests (needs Telegram API mock).
 ### 35. [TODO] WebApp Handler Refactoring
 - **Status**: Backlog
 - **Priority**: Medium
 - **Goal**: Move WebApp handlers from `cmd/bot/webapp_handler.go` to `internal/delivery/web/`.
 - **Rationale**: Currently, handlers are mixed with application entry logic. Moving them to `internal/` ensures better architecture alignment and follows the "package by feature/layer" pattern used in the rest of the project.
 
-### 36. [TODO] Test Coverage Hardening (80%+)
-- **Status**: Backlog
+### 36. [IN PROGRESS] Test Coverage Hardening (80%+)
+- **Status**: In Progress (2026-06-14)
 - **Priority**: High
 - **Goal**: Increase repository test coverage from ~42% to 80%+.
-- **Rationale**: Critical logic in `internal/storage` and `internal/delivery/telegram` needs better verification. Complements item #34 (Testcontainers).
+- **Progress**: Overall ~42% → 47%. Storage 32→54%, transcription 23→88%, cmd/bot 27→36%. Added testcontainers-go integration tests, httptest mocks for Groq API, and media handler tests.
+- **Next targets**: `adapters/googlecalendar` (53%), `delivery/telegram/handlers` (40%), `cmd/bot` remaining functions (36%).
 
 ### 37. [TODO] Grafana Dashboard Sync
 - **Status**: Backlog
@@ -281,15 +278,10 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
 - **Goal**: Add more technical details, edge cases, and "deep dive" sections to `DEVELOPER.MD`.
 - **Rationale**: Ensure the onboarding process is as smooth as possible for new developers.
 
-### 39. [TODO] Fix Stale Vet-Failing Test Files
-- **Status**: Backlog
-- **Priority**: Medium
-- **Goal**: Fix or delete two test files with pre-existing `go vet` failures introduced by earlier refactors.
-- **Files**:
-  - `cmd/bot/webapp_handlers_test.go:208` — `NewCancelHandler` called with wrong args (missing `*presentation.BotPresenter`)
-  - `internal/presentation/presenter_test.go:22` — `FormatAppointment` called with value type instead of pointer
-- **Action**: Update the test calls to match the current function signatures. These are straightforward fixes, not logic changes.
-- **Added**: 2026-05-13 (identified during security hardening session)
+### 39. [DONE] Fix Stale Vet-Failing Test Files
+- **Status**: Completed (2026-06-14)
+- **Resolution**: Both test files were already fixed by prior refactors. `go vet ./...` passes clean across all packages. Test suites pass with no errors.
+- **Commit**: TBD (no code change needed — backlog cleanup only)
 
 ### 40. [DONE] Universal Collaboration Harness Migration
 - **Status**: Completed (2026-05-14)

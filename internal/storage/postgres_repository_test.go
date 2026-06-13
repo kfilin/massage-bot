@@ -485,6 +485,502 @@ func TestGetPatientDir(t *testing.T) {
 		t.Errorf("Patient dir should contain telegram ID %s, got %s", patient.TelegramID, dir)
 	}
 }
+// TestUpdatePatientProfile tests updating patient name and notes
+func TestUpdatePatientProfile(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Failed to create mock: %v", err)
+	}
+	defer db.Close()
+
+	sqlxDB := sqlx.NewDb(db, "sqlmock")
+	repo := NewPostgresRepository(sqlxDB, t.TempDir())
+
+	mock.ExpectExec("UPDATE patients").
+		WithArgs("New Name", "New notes", "123456789").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	err = repo.UpdatePatientProfile("123456789", "New Name", "New notes")
+	if err != nil {
+		t.Errorf("UpdatePatientProfile failed: %v", err)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Unfulfilled expectations: %v", err)
+	}
+}
+
+func TestUpdatePatientProfile_NotFound(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Failed to create mock: %v", err)
+	}
+	defer db.Close()
+
+	sqlxDB := sqlx.NewDb(db, "sqlmock")
+	repo := NewPostgresRepository(sqlxDB, t.TempDir())
+
+	mock.ExpectExec("UPDATE patients").
+		WithArgs("Name", "notes", "nonexistent").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	err = repo.UpdatePatientProfile("nonexistent", "Name", "notes")
+	if err == nil {
+		t.Error("UpdatePatientProfile should return error when patient not found")
+	}
+}
+
+func TestSaveMedia(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Failed to create mock: %v", err)
+	}
+	defer db.Close()
+
+	sqlxDB := sqlx.NewDb(db, "sqlmock")
+	repo := NewPostgresRepository(sqlxDB, t.TempDir())
+
+	media := domain.PatientMedia{
+		ID:             "media-1",
+		PatientID:      "123456789",
+		FileType:       "voice",
+		FilePath:       "/tmp/test.ogg",
+		TelegramFileID: "tg-file-123",
+		Transcript:     "Test transcript",
+		Status:         "approved",
+		CreatedAt:      time.Now(),
+	}
+
+	mock.ExpectExec("INSERT INTO patient_media").
+		WithArgs(
+			media.ID,
+			media.PatientID,
+			media.FileType,
+			media.FilePath,
+			media.TelegramFileID,
+			media.Transcript,
+			media.Status,
+			sqlmock.AnyArg(),
+		).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	err = repo.SaveMedia(media)
+	if err != nil {
+		t.Errorf("SaveMedia failed: %v", err)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Unfulfilled expectations: %v", err)
+	}
+}
+
+func TestSaveMedia_DefaultStatus(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Failed to create mock: %v", err)
+	}
+	defer db.Close()
+
+	sqlxDB := sqlx.NewDb(db, "sqlmock")
+	repo := NewPostgresRepository(sqlxDB, t.TempDir())
+
+	media := domain.PatientMedia{
+		ID:        "media-2",
+		PatientID: "123456789",
+		FileType:  "photo",
+		FilePath:  "/tmp/test.jpg",
+		CreatedAt: time.Now(),
+	}
+
+	mock.ExpectExec("INSERT INTO patient_media").
+		WithArgs(
+			media.ID,
+			media.PatientID,
+			media.FileType,
+			media.FilePath,
+			media.TelegramFileID,
+			media.Transcript,
+			"approved", // default status
+			sqlmock.AnyArg(),
+		).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	err = repo.SaveMedia(media)
+	if err != nil {
+		t.Errorf("SaveMedia with default status failed: %v", err)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Unfulfilled expectations: %v", err)
+	}
+}
+
+func TestGetPatientMedia(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Failed to create mock: %v", err)
+	}
+	defer db.Close()
+
+	sqlxDB := sqlx.NewDb(db, "sqlmock")
+	repo := NewPostgresRepository(sqlxDB, t.TempDir())
+
+	now := time.Now()
+	rows := sqlmock.NewRows([]string{
+		"id", "patient_id", "file_type", "file_path",
+		"telegram_file_id", "transcript", "status", "created_at",
+	}).
+		AddRow("media-1", "123456789", "voice", "/tmp/a.ogg", "tg-1", "transcript A", "approved", now).
+		AddRow("media-2", "123456789", "photo", "/tmp/b.jpg", "tg-2", "", "approved", now.Add(-time.Hour))
+
+	mock.ExpectQuery("SELECT \\* FROM patient_media WHERE patient_id").
+		WithArgs("123456789").
+		WillReturnRows(rows)
+
+	media, err := repo.GetPatientMedia("123456789")
+	if err != nil {
+		t.Errorf("GetPatientMedia failed: %v", err)
+	}
+	if len(media) != 2 {
+		t.Errorf("Expected 2 media items, got %d", len(media))
+	}
+	if media[0].ID != "media-1" {
+		t.Errorf("First media ID = %s, want media-1", media[0].ID)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Unfulfilled expectations: %v", err)
+	}
+}
+
+func TestGetMediaByID(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Failed to create mock: %v", err)
+	}
+	defer db.Close()
+
+	sqlxDB := sqlx.NewDb(db, "sqlmock")
+	repo := NewPostgresRepository(sqlxDB, t.TempDir())
+
+	now := time.Now()
+	rows := sqlmock.NewRows([]string{
+		"id", "patient_id", "file_type", "file_path",
+		"telegram_file_id", "transcript", "status", "created_at",
+	}).AddRow("media-1", "123456789", "voice", "/tmp/a.ogg", "tg-1", "hello", "approved", now)
+
+	mock.ExpectQuery("SELECT \\* FROM patient_media WHERE id").
+		WithArgs("media-1").
+		WillReturnRows(rows)
+
+	media, err := repo.GetMediaByID("media-1")
+	if err != nil {
+		t.Errorf("GetMediaByID failed: %v", err)
+	}
+	if media.ID != "media-1" {
+		t.Errorf("Media ID = %s, want media-1", media.ID)
+	}
+	if media.Transcript != "hello" {
+		t.Errorf("Transcript = %s, want hello", media.Transcript)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Unfulfilled expectations: %v", err)
+	}
+}
+
+func TestGetMediaByID_NotFound(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Failed to create mock: %v", err)
+	}
+	defer db.Close()
+
+	sqlxDB := sqlx.NewDb(db, "sqlmock")
+	repo := NewPostgresRepository(sqlxDB, t.TempDir())
+
+	mock.ExpectQuery("SELECT \\* FROM patient_media WHERE id").
+		WithArgs("nonexistent").
+		WillReturnError(sql.ErrNoRows)
+
+	_, err = repo.GetMediaByID("nonexistent")
+	if err != sql.ErrNoRows {
+		t.Errorf("Expected sql.ErrNoRows, got %v", err)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Unfulfilled expectations: %v", err)
+	}
+}
+
+func TestSaveAppointmentMetadata(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Failed to create mock: %v", err)
+	}
+	defer db.Close()
+
+	sqlxDB := sqlx.NewDb(db, "sqlmock")
+	repo := NewPostgresRepository(sqlxDB, t.TempDir())
+
+	now := time.Now()
+	reminders := map[string]bool{"72h": true, "24h": false}
+
+	mock.ExpectExec("INSERT INTO appointment_metadata").
+		WithArgs("appt-1", &now, sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	err = repo.SaveAppointmentMetadata("appt-1", &now, reminders)
+	if err != nil {
+		t.Errorf("SaveAppointmentMetadata failed: %v", err)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Unfulfilled expectations: %v", err)
+	}
+}
+
+func TestSaveAppointmentMetadata_NilConfirmedAt(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Failed to create mock: %v", err)
+	}
+	defer db.Close()
+
+	sqlxDB := sqlx.NewDb(db, "sqlmock")
+	repo := NewPostgresRepository(sqlxDB, t.TempDir())
+
+	reminders := map[string]bool{}
+
+	mock.ExpectExec("INSERT INTO appointment_metadata").
+		WithArgs("appt-2", nil, sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	err = repo.SaveAppointmentMetadata("appt-2", nil, reminders)
+	if err != nil {
+		t.Errorf("SaveAppointmentMetadata with nil confirmed_at failed: %v", err)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Unfulfilled expectations: %v", err)
+	}
+}
+
+func TestGetAppointmentMetadata(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Failed to create mock: %v", err)
+	}
+	defer db.Close()
+
+	sqlxDB := sqlx.NewDb(db, "sqlmock")
+	repo := NewPostgresRepository(sqlxDB, t.TempDir())
+
+	now := time.Now()
+	remindersJSON, _ := json.Marshal(map[string]bool{"72h": true, "24h": true})
+
+	rows := sqlmock.NewRows([]string{"confirmed_at", "reminders_sent"}).
+		AddRow(now, remindersJSON)
+
+	mock.ExpectQuery("SELECT confirmed_at, reminders_sent FROM appointment_metadata").
+		WithArgs("appt-1").
+		WillReturnRows(rows)
+
+	confirmedAt, reminders, err := repo.GetAppointmentMetadata("appt-1")
+	if err != nil {
+		t.Errorf("GetAppointmentMetadata failed: %v", err)
+	}
+	if confirmedAt == nil {
+		t.Error("Expected confirmed_at to be non-nil")
+	}
+	if !reminders["72h"] || !reminders["24h"] {
+		t.Errorf("Reminders = %v, want both true", reminders)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Unfulfilled expectations: %v", err)
+	}
+}
+
+func TestGetAppointmentMetadata_NotFound(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Failed to create mock: %v", err)
+	}
+	defer db.Close()
+
+	sqlxDB := sqlx.NewDb(db, "sqlmock")
+	repo := NewPostgresRepository(sqlxDB, t.TempDir())
+
+	mock.ExpectQuery("SELECT confirmed_at, reminders_sent FROM appointment_metadata").
+		WithArgs("nonexistent").
+		WillReturnError(sql.ErrNoRows)
+
+	_, _, err = repo.GetAppointmentMetadata("nonexistent")
+	if err != sql.ErrNoRows {
+		t.Errorf("Expected sql.ErrNoRows, got %v", err)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Unfulfilled expectations: %v", err)
+	}
+}
+
+func TestDeleteAppointment(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Failed to create mock: %v", err)
+	}
+	defer db.Close()
+
+	sqlxDB := sqlx.NewDb(db, "sqlmock")
+	repo := NewPostgresRepository(sqlxDB, t.TempDir())
+
+	mock.ExpectExec("DELETE FROM appointments").
+		WithArgs("appt-1").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	err = repo.DeleteAppointment("appt-1")
+	if err != nil {
+		t.Errorf("DeleteAppointment failed: %v", err)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Unfulfilled expectations: %v", err)
+	}
+}
+
+func TestDeleteAppointment_NotFound(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Failed to create mock: %v", err)
+	}
+	defer db.Close()
+
+	sqlxDB := sqlx.NewDb(db, "sqlmock")
+	repo := NewPostgresRepository(sqlxDB, t.TempDir())
+
+	mock.ExpectExec("DELETE FROM appointments").
+		WithArgs("nonexistent").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	err = repo.DeleteAppointment("nonexistent")
+	if err != nil {
+		t.Errorf("DeleteAppointment should not error when appointment doesn't exist: %v", err)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Unfulfilled expectations: %v", err)
+	}
+}
+
+func TestSearchPatients(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Failed to create mock: %v", err)
+	}
+	defer db.Close()
+
+	sqlxDB := sqlx.NewDb(db, "sqlmock")
+	repo := NewPostgresRepository(sqlxDB, t.TempDir())
+
+	now := time.Now()
+	rows := sqlmock.NewRows([]string{
+		"telegram_id", "name", "first_visit", "last_visit",
+		"total_visits", "health_status", "therapist_notes",
+		"voice_transcripts", "current_service",
+	}).AddRow("111", "Alice Smith", now, now, 3, "", "", "", "").
+		AddRow("222", "Alice Johnson", now, now, 1, "", "", "", "")
+
+	mock.ExpectQuery("SELECT \\* FROM patients WHERE name ILIKE").
+		WithArgs("%Alice%", "Alice").
+		WillReturnRows(rows)
+
+	patients, err := repo.SearchPatients("Alice")
+	if err != nil {
+		t.Errorf("SearchPatients failed: %v", err)
+	}
+	if len(patients) != 2 {
+		t.Errorf("Expected 2 patients, got %d", len(patients))
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Unfulfilled expectations: %v", err)
+	}
+}
+
+func TestSearchPatients_NoResults(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Failed to create mock: %v", err)
+	}
+	defer db.Close()
+
+	sqlxDB := sqlx.NewDb(db, "sqlmock")
+	repo := NewPostgresRepository(sqlxDB, t.TempDir())
+
+	rows := sqlmock.NewRows([]string{
+		"telegram_id", "name", "first_visit", "last_visit",
+		"total_visits", "health_status", "therapist_notes",
+		"voice_transcripts", "current_service",
+	})
+
+	mock.ExpectQuery("SELECT \\* FROM patients WHERE name ILIKE").
+		WithArgs("%Nobody%", "Nobody").
+		WillReturnRows(rows)
+
+	patients, err := repo.SearchPatients("Nobody")
+	if err != nil {
+		t.Errorf("SearchPatients failed: %v", err)
+	}
+	if len(patients) != 0 {
+		t.Errorf("Expected 0 patients, got %d", len(patients))
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Unfulfilled expectations: %v", err)
+	}
+}
+
+func TestGetAllPatients(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Failed to create mock: %v", err)
+	}
+	defer db.Close()
+
+	sqlxDB := sqlx.NewDb(db, "sqlmock")
+	repo := NewPostgresRepository(sqlxDB, t.TempDir())
+
+	now := time.Now()
+	rows := sqlmock.NewRows([]string{
+		"telegram_id", "name", "first_visit", "last_visit",
+		"total_visits", "health_status", "therapist_notes",
+		"voice_transcripts", "current_service",
+	}).
+		AddRow("111", "Alice", now, now, 5, "", "", "", "").
+		AddRow("222", "Bob", now, now, 3, "", "", "", "").
+		AddRow("333", "Charlie", now, now, 1, "", "", "", "")
+
+	mock.ExpectQuery("SELECT \\* FROM patients ORDER BY name ASC").
+		WillReturnRows(rows)
+
+	patients, err := repo.GetAllPatients()
+	if err != nil {
+		t.Errorf("GetAllPatients failed: %v", err)
+	}
+	if len(patients) != 3 {
+		t.Errorf("Expected 3 patients, got %d", len(patients))
+	}
+	if patients[0].Name != "Alice" {
+		t.Errorf("First patient name = %s, want Alice", patients[0].Name)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Unfulfilled expectations: %v", err)
+	}
+}
+
 // TestUpdateMediaStatus tests updating media status and transcript
 func TestUpdateMediaStatus(t *testing.T) {
 	db, mock, err := sqlmock.New()

@@ -16,10 +16,13 @@ import (
 )
 
 type groqAdapter struct {
-	apiKey string
-	client *http.Client
-	model  string
+	apiKey  string
+	client  *http.Client
+	model   string
+	baseURL string
 }
+
+const defaultGroqURL = "https://api.groq.com/openai/v1/audio/transcriptions"
 
 // NewGroqAdapter creates a new transcription service using Groq's Whisper API.
 func NewGroqAdapter(apiKey string) ports.TranscriptionService {
@@ -28,7 +31,8 @@ func NewGroqAdapter(apiKey string) ports.TranscriptionService {
 		client: &http.Client{
 			Timeout: 60 * time.Second,
 		},
-		model: "whisper-large-v3",
+		model:   "whisper-large-v3",
+		baseURL: defaultGroqURL,
 	}
 }
 
@@ -70,7 +74,11 @@ func (a *groqAdapter) Transcribe(ctx context.Context, audio io.Reader, filename 
 		return "", fmt.Errorf("failed to close multipart writer: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.groq.com/openai/v1/audio/transcriptions", body)
+	url := a.baseURL
+	if url == "" {
+		url = defaultGroqURL
+	}
+	req, err := http.NewRequestWithContext(ctx, "POST", url, body)
 	if err != nil {
 		return "", fmt.Errorf("failed to create groq request: %w", err)
 	}
