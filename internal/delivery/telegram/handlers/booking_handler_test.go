@@ -63,6 +63,16 @@ func (m *mockContext) Bot() *telebot.Bot {
 	return m.bot
 }
 
+func (m *mockContext) Recipient() telebot.Recipient {
+	if m.chat != nil {
+		return m.chat
+	}
+	if m.sender != nil {
+		return m.sender
+	}
+	return &telebot.User{ID: 0}
+}
+
 func (m *mockContext) Send(what interface{}, opts ...interface{}) error {
 	if s, ok := what.(string); ok {
 		m.sentMsg = s
@@ -270,7 +280,7 @@ func (m *mockRepository) GetPatient(telegramID string) (domain.Patient, error) {
 	if patient, ok := m.patients[telegramID]; ok {
 		return patient, nil
 	}
-	return domain.Patient{TelegramID: telegramID}, nil
+	return domain.Patient{}, fmt.Errorf("patient not found")
 }
 
 func (m *mockRepository) GetAllPatients() ([]domain.Patient, error) { return nil, nil }
@@ -1056,6 +1066,9 @@ func TestHandleMyRecords_PatientExists(t *testing.T) {
 
 func TestHandleMyRecords_PatientNotFound(t *testing.T) {
 	mockRepo := newMockRepository()
+	mockRepo.getPatientFunc = func(id string) (domain.Patient, error) {
+		return domain.Patient{}, fmt.Errorf("not found")
+	}
 	h := NewBookingHandler(nil, nil, nil, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
 	ctx := &mockContext{sender: &telebot.User{ID: 999}}
 
@@ -1064,41 +1077,95 @@ func TestHandleMyRecords_PatientNotFound(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	if !strings.Contains(ctx.sentMsg, "КАРТА ПАЦИЕНТА") && !strings.Contains(ctx.sentMsg, "Записей пока нет") {
+	if !strings.Contains(ctx.sentMsg, "медицинская карта") && !strings.Contains(ctx.sentMsg, "Записей пока нет") && !strings.Contains(ctx.sentMsg, "нет активной") {
 		t.Errorf("Unexpected message for missing patient: %s", ctx.sentMsg)
 	}
 }
 
 func TestHandleMyAppointments(t *testing.T) {
-	mockApptService := &mockAppointmentService{
-		getCustomerHistoryFunc: func(ctx context.Context, id string) ([]domain.Appointment, error) {
-			if id == "123" {
-				return []domain.Appointment{{ID: "a1", Service: domain.Service{Name: "A"}, StartTime: time.Now()}}, nil
-			}
-			return []domain.Appointment{}, nil
-		},
-	}
-	h := NewBookingHandler(mockApptService, nil, nil, nil, nil, nil, &presentation.BotPresenter{}, "", "")
+	t.Run("Patient with appointments", func(t *testing.T) {
+		mockApptService := &mockAppointmentService{
+			getCustomerAppointmentsFunc: func(ctx context.Context, id string) ([]domain.Appointment, error) {
+				if id == "123" {
+					return []domain.Appointment{
+						{ID: "a1", Service: domain.Service{Name: "Massage"}, StartTime: time.Now().Add(24 * time.Hour)},
+					}, nil
+				}
+				return []domain.Appointment{}, nil
+			},
+		}
+		mockSession := newMockSessionStorage()
+		h := NewBookingHandler(mockApptService, mockSession, nil, nil, nil, nil, &presentation.BotPresenter{}, "", "")
 
-	// Has appointments
-	ctx1 := &mockContext{sender: &telebot.User{ID: 123}}
-	err := h.HandleMyAppointments(ctx1)
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-	if ctx1.sentMsg == "" {
-		t.Error("Expected a message for user with appointments")
-	}
+		ctx := &mockContext{sender: &telebot.User{ID: 123}}
+		err := h.HandleMyAppointments(ctx)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if ctx.sentMsg == "" {
+			t.Error("Expected a message for user with appointments")
+		}
+	})
 
-	// No appointments
-	ctx2 := &mockContext{sender: &telebot.User{ID: 999}}
-	err = h.HandleMyAppointments(ctx2)
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-	if !strings.Contains(ctx2.sentMsg, "на данный момент у вас нет предстоящих записей") && !strings.Contains(ctx2.sentMsg, "записей не найдено") {
-		t.Errorf("Unexpected message for user without appointments: %s", ctx2.sentMsg)
-	}
+	t.Run("Patient no appointments", func(t *testing.T) {
+		mockApptService := &mockAppointmentService{
+			getCustomerAppointmentsFunc: func(ctx context.Context, id string) ([]domain.Appointment, error) {
+				return []domain.Appointment{}, nil
+			},
+		}
+		mockSession := newMockSessionStorage()
+		h := NewBookingHandler(mockApptService, mockSession, nil, nil, nil, nil, &presentation.BotPresenter{}, "", "")
+
+		ctx := &mockContext{sender: &telebot.User{ID: 999}}
+		err := h.HandleMyAppointments(ctx)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if !strings.Contains(ctx.sentMsg, "записей не найдено") {
+			t.Errorf("Expected 'no appointments' message, got: %s", ctx.sentMsg)
+		}
+	})
+
+	t.Run("Admin view", func(t *testing.T) {
+		mockApptService := &mockAppointmentService{
+			getAllUpcomingAppointmentsFunc: func(ctx context.Context) ([]domain.Appointment, error) {
+				return []domain.Appointment{
+					{ID: "a1", Service: domain.Service{Name: "Massage"}, CustomerTgID: "200", CustomerName: "Patient A", StartTime: time.Now().Add(48 * time.Hour)},
+					{ID: "a2", Service: domain.Service{Name: "Consult"}, CustomerTgID: "123", CustomerName: "Self", StartTime: time.Now().Add(24 * time.Hour)},
+				}, nil
+			},
+		}
+		mockSession := newMockSessionStorage()
+		h := NewBookingHandler(mockApptService, mockSession, []string{"123"}, nil, nil, nil, &presentation.BotPresenter{}, "", "")
+
+		ctx := &mockContext{sender: &telebot.User{ID: 123}}
+		err := h.HandleMyAppointments(ctx)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if !strings.Contains(ctx.sentMsg, "Общее расписание") {
+			t.Errorf("Expected admin schedule header, got: %s", ctx.sentMsg)
+		}
+	})
+
+	t.Run("Service error", func(t *testing.T) {
+		mockApptService := &mockAppointmentService{
+			getCustomerAppointmentsFunc: func(ctx context.Context, id string) ([]domain.Appointment, error) {
+				return nil, fmt.Errorf("google calendar down")
+			},
+		}
+		mockSession := newMockSessionStorage()
+		h := NewBookingHandler(mockApptService, mockSession, nil, nil, nil, nil, &presentation.BotPresenter{}, "", "")
+
+		ctx := &mockContext{sender: &telebot.User{ID: 123}}
+		err := h.HandleMyAppointments(ctx)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if !strings.Contains(ctx.sentMsg, "Ошибка") {
+			t.Errorf("Expected error message, got: %s", ctx.sentMsg)
+		}
+	})
 }
 
 func TestHandleStatus_Admin(t *testing.T) {
@@ -1421,6 +1488,9 @@ func TestHandleEditName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := newMockRepository()
+			if !tt.patientErr && tt.name == "Successful edit" {
+				_ = mockRepo.SavePatient(domain.Patient{TelegramID: "100", Name: "Old Name"})
+			}
 			if tt.patientErr {
 				mockRepo.getPatientFunc = func(id string) (domain.Patient, error) {
 					return domain.Patient{}, fmt.Errorf("not found")
@@ -1524,6 +1594,9 @@ func TestHandleAdminReplyRequest(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockSession := newMockSessionStorage()
 			mockRepo := newMockRepository()
+			if !tt.patientErr {
+				_ = mockRepo.SavePatient(domain.Patient{TelegramID: "100", Name: "Test Patient"})
+			}
 			if tt.patientErr {
 				mockRepo.getPatientFunc = func(id string) (domain.Patient, error) {
 					return domain.Patient{}, fmt.Errorf("not found")
@@ -1969,5 +2042,548 @@ func TestHandleNameInput_StoresCorrectly(t *testing.T) {
 	session := mockSession.Get(123)
 	if name, ok := session[SessionKeyName].(string); !ok || name != "Иван Петров" {
 		t.Errorf("Expected trimmed name 'Иван Петров', got %v", name)
+	}
+}
+
+func TestHandleStart_DeepLinkBook(t *testing.T) {
+	mockApptService := &mockAppointmentService{
+		getAvailableServicesFunc: func(ctx context.Context) ([]domain.Service, error) {
+			return []domain.Service{{ID: "s1", Name: "Test"}}, nil
+		},
+	}
+	mockSession := newMockSessionStorage()
+	mockRepo := newMockRepository()
+
+	h := NewBookingHandler(mockApptService, mockSession, []string{}, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{
+		sender: &telebot.User{ID: 123, FirstName: "Test"},
+		args:   []string{"book"},
+	}
+
+	err := h.HandleStart(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Should show categories (via Edit or Send)
+	if ctx.editedMsg == nil && ctx.sentMsg == "" {
+		t.Error("Expected categories to be shown for /start book")
+	}
+}
+
+func TestHandleStart_DeepLinkManual_AdminWithPatient(t *testing.T) {
+	mockApptService := &mockAppointmentService{
+		getAvailableServicesFunc: func(ctx context.Context) ([]domain.Service, error) {
+			return []domain.Service{{ID: "s1", Name: "Test"}}, nil
+		},
+	}
+	mockSession := newMockSessionStorage()
+	mockRepo := newMockRepository()
+	_ = mockRepo.SavePatient(domain.Patient{TelegramID: "456", Name: "Existing Patient"})
+
+	h := NewBookingHandler(mockApptService, mockSession, []string{"123"}, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{
+		sender: &telebot.User{ID: 123, FirstName: "Admin"},
+		args:   []string{"manual_456"},
+	}
+
+	err := h.HandleStart(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Should set manual booking session keys
+	session := mockSession.Get(123)
+	if val, ok := session[SessionKeyIsAdminManual].(bool); !ok || !val {
+		t.Error("Expected is_admin_manual=true in session")
+	}
+	if val, ok := session[SessionKeyPatientID].(string); !ok || val != "456" {
+		t.Errorf("Expected patient_id=456, got %v", val)
+	}
+	if val, ok := session[SessionKeyName].(string); !ok || val != "Existing Patient" {
+		t.Errorf("Expected name='Existing Patient', got %v", val)
+	}
+}
+
+func TestHandleStart_DeepLinkManual_NonAdmin(t *testing.T) {
+	mockSession := newMockSessionStorage()
+	mockRepo := newMockRepository()
+
+	h := NewBookingHandler(nil, mockSession, []string{"999"}, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{
+		sender: &telebot.User{ID: 123, FirstName: "User"},
+		args:   []string{"manual_456"},
+	}
+
+	err := h.HandleStart(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Non-admin should get regular welcome, not manual booking
+	session := mockSession.Get(123)
+	if val, ok := session[SessionKeyIsAdminManual].(bool); ok && val {
+		t.Error("Non-admin should not have is_admin_manual=true")
+	}
+}
+
+func TestHandleStart_DeepLinkManual_AdminPatientNotFound(t *testing.T) {
+	mockApptService := &mockAppointmentService{
+		getAvailableServicesFunc: func(ctx context.Context) ([]domain.Service, error) {
+			return []domain.Service{{ID: "s1", Name: "Test"}}, nil
+		},
+	}
+	mockSession := newMockSessionStorage()
+	mockRepo := newMockRepository()
+
+	h := NewBookingHandler(mockApptService, mockSession, []string{"123"}, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{
+		sender: &telebot.User{ID: 123, FirstName: "Admin"},
+		args:   []string{"manual_999"},
+	}
+
+	err := h.HandleStart(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Should still set manual keys even if patient not found
+	session := mockSession.Get(123)
+	if val, ok := session[SessionKeyIsAdminManual].(bool); !ok || !val {
+		t.Error("Expected is_admin_manual=true even when patient not found")
+	}
+}
+
+func TestSyncPatientStats(t *testing.T) {
+	t.Run("New patient created when not found", func(t *testing.T) {
+		mockRepo := newMockRepository()
+		mockApptService := &mockAppointmentService{
+			getCustomerHistoryFunc: func(ctx context.Context, id string) ([]domain.Appointment, error) {
+				return []domain.Appointment{}, nil
+			},
+		}
+
+		h := NewBookingHandler(mockApptService, nil, nil, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+
+		patient, err := h.syncPatientStats(context.Background(), "555", "New Patient")
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if patient.Name != "New Patient" {
+			t.Errorf("Expected name 'New Patient', got %s", patient.Name)
+		}
+		if patient.HealthStatus != "initial" {
+			t.Errorf("Expected health_status 'initial', got %s", patient.HealthStatus)
+		}
+		if patient.TotalVisits != 0 {
+			t.Errorf("Expected 0 visits, got %d", patient.TotalVisits)
+		}
+	})
+
+	t.Run("New patient with empty name defaults to Пациент", func(t *testing.T) {
+		mockRepo := newMockRepository()
+		mockApptService := &mockAppointmentService{
+			getCustomerHistoryFunc: func(ctx context.Context, id string) ([]domain.Appointment, error) {
+				return []domain.Appointment{}, nil
+			},
+		}
+
+		h := NewBookingHandler(mockApptService, nil, nil, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+
+		patient, err := h.syncPatientStats(context.Background(), "666", "")
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if patient.Name != "Пациент" {
+			t.Errorf("Expected default name 'Пациент', got %s", patient.Name)
+		}
+	})
+
+	t.Run("Existing patient name updated", func(t *testing.T) {
+		mockRepo := newMockRepository()
+		_ = mockRepo.SavePatient(domain.Patient{TelegramID: "777", Name: "Old Name", TotalVisits: 3})
+		mockApptService := &mockAppointmentService{
+			getCustomerHistoryFunc: func(ctx context.Context, id string) ([]domain.Appointment, error) {
+				return []domain.Appointment{
+					{ID: "a1", StartTime: time.Now().Add(-72 * time.Hour), Status: "confirmed"},
+					{ID: "a2", StartTime: time.Now().Add(-48 * time.Hour), Status: "cancelled"},
+					{ID: "a3", StartTime: time.Now().Add(-24 * time.Hour), Status: "confirmed"},
+				}, nil
+			},
+		}
+
+		h := NewBookingHandler(mockApptService, nil, nil, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+
+		patient, err := h.syncPatientStats(context.Background(), "777", "Updated Name")
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if patient.Name != "Updated Name" {
+			t.Errorf("Expected name 'Updated Name', got %s", patient.Name)
+		}
+		// 2 confirmed (a1, a3), 1 cancelled excluded
+		if patient.TotalVisits != 2 {
+			t.Errorf("Expected 2 confirmed visits, got %d", patient.TotalVisits)
+		}
+	})
+
+	t.Run("Service error returns partial patient", func(t *testing.T) {
+		mockRepo := newMockRepository()
+		mockApptService := &mockAppointmentService{
+			getCustomerHistoryFunc: func(ctx context.Context, id string) ([]domain.Appointment, error) {
+				return nil, fmt.Errorf("gcal down")
+			},
+		}
+
+		h := NewBookingHandler(mockApptService, nil, nil, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+
+		_, err := h.syncPatientStats(context.Background(), "888", "Test")
+		if err == nil {
+			t.Error("Expected error from GetCustomerHistory")
+		}
+	})
+
+	t.Run("Save patient error propagated", func(t *testing.T) {
+		mockRepo := newMockRepository()
+		mockRepo.savePatientFunc = func(p domain.Patient) error {
+			return fmt.Errorf("save failed")
+		}
+		mockApptService := &mockAppointmentService{
+			getCustomerHistoryFunc: func(ctx context.Context, id string) ([]domain.Appointment, error) {
+				return []domain.Appointment{}, nil
+			},
+		}
+
+		h := NewBookingHandler(mockApptService, nil, nil, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+
+		_, err := h.syncPatientStats(context.Background(), "999", "Test")
+		if err == nil {
+			t.Error("Expected error from SavePatient")
+		}
+	})
+}
+
+func TestHandleFileMessage(t *testing.T) {
+	t.Run("No media type returns nil", func(t *testing.T) {
+		h := NewBookingHandler(nil, nil, nil, nil, nil, nil, &presentation.BotPresenter{}, "", "")
+		ctx := &mockContext{
+			sender:  &telebot.User{ID: 123},
+			message: &telebot.Message{},
+		}
+
+		err := h.HandleFileMessage(ctx)
+		if err != nil {
+			t.Fatalf("Expected nil for no media, got: %v", err)
+		}
+	})
+
+	t.Run("Document without patient returns error", func(t *testing.T) {
+		mockRepo := newMockRepository()
+		h := NewBookingHandler(nil, nil, nil, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+
+		bot, _ := telebot.NewBot(telebot.Settings{Offline: true})
+		ctx := &mockContext{
+			sender: &telebot.User{ID: 123},
+			message: &telebot.Message{
+				Document: &telebot.Document{
+					File:     telebot.File{FileID: "doc123", FileSize: 1024},
+					FileName: "report.pdf",
+				},
+			},
+			bot: bot,
+		}
+
+		err := h.HandleFileMessage(ctx)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if !strings.Contains(ctx.sentMsg, "запишитесь на прием") {
+			t.Errorf("Expected 'register first' message, got: %s", ctx.sentMsg)
+		}
+	})
+
+	t.Run("Document too large", func(t *testing.T) {
+		mockRepo := newMockRepository()
+		_ = mockRepo.SavePatient(domain.Patient{TelegramID: "123", Name: "Test"})
+		h := NewBookingHandler(nil, nil, nil, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+
+		bot, _ := telebot.NewBot(telebot.Settings{Offline: true})
+		ctx := &mockContext{
+			sender: &telebot.User{ID: 123},
+			message: &telebot.Message{
+				Document: &telebot.Document{
+					File:     telebot.File{FileID: "bigdoc", FileSize: 25 * 1024 * 1024},
+					FileName: "huge.zip",
+				},
+			},
+			bot: bot,
+		}
+
+		err := h.HandleFileMessage(ctx)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if !strings.Contains(ctx.sentMsg, "слишком большой") {
+			t.Errorf("Expected 'too large' message, got: %s", ctx.sentMsg)
+		}
+	})
+}
+
+func TestHandleConfirmBooking_AdminBlock(t *testing.T) {
+	mockSession := newMockSessionStorage()
+	mockRepo := newMockRepository()
+	mockApptService := &mockAppointmentService{
+		createAppointmentFunc: func(ctx context.Context, a *domain.Appointment) (*domain.Appointment, error) {
+			return a, nil
+		},
+	}
+
+	userID := int64(123)
+	mockSession.Set(userID, SessionKeyService, domain.Service{ID: "block_60", Name: "Block 60", DurationMinutes: 60})
+	mockSession.Set(userID, SessionKeyDate, time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC))
+	mockSession.Set(userID, SessionKeyTime, "10:00")
+	mockSession.Set(userID, SessionKeyName, "Admin")
+	mockSession.Set(userID, SessionKeyIsAdminBlock, true)
+
+	bot, _ := telebot.NewBot(telebot.Settings{Offline: true})
+	h := NewBookingHandler(mockApptService, mockSession, []string{"123"}, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{
+		sender: &telebot.User{ID: userID},
+		bot:    bot,
+	}
+
+	err := h.HandleConfirmBooking(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !strings.Contains(ctx.sentMsg, "заблокировано") && !strings.Contains(ctx.sentMsg, "ЗАБЛОКИРОВАНО") {
+		t.Errorf("Expected block confirmation, got: %s", ctx.sentMsg)
+	}
+}
+
+func TestHandleConfirmBooking_AdminManual(t *testing.T) {
+	mockSession := newMockSessionStorage()
+	mockRepo := newMockRepository()
+	mockApptService := &mockAppointmentService{
+		createAppointmentFunc: func(ctx context.Context, a *domain.Appointment) (*domain.Appointment, error) {
+			return a, nil
+		},
+		getCustomerHistoryFunc: func(ctx context.Context, id string) ([]domain.Appointment, error) {
+			return []domain.Appointment{}, nil
+		},
+	}
+
+	userID := int64(123)
+	mockSession.Set(userID, SessionKeyService, domain.Service{ID: "s1", Name: "Massage", DurationMinutes: 60})
+	mockSession.Set(userID, SessionKeyDate, time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC))
+	mockSession.Set(userID, SessionKeyTime, "10:00")
+	mockSession.Set(userID, SessionKeyName, "Test Patient")
+	mockSession.Set(userID, SessionKeyIsAdminManual, true)
+	mockSession.Set(userID, SessionKeyPatientID, "456")
+
+	bot, _ := telebot.NewBot(telebot.Settings{Offline: true})
+	h := NewBookingHandler(mockApptService, mockSession, []string{"123"}, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{
+		sender: &telebot.User{ID: userID},
+		bot:    bot,
+	}
+
+	err := h.HandleConfirmBooking(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !strings.Contains(ctx.sentMsg, "РУЧНАЯ ЗАПИСЬ") {
+		t.Errorf("Expected manual booking confirmation, got: %s", ctx.sentMsg)
+	}
+}
+
+func TestHandleConfirmBooking_SlotUnavailable(t *testing.T) {
+	mockSession := newMockSessionStorage()
+	mockRepo := newMockRepository()
+	mockApptService := &mockAppointmentService{
+		createAppointmentFunc: func(ctx context.Context, a *domain.Appointment) (*domain.Appointment, error) {
+			return nil, fmt.Errorf("slot is not available")
+		},
+	}
+
+	userID := int64(123)
+	mockSession.Set(userID, SessionKeyService, domain.Service{ID: "s1", Name: "Massage", DurationMinutes: 60})
+	mockSession.Set(userID, SessionKeyDate, time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC))
+	mockSession.Set(userID, SessionKeyTime, "10:00")
+	mockSession.Set(userID, SessionKeyName, "Test")
+
+	bot, _ := telebot.NewBot(telebot.Settings{Offline: true})
+	h := NewBookingHandler(mockApptService, mockSession, []string{}, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{
+		sender: &telebot.User{ID: userID},
+		bot:    bot,
+	}
+
+	err := h.HandleConfirmBooking(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !strings.Contains(ctx.sentMsg, "занято") {
+		t.Errorf("Expected 'slot occupied' message, got: %s", ctx.sentMsg)
+	}
+}
+
+func TestHandleConfirmBooking_AdminBlockError(t *testing.T) {
+	mockSession := newMockSessionStorage()
+	mockRepo := newMockRepository()
+	mockApptService := &mockAppointmentService{
+		createAppointmentFunc: func(ctx context.Context, a *domain.Appointment) (*domain.Appointment, error) {
+			return nil, fmt.Errorf("calendar API error")
+		},
+	}
+
+	userID := int64(123)
+	mockSession.Set(userID, SessionKeyService, domain.Service{ID: "block_60", Name: "Block 60", DurationMinutes: 60})
+	mockSession.Set(userID, SessionKeyDate, time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC))
+	mockSession.Set(userID, SessionKeyTime, "10:00")
+	mockSession.Set(userID, SessionKeyName, "Admin")
+	mockSession.Set(userID, SessionKeyIsAdminBlock, true)
+
+	bot, _ := telebot.NewBot(telebot.Settings{Offline: true})
+	h := NewBookingHandler(mockApptService, mockSession, []string{"123"}, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{
+		sender: &telebot.User{ID: userID},
+		bot:    bot,
+	}
+
+	err := h.HandleConfirmBooking(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !strings.Contains(ctx.sentMsg, "Ошибка при создании блокировки") {
+		t.Errorf("Expected block error message, got: %s", ctx.sentMsg)
+	}
+}
+
+func TestHandleConfirmBooking_PartialSessionData(t *testing.T) {
+	mockSession := newMockSessionStorage()
+	userID := int64(123)
+	mockSession.Set(userID, SessionKeyService, domain.Service{ID: "s1", Name: "Massage"})
+
+	h := NewBookingHandler(nil, mockSession, nil, nil, nil, nil, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{
+		sender: &telebot.User{ID: userID},
+	}
+
+	err := h.HandleConfirmBooking(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !strings.Contains(ctx.sentMsg, "Ошибка сессии") {
+		t.Errorf("Expected session error message, got: %s", ctx.sentMsg)
+	}
+}
+
+func TestHandleTimeSelection_MalformedData(t *testing.T) {
+	mockSession := newMockSessionStorage()
+	h := NewBookingHandler(nil, mockSession, nil, nil, nil, nil, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{
+		sender:   &telebot.User{ID: 123},
+		callback: &telebot.Callback{Data: "select_time|invalid_time_format"},
+	}
+
+	err := h.HandleTimeSelection(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if ctx.editedMsg == nil {
+		t.Error("Expected edited message for malformed data")
+	}
+}
+
+func TestHandleTimeSelection_BlockService(t *testing.T) {
+	mockSession := newMockSessionStorage()
+	userID := int64(123)
+	mockSession.Set(userID, SessionKeyService, domain.Service{ID: "block_60", Name: "Block 60", DurationMinutes: 60})
+	mockSession.Set(userID, SessionKeyDate, time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC))
+
+	h := NewBookingHandler(nil, mockSession, nil, nil, nil, nil, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{
+		sender:   &telebot.User{ID: userID},
+		callback: &telebot.Callback{Data: "select_time|10:00"},
+	}
+
+	err := h.HandleTimeSelection(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	session := mockSession.Get(userID)
+	if name, ok := session[SessionKeyName].(string); !ok || name != "Admin" {
+		t.Errorf("Expected name 'Admin' for block service, got %v", name)
+	}
+}
+
+func TestHandleTimeSelection_ReturningPatient(t *testing.T) {
+	mockSession := newMockSessionStorage()
+	mockRepo := newMockRepository()
+	_ = mockRepo.SavePatient(domain.Patient{TelegramID: "123", Name: "Returning User", TotalVisits: 5})
+
+	userID := int64(123)
+	mockSession.Set(userID, SessionKeyService, domain.Service{ID: "s1", Name: "Massage", DurationMinutes: 60})
+	mockSession.Set(userID, SessionKeyDate, time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC))
+
+	h := NewBookingHandler(nil, mockSession, nil, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{
+		sender:   &telebot.User{ID: userID},
+		callback: &telebot.Callback{Data: "select_time|10:00"},
+	}
+
+	err := h.HandleTimeSelection(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	session := mockSession.Get(userID)
+	if name, ok := session[SessionKeyName].(string); !ok || name != "Returning User" {
+		t.Errorf("Expected auto-filled name 'Returning User', got %v", name)
+	}
+}
+
+func TestHandleTimeSelection_AdminManualWithPreFilledName(t *testing.T) {
+	mockSession := newMockSessionStorage()
+	userID := int64(123)
+	mockSession.Set(userID, SessionKeyService, domain.Service{ID: "s1", Name: "Massage", DurationMinutes: 60})
+	mockSession.Set(userID, SessionKeyDate, time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC))
+	mockSession.Set(userID, SessionKeyIsAdminManual, true)
+	mockSession.Set(userID, SessionKeyName, "Pre-filled Patient")
+
+	h := NewBookingHandler(nil, mockSession, nil, nil, nil, nil, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{
+		sender:   &telebot.User{ID: userID},
+		callback: &telebot.Callback{Data: "select_time|10:00"},
+	}
+
+	err := h.HandleTimeSelection(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	session := mockSession.Get(userID)
+	if name, ok := session[SessionKeyName].(string); !ok || name != "Pre-filled Patient" {
+		t.Errorf("Expected pre-filled name preserved, got %v", name)
+	}
+}
+
+func TestHandleTimeSelection_AdminManualWithoutName(t *testing.T) {
+	mockSession := newMockSessionStorage()
+	userID := int64(123)
+	mockSession.Set(userID, SessionKeyService, domain.Service{ID: "s1", Name: "Massage", DurationMinutes: 60})
+	mockSession.Set(userID, SessionKeyIsAdminManual, true)
+
+	h := NewBookingHandler(nil, mockSession, nil, nil, nil, nil, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{
+		sender:   &telebot.User{ID: userID},
+		callback: &telebot.Callback{Data: "select_time|10:00"},
+	}
+
+	err := h.HandleTimeSelection(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !strings.Contains(ctx.sentMsg, "имя и фамилию") {
+		t.Errorf("Expected name prompt for admin manual without name, got: %s", ctx.sentMsg)
 	}
 }

@@ -28,6 +28,7 @@ type mockRepo struct {
 	ports.Repository // Embed interface
 	patient          domain.Patient
 	media            domain.PatientMedia
+	getAllPatientsFunc  func() ([]domain.Patient, error)
 }
 
 func (m *mockRepo) GetPatient(id string) (domain.Patient, error) {
@@ -37,7 +38,12 @@ func (m *mockRepo) GetPatient(id string) (domain.Patient, error) {
 	return domain.Patient{}, fmt.Errorf("not found")
 }
 
-func (m *mockRepo) GetAllPatients() ([]domain.Patient, error) { return nil, nil }
+func (m *mockRepo) GetAllPatients() ([]domain.Patient, error) {
+	if m.getAllPatientsFunc != nil {
+		return m.getAllPatientsFunc()
+	}
+	return nil, nil
+}
 
 func (m *mockRepo) GenerateHTMLRecord(p domain.Patient, h []domain.Appointment, isAdmin bool) string {
 	return fmt.Sprintf("HTML_RECORD_FOR_%s_ADMIN_%v", p.Name, isAdmin)
@@ -173,6 +179,234 @@ func TestAdminViewPatient(t *testing.T) {
 	}
 }
 
+func TestWebAppHandler_Unauthenticated(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	repo := &mockRepo{}
+	service := &mockApptService{}
+	presenter, _ := presentation.NewWebPresenter()
+	handler := NewWebAppHandler(repo, service, presenter, botToken, []string{}, "secret")
+
+	// No auth at all -> should show loading page
+	req, _ := http.NewRequest("GET", "/", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200 for unauthenticated (serves loading page), got %d", rr.Code)
+	}
+	body := rr.Body.String()
+	if !strings.Contains(body, "Авторизация") && !strings.Contains(body, "initData") {
+		t.Errorf("Expected auth loading page, got %q", body[:200])
+	}
+}
+
+func TestWebAppHandler_AdminSearchPage(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	adminID := "100"
+	repo := &mockRepo{patient: domain.Patient{TelegramID: adminID, Name: "Admin"}}
+	service := &mockApptService{}
+	presenter, _ := presentation.NewWebPresenter()
+	handler := NewWebAppHandler(repo, service, presenter, botToken, []string{adminID}, "secret")
+
+	// Admin with no target ID -> search page
+	initData := makeInitData(adminID, "Admin", botToken)
+	req, _ := http.NewRequest("GET", "/?initData="+url.QueryEscape(initData), nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200 for admin search page, got %d", rr.Code)
+	}
+}
+
+func TestWebAppHandler_HMACAuth(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	secret := "hmac_secret"
+	patientID := "500"
+	repo := &mockRepo{patient: domain.Patient{TelegramID: patientID, Name: "HMAC Patient"}}
+	service := &mockApptService{}
+	presenter, _ := presentation.NewWebPresenter()
+	handler := NewWebAppHandler(repo, service, presenter, botToken, []string{}, secret)
+
+	// Generate valid HMAC token
+	h := hmac.New(sha256.New, []byte(secret))
+	h.Write([]byte(patientID))
+	token := hex.EncodeToString(h.Sum(nil))
+
+	req, _ := http.NewRequest("GET", "/?id="+patientID+"&token="+token, nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200 for HMAC auth, got %d. Body: %s", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "HMAC Patient") {
+		t.Errorf("Expected patient name in response")
+	}
+}
+
+func TestWebAppHandler_PatientNotFound_SelfHeal(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	repo := &mockRepo{}
+	service := &mockApptService{}
+	presenter, _ := presentation.NewWebPresenter()
+	handler := NewWebAppHandler(repo, service, presenter, botToken, []string{}, "secret")
+
+	// Unknown patient -> self-heal path
+	initData := makeInitData("777", "NewUser", botToken)
+	req, _ := http.NewRequest("GET", "/?id=777&initData="+url.QueryEscape(initData), nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200 for self-heal, got %d. Body: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestDraftHandler_Discard(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	adminID := "100"
+
+	repo := &mockRepo{
+		media: domain.PatientMedia{ID: "media2", PatientID: "200", Transcript: "Draft to discard"},
+	}
+
+	handler := NewDraftHandler(repo, botToken, []string{adminID}, "secret")
+
+	initData := makeInitData(adminID, "Admin", botToken)
+	body := map[string]string{
+		"id":       "media2",
+		"initData": initData,
+	}
+	jsonBody, _ := json.Marshal(body)
+
+	req, _ := http.NewRequest("POST", "/api/drafts/media2/discard", bytes.NewBuffer(jsonBody))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200 OK for discard, got %d. Body: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestDraftHandler_NonAdmin(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+
+	repo := &mockRepo{}
+	handler := NewDraftHandler(repo, botToken, []string{"999"}, "secret")
+
+	initData := makeInitData("100", "User", botToken)
+	body := map[string]string{"id": "media1", "initData": initData}
+	jsonBody, _ := json.Marshal(body)
+
+	req, _ := http.NewRequest("POST", "/api/drafts/media1/approve", bytes.NewBuffer(jsonBody))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("Expected 403 for non-admin, got %d", rr.Code)
+	}
+}
+
+func TestDraftHandler_MissingParams(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	adminID := "100"
+
+	repo := &mockRepo{}
+	handler := NewDraftHandler(repo, botToken, []string{adminID}, "secret")
+
+	// Missing id
+	initData := makeInitData(adminID, "Admin", botToken)
+	body := map[string]string{"initData": initData}
+	jsonBody, _ := json.Marshal(body)
+
+	req, _ := http.NewRequest("POST", "/api/drafts//approve", bytes.NewBuffer(jsonBody))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	// Handler may return 200 (media not found) or 400 depending on path
+	if rr.Code == http.StatusInternalServerError {
+		t.Errorf("Expected non-500 response, got %d", rr.Code)
+	}
+}
+
+func TestSearchHandler_EmptyQuery(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	adminID := "100"
+
+	repo := &mockRepo{}
+	handler := NewSearchHandler(repo, botToken, []string{adminID})
+
+	// Empty query -> GetAllPatients
+	initData := makeInitData(adminID, "Admin", botToken)
+	req, _ := http.NewRequest("GET", "/api/search?q=", nil)
+	req.Header.Set("X-Telegram-Init-Data", initData)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200 for empty query, got %d", rr.Code)
+	}
+}
+
+func TestSearchHandler_NonAdmin(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+
+	repo := &mockRepo{}
+	handler := NewSearchHandler(repo, botToken, []string{"999"})
+
+	initData := makeInitData("100", "User", botToken)
+	req, _ := http.NewRequest("GET", "/api/search?q=test", nil)
+	req.Header.Set("X-Telegram-Init-Data", initData)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("Expected 403 for non-admin, got %d", rr.Code)
+	}
+}
+
+func TestSearchHandler_InvalidInitData(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+
+	repo := &mockRepo{}
+	handler := NewSearchHandler(repo, botToken, []string{"100"})
+
+	req, _ := http.NewRequest("GET", "/api/search?q=test", nil)
+	req.Header.Set("X-Telegram-Init-Data", "garbage_data")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("Expected 401 for invalid auth, got %d", rr.Code)
+	}
+}
+
+func TestWebAppHandler_WithAppointments(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	patientID := "500"
+
+	repo := &mockRepo{
+		patient: domain.Patient{TelegramID: patientID, Name: "Patient With Appts"},
+	}
+
+	service := &mockApptService{}
+	presenter, _ := presentation.NewWebPresenter()
+	handler := NewWebAppHandler(repo, service, presenter, botToken, []string{}, "secret")
+
+	initData := makeInitData(patientID, "Patient", botToken)
+	req, _ := http.NewRequest("GET", "/?id="+patientID+"&initData="+url.QueryEscape(initData), nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200, got %d. Body: %s", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "Patient With Appts") {
+		t.Error("Expected patient name in response")
+	}
+}
+
 func TestHandleSearch(t *testing.T) {
 	adminID := "100"
 	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
@@ -243,7 +477,6 @@ func TestHandleCancel(t *testing.T) {
 	}
 
 	// 2. Cancel Someone Else's Appt (Forbidden)
-	// Reset mock (simple way: recreate or re-add)
 	service.appointments[apptID] = domain.Appointment{
 		ID:           apptID,
 		CustomerTgID: userID,
@@ -263,6 +496,78 @@ func TestHandleCancel(t *testing.T) {
 
 	if rrHacker.Code != http.StatusForbidden {
 		t.Errorf("Expected 403 Forbidden, got %d", rrHacker.Code)
+	}
+
+	// 3. Method not allowed (GET)
+	reqGet, _ := http.NewRequest("GET", "/cancel", nil)
+	rrGet := httptest.NewRecorder()
+	handler.ServeHTTP(rrGet, reqGet)
+	if rrGet.Code != http.StatusMethodNotAllowed {
+		t.Errorf("Expected 405 for GET, got %d", rrGet.Code)
+	}
+
+	// 4. Invalid JSON body
+	reqBadJSON, _ := http.NewRequest("POST", "/cancel", bytes.NewBuffer([]byte("not json")))
+	rrBadJSON := httptest.NewRecorder()
+	handler.ServeHTTP(rrBadJSON, reqBadJSON)
+	if rrBadJSON.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 for bad JSON, got %d", rrBadJSON.Code)
+	}
+
+	// 5. Missing parameters
+	bodyMissing := map[string]string{"initData": "data"}
+	jsonMissing, _ := json.Marshal(bodyMissing)
+	reqMissing, _ := http.NewRequest("POST", "/cancel", bytes.NewBuffer(jsonMissing))
+	rrMissing := httptest.NewRecorder()
+	handler.ServeHTTP(rrMissing, reqMissing)
+	if rrMissing.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 for missing params, got %d", rrMissing.Code)
+	}
+
+	// 6. Unauthorized (bad initData)
+	bodyUnauthorized := map[string]string{"initData": "garbage", "apptId": apptID}
+	jsonUnauthorized, _ := json.Marshal(bodyUnauthorized)
+	reqUnauthorized, _ := http.NewRequest("POST", "/cancel", bytes.NewBuffer(jsonUnauthorized))
+	rrUnauthorized := httptest.NewRecorder()
+	handler.ServeHTTP(rrUnauthorized, reqUnauthorized)
+	if rrUnauthorized.Code != http.StatusUnauthorized {
+		t.Errorf("Expected 401 for bad auth, got %d", rrUnauthorized.Code)
+	}
+
+	// 7. Appointment not found
+	bodyNotFound := map[string]string{"initData": initData, "apptId": "nonexistent"}
+	jsonNotFound, _ := json.Marshal(bodyNotFound)
+	reqNotFound, _ := http.NewRequest("POST", "/cancel", bytes.NewBuffer(jsonNotFound))
+	rrNotFound := httptest.NewRecorder()
+	handler.ServeHTTP(rrNotFound, reqNotFound)
+	if rrNotFound.Code != http.StatusNotFound {
+		t.Errorf("Expected 404 for not found, got %d", rrNotFound.Code)
+	}
+
+	// 8. Late cancellation blocked (< 72h, non-admin)
+	service.appointments["late_appt"] = domain.Appointment{
+		ID:           "late_appt",
+		CustomerTgID: userID,
+		StartTime:    time.Now().Add(24 * time.Hour), // < 72h
+	}
+	bodyLate := map[string]string{"initData": initData, "apptId": "late_appt"}
+	jsonLate, _ := json.Marshal(bodyLate)
+	reqLate, _ := http.NewRequest("POST", "/cancel", bytes.NewBuffer(jsonLate))
+	rrLate := httptest.NewRecorder()
+	handler.ServeHTTP(rrLate, reqLate)
+	if rrLate.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 for late cancel, got %d", rrLate.Code)
+	}
+
+	// 9. Admin bypasses < 72h restriction
+	adminInitData := makeInitData("999", "Admin", botToken)
+	bodyAdmin := map[string]string{"initData": adminInitData, "apptId": "late_appt"}
+	jsonAdmin, _ := json.Marshal(bodyAdmin)
+	reqAdmin, _ := http.NewRequest("POST", "/cancel", bytes.NewBuffer(jsonAdmin))
+	rrAdmin := httptest.NewRecorder()
+	handler.ServeHTTP(rrAdmin, reqAdmin)
+	if rrAdmin.Code != http.StatusOK {
+		t.Errorf("Expected 200 for admin cancel, got %d", rrAdmin.Code)
 	}
 }
 

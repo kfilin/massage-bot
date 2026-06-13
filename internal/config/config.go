@@ -24,9 +24,15 @@ type Config struct {
 
 // LoadConfig loads configuration from environment variables.
 func LoadConfig() *Config {
+	return LoadConfigWithFatal(logging.Fatal)
+}
+
+// LoadConfigWithFatal loads configuration from environment variables and uses
+// the provided fatal callback instead of os.Exit for testability.
+func LoadConfigWithFatal(fatal func(...interface{})) *Config {
 	token := os.Getenv("TG_BOT_TOKEN")
 	if token == "" {
-		logging.Fatal("Environment variable TG_BOT_TOKEN is not set.")
+		fatal("Environment variable TG_BOT_TOKEN is not set.")
 	}
 
 	adminID := os.Getenv("TG_ADMIN_ID")
@@ -53,7 +59,7 @@ func LoadConfig() *Config {
 	googleCredsJSON := os.Getenv("GOOGLE_CREDENTIALS_JSON")
 
 	if googleCredsPath == "" && googleCredsJSON == "" {
-		logging.Fatal("Set either GOOGLE_CREDENTIALS_PATH (for Docker) or GOOGLE_CREDENTIALS_JSON (for Kubernetes)")
+		fatal("Set either GOOGLE_CREDENTIALS_PATH (for Docker) or GOOGLE_CREDENTIALS_JSON (for Kubernetes)")
 	}
 
 	googleCalendarID := os.Getenv("GOOGLE_CALENDAR_ID")

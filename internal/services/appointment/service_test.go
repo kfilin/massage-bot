@@ -452,3 +452,193 @@ func TestService_GetTotalUpcomingCount_RepoError(t *testing.T) {
 		t.Error("Expected error when repo fails, got nil")
 	}
 }
+
+func TestService_CancelAppointment_RepoError(t *testing.T) {
+	repo := newMockRepo()
+	repo.shouldError = true
+	svc := NewService(repo, nil)
+	err := svc.CancelAppointment(context.Background(), "any-id")
+	if err == nil {
+		t.Error("Expected error when repo delete fails")
+	}
+}
+
+func TestService_CancelAppointment_WithDBRepo(t *testing.T) {
+	repo := newMockRepo()
+	dbRepo := &mockDBRepo{appointments: make(map[string]domain.Appointment)}
+	repo.appointments["appt1"] = &domain.Appointment{ID: "appt1"}
+	dbRepo.appointments["appt1"] = domain.Appointment{ID: "appt1"}
+
+	svc := NewService(repo, dbRepo)
+	err := svc.CancelAppointment(context.Background(), "appt1")
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+	if _, ok := dbRepo.appointments["appt1"]; ok {
+		t.Error("Expected appointment deleted from local DB")
+	}
+}
+
+func TestService_CancelAppointment_DBRepoDeleteError(t *testing.T) {
+	repo := newMockRepo()
+	dbRepo := &mockDBRepo{appointments: make(map[string]domain.Appointment), deleteError: true}
+	repo.appointments["appt2"] = &domain.Appointment{ID: "appt2"}
+
+	svc := NewService(repo, dbRepo)
+	err := svc.CancelAppointment(context.Background(), "appt2")
+	// Should succeed even if local DB delete fails
+	if err != nil {
+		t.Errorf("Expected success despite local DB error, got: %v", err)
+	}
+}
+
+func TestService_FindByID_RepoError(t *testing.T) {
+	repo := newMockRepo()
+	repo.shouldError = true
+	svc := NewService(repo, nil)
+	_, err := svc.FindByID(context.Background(), "any")
+	if err == nil {
+		t.Error("Expected error when repo fails")
+	}
+}
+
+func TestService_GetCustomerAppointments_RepoError(t *testing.T) {
+	repo := newMockRepo()
+	repo.shouldError = true
+	svc := NewService(repo, nil)
+	_, err := svc.GetCustomerAppointments(context.Background(), "user1")
+	if err == nil {
+		t.Error("Expected error when repo fails")
+	}
+}
+
+func TestService_GetCustomerAppointments_NotFound(t *testing.T) {
+	repo := newMockRepo()
+	svc := NewService(repo, nil)
+	appts, err := svc.GetCustomerAppointments(context.Background(), "nonexistent")
+	if err != nil {
+		t.Errorf("Expected empty result for not found, got error: %v", err)
+	}
+	if len(appts) != 0 {
+		t.Errorf("Expected 0 appointments, got %d", len(appts))
+	}
+}
+
+func TestService_GetAllUpcomingAppointments_RepoError(t *testing.T) {
+	repo := newMockRepo()
+	repo.shouldError = true
+	svc := NewService(repo, nil)
+	_, err := svc.GetAllUpcomingAppointments(context.Background())
+	if err == nil {
+		t.Error("Expected error when repo fails")
+	}
+}
+
+func TestService_GetAllUpcomingAppointments_NotFound(t *testing.T) {
+	repo := newMockRepo()
+	svc := NewService(repo, nil)
+	appts, err := svc.GetAllUpcomingAppointments(context.Background())
+	if err != nil {
+		t.Errorf("Expected empty result for not found, got error: %v", err)
+	}
+	if len(appts) != 0 {
+		t.Errorf("Expected 0 appointments, got %d", len(appts))
+	}
+}
+
+func TestService_GetCustomerHistory_RepoError(t *testing.T) {
+	repo := newMockRepo()
+	repo.shouldError = true
+	svc := NewService(repo, nil)
+	_, err := svc.GetCustomerHistory(context.Background(), "user1")
+	if err == nil {
+		t.Error("Expected error when repo fails")
+	}
+}
+
+func TestService_GetCustomerHistory_NotFound(t *testing.T) {
+	repo := newMockRepo()
+	svc := NewService(repo, nil)
+	appts, err := svc.GetCustomerHistory(context.Background(), "nonexistent")
+	if err != nil {
+		t.Errorf("Expected empty result for not found, got error: %v", err)
+	}
+	if len(appts) != 0 {
+		t.Errorf("Expected 0 appointments, got %d", len(appts))
+	}
+}
+
+func TestService_GetTotalUpcomingCount_NotFound(t *testing.T) {
+	repo := newMockRepo()
+	svc := NewService(repo, nil)
+	count, err := svc.GetTotalUpcomingCount(context.Background())
+	if err != nil {
+		t.Errorf("Expected empty result for not found, got error: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("Expected 0 count, got %d", count)
+	}
+}
+
+func TestService_CreateAppointment_RepoError(t *testing.T) {
+	repo := newMockRepo()
+	repo.shouldError = true
+	svc := NewServiceWithMetrics(repo, nil, &NoOpCollector{})
+	domain.ApptTimeZone = time.UTC
+	_, err := svc.CreateAppointment(context.Background(), &domain.Appointment{
+		Service:      domain.Service{ID: "1", Name: "Test", DurationMinutes: 60},
+		StartTime:    time.Now().Add(24 * time.Hour),
+		Duration:     60,
+		CustomerName: "Test",
+	})
+	if err == nil {
+		t.Error("Expected error when repo create fails")
+	}
+}
+
+func TestService_NewServiceWithMetrics(t *testing.T) {
+	repo := newMockRepo()
+	metrics := &NoOpCollector{}
+	svc := NewServiceWithMetrics(repo, nil, metrics)
+	if svc == nil {
+		t.Error("NewServiceWithMetrics returned nil")
+	}
+	if svc.metrics != metrics {
+		t.Error("Metrics not set correctly")
+	}
+}
+
+// mockDBRepo implements ports.Repository for local DB testing
+type mockDBRepo struct {
+	appointments map[string]domain.Appointment
+	deleteError  bool
+}
+
+func (m *mockDBRepo) SavePatient(patient domain.Patient) error            { return nil }
+func (m *mockDBRepo) GetPatient(id string) (domain.Patient, error)        { return domain.Patient{}, nil }
+func (m *mockDBRepo) GetAllPatients() ([]domain.Patient, error)           { return nil, nil }
+func (m *mockDBRepo) SearchPatients(q string) ([]domain.Patient, error)   { return nil, nil }
+func (m *mockDBRepo) IsUserBanned(id string, u string) (bool, error)      { return false, nil }
+func (m *mockDBRepo) BanUser(id string) error                             { return nil }
+func (m *mockDBRepo) UnbanUser(id string) error                           { return nil }
+func (m *mockDBRepo) UpdatePatientProfile(id string, n string, no string) error { return nil }
+func (m *mockDBRepo) LogEvent(pid string, et string, d map[string]interface{}) error { return nil }
+func (m *mockDBRepo) SaveMedia(media domain.PatientMedia) error           { return nil }
+func (m *mockDBRepo) GetPatientMedia(id string) ([]domain.PatientMedia, error) { return nil, nil }
+func (m *mockDBRepo) GetMediaByID(id string) (*domain.PatientMedia, error) { return nil, nil }
+func (m *mockDBRepo) UpdateMediaStatus(id string, s string, t string) error { return nil }
+func (m *mockDBRepo) CreateBackup() (string, error)                       { return "", nil }
+func (m *mockDBRepo) GetAppointmentHistory(id string) ([]domain.Appointment, error) { return nil, nil }
+func (m *mockDBRepo) UpsertAppointments(a []domain.Appointment) error     { return nil }
+func (m *mockDBRepo) SaveAppointmentMetadata(id string, t *time.Time, r map[string]bool) error { return nil }
+func (m *mockDBRepo) GetAppointmentMetadata(id string) (*time.Time, map[string]bool, error) {
+	return nil, nil, nil
+}
+
+func (m *mockDBRepo) DeleteAppointment(id string) error {
+	if m.deleteError {
+		return errors.New("delete failed")
+	}
+	delete(m.appointments, id)
+	return nil
+}
