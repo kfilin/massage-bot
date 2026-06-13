@@ -11,6 +11,7 @@ import (
 
 	"github.com/kfilin/massage-bot/internal/domain"
 	"google.golang.org/api/calendar/v3"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 )
 
@@ -667,6 +668,105 @@ func TestEventToAppointment(t *testing.T) {
 
 			if !tt.wantErr && tt.checkFn != nil {
 				tt.checkFn(t, got)
+			}
+		})
+	}
+}
+
+func TestIsGone(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "Nil error",
+			err:  nil,
+			want: false,
+		},
+		{
+			name: "Non-googleapi error",
+			err:  domain.ErrInvalidAppointment,
+			want: false,
+		},
+		{
+			name: "410 Gone error",
+			err:  &googleapi.Error{Code: 410},
+			want: true,
+		},
+		{
+			name: "404 Not Found error",
+			err:  &googleapi.Error{Code: 404},
+			want: false,
+		},
+		{
+			name: "500 Internal error",
+			err:  &googleapi.Error{Code: 500},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isGone(tt.err); got != tt.want {
+				t.Errorf("isGone() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsNotFound_Positive(t *testing.T) {
+	err := &googleapi.Error{Code: 404}
+	if !isNotFound(err) {
+		t.Error("isNotFound() should return true for 404 error")
+	}
+}
+
+func TestEventToAppointment_EdgeCases(t *testing.T) {
+	tests := []struct {
+		name    string
+		event   *calendar.Event
+		wantErr bool
+	}{
+		{
+			name: "Event with no start time",
+			event: &calendar.Event{
+				Id:     "evt1",
+				Start:  &calendar.EventDateTime{},
+				End:    &calendar.EventDateTime{DateTime: time.Now().Format(time.RFC3339)},
+				Status: "confirmed",
+			},
+			wantErr: true,
+		},
+		{
+			name: "Event with no end time defaults to start",
+			event: &calendar.Event{
+				Id:     "evt2",
+				Start:  &calendar.EventDateTime{DateTime: time.Now().Format(time.RFC3339)},
+				End:    &calendar.EventDateTime{},
+				Status: "confirmed",
+			},
+			wantErr: false,
+		},
+		{
+			name: "Event with description containing TGID",
+			event: &calendar.Event{
+				Id:          "evt3",
+				Summary:     "Massage - Test",
+				Description: "TGID: 12345\nNotes here",
+				Start:       &calendar.EventDateTime{DateTime: time.Now().Format(time.RFC3339)},
+				End:         &calendar.EventDateTime{DateTime: time.Now().Add(time.Hour).Format(time.RFC3339)},
+				Status:      "confirmed",
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := eventToAppointment(tt.event)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("eventToAppointment() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}

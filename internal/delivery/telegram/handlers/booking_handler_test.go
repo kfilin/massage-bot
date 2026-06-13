@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -1170,5 +1171,803 @@ func TestHandleDiscardDraft(t *testing.T) {
 	edited, _ := ctx.editedMsg.(string)
 	if !strings.Contains(edited, "УДАЛЕН") {
 		t.Errorf("Unexpected response message: %s", edited)
+	}
+}
+
+func TestHandleUploadCommand(t *testing.T) {
+	h := NewBookingHandler(nil, nil, nil, nil, nil, nil, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{sender: &telebot.User{ID: 123}}
+
+	err := h.HandleUploadCommand(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if !strings.Contains(ctx.sentMsg, "Загрузка медицинских документов") {
+		t.Errorf("Expected upload instructions message, got: %s", ctx.sentMsg)
+	}
+}
+
+func TestHandleNameInput(t *testing.T) {
+	tests := []struct {
+		name        string
+		inputName   string
+		wantMsg     string
+		wantSession bool
+	}{
+		{
+			name:        "Valid name",
+			inputName:   "Иван Петров",
+			wantMsg:     "Всё верно",
+			wantSession: true,
+		},
+		{
+			name:        "Empty name",
+			inputName:   "",
+			wantMsg:     "Имя не может быть пустым",
+			wantSession: false,
+		},
+		{
+			name:        "Whitespace only name",
+			inputName:   "   ",
+			wantMsg:     "Имя не может быть пустым",
+			wantSession: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockSession := newMockSessionStorage()
+			mockSession.Set(123, SessionKeyService, domain.Service{ID: "s1", Name: "Massage", DurationMinutes: 60})
+			mockSession.Set(123, SessionKeyDate, time.Now())
+			mockSession.Set(123, SessionKeyTime, "14:00")
+
+			h := NewBookingHandler(nil, mockSession, nil, nil, nil, nil, &presentation.BotPresenter{}, "", "")
+			ctx := &mockContext{
+				sender: &telebot.User{ID: 123},
+				text:   tt.inputName,
+			}
+
+			err := h.HandleNameInput(ctx)
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			if tt.wantSession {
+				session := mockSession.Get(123)
+				if name, ok := session[SessionKeyName].(string); !ok || name != strings.TrimSpace(tt.inputName) {
+					t.Errorf("Expected name %q in session, got %v", tt.inputName, name)
+				}
+			}
+		})
+	}
+}
+
+func TestHandleManualAppointment(t *testing.T) {
+	tests := []struct {
+		name      string
+		adminIDs  []string
+		userID    int64
+		args      []string
+		wantMsg   string
+		wantAdmin bool
+	}{
+		{
+			name:      "Admin with name args",
+			adminIDs:  []string{"123"},
+			userID:    123,
+			args:      []string{"Иван", "Петров"},
+			wantMsg:   "Выберите категорию",
+			wantAdmin: true,
+		},
+		{
+			name:      "Admin without args",
+			adminIDs:  []string{"123"},
+			userID:    123,
+			args:      []string{},
+			wantMsg:   "Выберите категорию",
+			wantAdmin: true,
+		},
+		{
+			name:      "Non-admin denied",
+			adminIDs:  []string{"999"},
+			userID:    123,
+			args:      []string{},
+			wantMsg:   "только администраторам",
+			wantAdmin: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockApptService := &mockAppointmentService{
+				getAvailableServicesFunc: func(ctx context.Context) ([]domain.Service, error) {
+					return []domain.Service{{ID: "s1", Name: "Test"}}, nil
+				},
+			}
+			mockSession := newMockSessionStorage()
+
+			h := NewBookingHandler(mockApptService, mockSession, tt.adminIDs, nil, nil, nil, &presentation.BotPresenter{}, "", "")
+			ctx := &mockContext{
+				sender: &telebot.User{ID: tt.userID},
+				args:   tt.args,
+			}
+
+			err := h.HandleManualAppointment(ctx)
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			msg := ctx.sentMsg
+			if ctx.editedMsg != nil {
+				msg, _ = ctx.editedMsg.(string)
+			}
+			if !contains(msg, tt.wantMsg) {
+				t.Errorf("Expected message containing %q, got %q", tt.wantMsg, msg)
+			}
+
+			if tt.wantAdmin {
+				session := mockSession.Get(tt.userID)
+				if val, ok := session[SessionKeyIsAdminManual].(bool); !ok || !val {
+					t.Error("Expected admin manual flag in session")
+				}
+				if len(tt.args) > 0 {
+					if name, ok := session[SessionKeyName].(string); !ok || name != "Иван Петров" {
+						t.Errorf("Expected name 'Иван Петров' in session, got %v", name)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestHandleListPatients(t *testing.T) {
+	tests := []struct {
+		name     string
+		adminIDs []string
+		userID   int64
+		patients []domain.Patient
+		wantMsg  string
+	}{
+		{
+			name:     "Admin with patients",
+			adminIDs: []string{"123"},
+			userID:   123,
+			patients: []domain.Patient{
+				{TelegramID: "100", Name: "Иван", TotalVisits: 5},
+				{TelegramID: "200", Name: "Мария", TotalVisits: 3},
+			},
+			wantMsg: "Список пациентов",
+		},
+		{
+			name:     "Admin empty list",
+			adminIDs: []string{"123"},
+			userID:   123,
+			patients: []domain.Patient{},
+			wantMsg:  "Список пациентов пуст",
+		},
+		{
+			name:     "Non-admin denied",
+			adminIDs: []string{"999"},
+			userID:   123,
+			patients: nil,
+			wantMsg:  "Доступ запрещен",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := newMockRepository()
+			mockRepo.searchPatientsFunc = func(query string) ([]domain.Patient, error) {
+				return tt.patients, nil
+			}
+
+			h := NewBookingHandler(nil, nil, tt.adminIDs, nil, nil, mockRepo, &presentation.BotPresenter{}, "http://app.test", "secret")
+			ctx := &mockContext{sender: &telebot.User{ID: tt.userID}}
+
+			err := h.HandleListPatients(ctx)
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			if !contains(ctx.sentMsg, tt.wantMsg) {
+				t.Errorf("Expected message containing %q, got %q", tt.wantMsg, ctx.sentMsg)
+			}
+		})
+	}
+}
+
+func TestHandleEditName(t *testing.T) {
+	tests := []struct {
+		name       string
+		adminIDs   []string
+		userID     int64
+		args       []string
+		patientErr bool
+		saveErr    bool
+		wantMsg    string
+	}{
+		{
+			name:     "Successful edit",
+			adminIDs: []string{"123"},
+			userID:   123,
+			args:     []string{"100", "НовоеИмя"},
+			wantMsg:  "обновлено",
+		},
+		{
+			name:     "Non-admin denied",
+			adminIDs: []string{"999"},
+			userID:   123,
+			args:     []string{"100", "Имя"},
+			wantMsg:  "Доступ запрещен",
+		},
+		{
+			name:     "Missing args",
+			adminIDs: []string{"123"},
+			userID:   123,
+			args:     []string{"100"},
+			wantMsg:  "Использование",
+		},
+		{
+			name:       "Patient not found",
+			adminIDs:   []string{"123"},
+			userID:     123,
+			args:       []string{"999", "Имя"},
+			patientErr: true,
+			wantMsg:    "не найден",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := newMockRepository()
+			if tt.patientErr {
+				mockRepo.getPatientFunc = func(id string) (domain.Patient, error) {
+					return domain.Patient{}, fmt.Errorf("not found")
+				}
+			}
+			if tt.saveErr {
+				mockRepo.savePatientFunc = func(p domain.Patient) error {
+					return fmt.Errorf("save error")
+				}
+			}
+
+			h := NewBookingHandler(nil, nil, tt.adminIDs, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+			ctx := &mockContext{
+				sender: &telebot.User{ID: tt.userID},
+				args:   tt.args,
+			}
+
+			err := h.HandleEditName(ctx)
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			if !contains(ctx.sentMsg, tt.wantMsg) {
+				t.Errorf("Expected message containing %q, got %q", tt.wantMsg, ctx.sentMsg)
+			}
+		})
+	}
+}
+
+func TestHandleBackup(t *testing.T) {
+	tests := []struct {
+		name     string
+		adminIDs []string
+		userID   int64
+		wantMsg  string
+	}{
+		{
+			name:     "Non-admin denied",
+			adminIDs: []string{"999"},
+			userID:   123,
+			wantMsg:  "нет прав",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := newMockRepository()
+			h := NewBookingHandler(nil, nil, tt.adminIDs, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+			ctx := &mockContext{sender: &telebot.User{ID: tt.userID}}
+
+			err := h.HandleBackup(ctx)
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			if !contains(ctx.sentMsg, tt.wantMsg) {
+				t.Errorf("Expected message containing %q, got %q", tt.wantMsg, ctx.sentMsg)
+			}
+		})
+	}
+}
+
+func TestHandleBackup_AdminSuccess(t *testing.T) {
+	mockRepo := newMockRepository()
+	h := NewBookingHandler(nil, nil, []string{"123"}, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{sender: &telebot.User{ID: 123}}
+
+	err := h.HandleBackup(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// The first Send call is a status message, then it sends a Document
+	// Since our mock captures only string messages, check that something was sent
+	if ctx.sentMsg == "" {
+		t.Error("Expected at least one message to be sent")
+	}
+}
+
+func TestHandleAdminReplyRequest(t *testing.T) {
+	tests := []struct {
+		name       string
+		callback   string
+		patientErr bool
+		wantMsg    string
+	}{
+		{
+			name:     "Valid reply request",
+			callback: "admin_reply|100",
+			wantMsg:  "Введите ответ",
+		},
+		{
+			name:       "Patient not found",
+			callback:   "admin_reply|999",
+			patientErr: true,
+			wantMsg:    "не найден",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockSession := newMockSessionStorage()
+			mockRepo := newMockRepository()
+			if tt.patientErr {
+				mockRepo.getPatientFunc = func(id string) (domain.Patient, error) {
+					return domain.Patient{}, fmt.Errorf("not found")
+				}
+			}
+
+			h := NewBookingHandler(nil, mockSession, nil, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+			ctx := &mockContext{
+				sender:   &telebot.User{ID: 123},
+				callback: &telebot.Callback{Data: tt.callback},
+			}
+
+			err := h.HandleAdminReplyRequest(ctx)
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			if !contains(ctx.sentMsg, tt.wantMsg) {
+				t.Errorf("Expected message containing %q, got %q", tt.wantMsg, ctx.sentMsg)
+			}
+
+			if !tt.patientErr {
+				session := mockSession.Get(123)
+				if val, ok := session[SessionKeyAdminReplyingTo].(string); !ok || val != "100" {
+					t.Errorf("Expected admin replying to '100', got %v", val)
+				}
+			}
+		})
+	}
+}
+
+func TestHandleReminderConfirmation(t *testing.T) {
+	mockRepo := newMockRepository()
+	mockApptService := &mockAppointmentService{
+		findByIDFunc: func(ctx context.Context, id string) (*domain.Appointment, error) {
+			return &domain.Appointment{
+				ID:           "appt1",
+				CustomerTgID: "100",
+				Service:      domain.Service{Name: "Massage"},
+				StartTime:    time.Now().Add(24 * time.Hour),
+			}, nil
+		},
+	}
+
+	bot, _ := telebot.NewBot(telebot.Settings{Offline: true})
+	h := NewBookingHandler(mockApptService, nil, []string{"999"}, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{
+		sender:   &telebot.User{ID: 100},
+		callback: &telebot.Callback{Data: "confirm_appt_reminder|appt1"},
+		bot:      bot,
+	}
+
+	err := h.HandleReminderConfirmation(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	edited, _ := ctx.editedMsg.(string)
+	if !contains(edited, "подтверждена") {
+		t.Errorf("Expected confirmation message, got: %s", edited)
+	}
+}
+
+func TestHandleCancelAppointmentCallback(t *testing.T) {
+	tests := []struct {
+		name          string
+		callback      string
+		appt          *domain.Appointment
+		apptErr       error
+		cancelErr     error
+		wantResponse  string
+		wantLateBlock bool
+	}{
+		{
+			name:     "Successful cancellation",
+			callback: "cancel_appt|appt1",
+			appt: &domain.Appointment{
+				ID:           "appt1",
+				CustomerTgID: "100",
+				CustomerName: "Иван",
+				StartTime:    time.Now().Add(7 * 24 * time.Hour),
+			},
+			wantResponse: "успешно отменена",
+		},
+		{
+			name:     "Late cancellation blocked (< 72h)",
+			callback: "cancel_appt|appt1",
+			appt: &domain.Appointment{
+				ID:           "appt1",
+				CustomerTgID: "100",
+				StartTime:    time.Now().Add(24 * time.Hour),
+			},
+			wantLateBlock: true,
+			wantResponse:  "меньше 3 дней",
+		},
+		{
+			name:         "Invalid callback data",
+			callback:     "cancel_appt",
+			wantResponse: "неверные данные",
+		},
+		{
+			name:         "Cancel error",
+			callback:     "cancel_appt|appt1",
+			appt:         nil,
+			apptErr:      fmt.Errorf("not found"),
+			cancelErr:    fmt.Errorf("cancel failed"),
+			wantResponse: "Не удалось отменить",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := newMockRepository()
+			mockApptService := &mockAppointmentService{
+				findByIDFunc: func(ctx context.Context, id string) (*domain.Appointment, error) {
+					if tt.apptErr != nil {
+						return nil, tt.apptErr
+					}
+					return tt.appt, nil
+				},
+				cancelAppointmentFunc: func(ctx context.Context, id string) error {
+					return tt.cancelErr
+				},
+				getCustomerHistoryFunc: func(ctx context.Context, id string) ([]domain.Appointment, error) {
+					return []domain.Appointment{}, nil
+				},
+			}
+
+			bot, _ := telebot.NewBot(telebot.Settings{Offline: true})
+			domain.ApptTimeZone = time.UTC
+			h := NewBookingHandler(mockApptService, nil, []string{"999"}, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+			ctx := &mockContext{
+				sender:   &telebot.User{ID: 100},
+				callback: &telebot.Callback{Data: tt.callback},
+				bot:      bot,
+			}
+
+			err := h.HandleCancelAppointmentCallback(ctx)
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			if ctx.response == nil && ctx.responded {
+				t.Error("Expected callback response")
+			}
+			if ctx.response != nil && !contains(ctx.response.Text, tt.wantResponse) {
+				t.Errorf("Expected response containing %q, got %q", tt.wantResponse, ctx.response.Text)
+			}
+		})
+	}
+}
+
+func TestHandleDateSelection(t *testing.T) {
+	tests := []struct {
+		name         string
+		callback     string
+		setupSession func(s ports.SessionStorage, userID int64)
+		message      *telebot.Message
+		wantEdit     bool
+		wantErr      bool
+	}{
+		{
+			name:     "Navigate month",
+			callback: "navigate_month|2025-07",
+			message:  &telebot.Message{Text: "Calendar", ID: 1, Chat: &telebot.Chat{ID: 123}},
+			wantEdit: true,
+			wantErr:  false,
+		},
+		{
+			name:         "Invalid date format",
+			callback:     "select_date|invalid",
+			setupSession: func(s ports.SessionStorage, userID int64) {},
+			wantErr:      false,
+		},
+		{
+			name:     "Back to services with category",
+			callback: "back_to_services",
+			setupSession: func(s ports.SessionStorage, userID int64) {
+				s.Set(userID, SessionKeyCategory, "massages")
+			},
+			wantErr: false,
+		},
+		{
+			name:     "Back to services without category",
+			callback: "back_to_services",
+			setupSession: func(s ports.SessionStorage, userID int64) {},
+			wantErr:  false,
+		},
+		{
+			name:     "Unknown action",
+			callback: "unknown_action",
+			setupSession: func(s ports.SessionStorage, userID int64) {},
+			wantErr:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockSession := newMockSessionStorage()
+			mockApptService := &mockAppointmentService{
+				getAvailableServicesFunc: func(ctx context.Context) ([]domain.Service, error) {
+					return []domain.Service{{ID: "s1", Name: "Test"}}, nil
+				},
+			}
+
+			if tt.setupSession != nil {
+				tt.setupSession(mockSession, 123)
+			}
+
+			bot, _ := telebot.NewBot(telebot.Settings{Offline: true})
+			h := NewBookingHandler(mockApptService, mockSession, nil, nil, nil, nil, &presentation.BotPresenter{}, "", "")
+
+			msg := tt.message
+			if msg == nil {
+				msg = &telebot.Message{Text: "Default", ID: 1, Chat: &telebot.Chat{ID: 123}}
+			}
+
+			ctx := &mockContext{
+				sender:   &telebot.User{ID: 123},
+				callback: &telebot.Callback{Data: tt.callback},
+				message:  msg,
+				bot:      bot,
+			}
+
+			err := h.HandleDateSelection(ctx)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("HandleDateSelection error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestHandleDateSelection_SelectDate(t *testing.T) {
+	mockSession := newMockSessionStorage()
+	mockSession.Set(123, SessionKeyService, domain.Service{ID: "s1", Name: "Test", DurationMinutes: 60})
+
+	mockApptService := &mockAppointmentService{
+		getAvailableTimeSlotsFunc: func(ctx context.Context, date time.Time, dur int) ([]domain.TimeSlot, error) {
+			start := time.Date(2025, 6, 15, 10, 0, 0, 0, time.UTC)
+			return []domain.TimeSlot{{Start: start, End: start.Add(time.Hour)}}, nil
+		},
+	}
+
+	bot, _ := telebot.NewBot(telebot.Settings{Offline: true})
+	h := NewBookingHandler(mockApptService, mockSession, nil, nil, nil, nil, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{
+		sender:   &telebot.User{ID: 123},
+		callback: &telebot.Callback{Data: "select_date|2025-06-15"},
+		message:  &telebot.Message{Text: "Calendar", ID: 1, Chat: &telebot.Chat{ID: 123}},
+		bot:      bot,
+	}
+
+	err := h.HandleDateSelection(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Verify date stored in session
+	session := mockSession.Get(123)
+	if date, ok := session[SessionKeyDate].(time.Time); !ok || date.Format("2006-01-02") != "2025-06-15" {
+		t.Errorf("Expected date 2025-06-15 in session, got %v", date)
+	}
+}
+
+func TestHandleReminderCancellation(t *testing.T) {
+	mockRepo := newMockRepository()
+	mockApptService := &mockAppointmentService{
+		findByIDFunc: func(ctx context.Context, id string) (*domain.Appointment, error) {
+			return &domain.Appointment{
+				ID:           "appt1",
+				CustomerTgID: "100",
+				StartTime:    time.Now().Add(7 * 24 * time.Hour),
+			}, nil
+		},
+		cancelAppointmentFunc: func(ctx context.Context, id string) error {
+			return nil
+		},
+		getCustomerHistoryFunc: func(ctx context.Context, id string) ([]domain.Appointment, error) {
+			return []domain.Appointment{}, nil
+		},
+	}
+
+	bot, _ := telebot.NewBot(telebot.Settings{Offline: true})
+	domain.ApptTimeZone = time.UTC
+	h := NewBookingHandler(mockApptService, nil, nil, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{
+		sender:   &telebot.User{ID: 100},
+		callback: &telebot.Callback{Data: "cancel_appt_reminder|appt1"},
+		bot:      bot,
+	}
+
+	err := h.HandleReminderCancellation(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if !ctx.responded {
+		t.Error("Expected callback response")
+	}
+}
+
+func TestHandleCancelAppointmentCallback_AdminBypass(t *testing.T) {
+	mockRepo := newMockRepository()
+	mockApptService := &mockAppointmentService{
+		findByIDFunc: func(ctx context.Context, id string) (*domain.Appointment, error) {
+			return &domain.Appointment{
+				ID:           "appt1",
+				CustomerTgID: "100",
+				StartTime:    time.Now().Add(24 * time.Hour), // < 72h
+			}, nil
+		},
+		getCustomerHistoryFunc: func(ctx context.Context, id string) ([]domain.Appointment, error) {
+			return []domain.Appointment{}, nil
+		},
+	}
+
+	bot, _ := telebot.NewBot(telebot.Settings{Offline: true})
+	domain.ApptTimeZone = time.UTC
+	h := NewBookingHandler(mockApptService, nil, []string{"999"}, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{
+		sender:   &telebot.User{ID: 100},
+		callback: &telebot.Callback{Data: "cancel_appt|appt1"},
+		bot:      bot,
+	}
+
+	err := h.HandleCancelAppointmentCallback(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Should be blocked due to < 72h
+	if ctx.response != nil && !contains(ctx.response.Text, "меньше 3 дней") {
+		t.Errorf("Expected late cancellation block, got: %s", ctx.response.Text)
+	}
+}
+
+func TestHandleCancelAppointmentCallback_PatientNotFound(t *testing.T) {
+	mockRepo := newMockRepository()
+	mockApptService := &mockAppointmentService{
+		findByIDFunc: func(ctx context.Context, id string) (*domain.Appointment, error) {
+			return nil, fmt.Errorf("not found")
+		},
+		cancelAppointmentFunc: func(ctx context.Context, id string) error {
+			return nil
+		},
+	}
+
+	bot, _ := telebot.NewBot(telebot.Settings{Offline: true})
+	domain.ApptTimeZone = time.UTC
+	h := NewBookingHandler(mockApptService, nil, nil, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{
+		sender:   &telebot.User{ID: 100},
+		callback: &telebot.Callback{Data: "cancel_appt|appt1"},
+		bot:      bot,
+	}
+
+	err := h.HandleCancelAppointmentCallback(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if ctx.response != nil && !contains(ctx.response.Text, "успешно отменена") {
+		t.Errorf("Expected success response even without appt details, got: %s", ctx.response.Text)
+	}
+}
+
+func TestHandleDateSelection_InvalidMonthFormat(t *testing.T) {
+	mockSession := newMockSessionStorage()
+	h := NewBookingHandler(nil, mockSession, nil, nil, nil, nil, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{
+		sender:   &telebot.User{ID: 123},
+		callback: &telebot.Callback{Data: "navigate_month|invalid"},
+		message:  &telebot.Message{Text: "Calendar"},
+	}
+
+	err := h.HandleDateSelection(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	edited, _ := ctx.editedMsg.(string)
+	if !contains(edited, "Некорректная дата") {
+		t.Errorf("Expected invalid date message, got: %s", edited)
+	}
+}
+
+func TestHandleDateSelection_InvalidNavigationFormat(t *testing.T) {
+	mockSession := newMockSessionStorage()
+	h := NewBookingHandler(nil, mockSession, nil, nil, nil, nil, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{
+		sender:   &telebot.User{ID: 123},
+		callback: &telebot.Callback{Data: "navigate_month|"},
+		message:  &telebot.Message{Text: "Calendar", ID: 1, Chat: &telebot.Chat{ID: 123}},
+	}
+
+	err := h.HandleDateSelection(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	edited, _ := ctx.editedMsg.(string)
+	if !contains(edited, "Некорректная дата") {
+		t.Errorf("Expected invalid date message, got: %s", edited)
+	}
+}
+
+func TestHandleDateSelection_InvalidDateFormat(t *testing.T) {
+	mockSession := newMockSessionStorage()
+	h := NewBookingHandler(nil, mockSession, nil, nil, nil, nil, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{
+		sender:   &telebot.User{ID: 123},
+		callback: &telebot.Callback{Data: "select_date|not-a-date"},
+	}
+
+	err := h.HandleDateSelection(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	edited, _ := ctx.editedMsg.(string)
+	if !contains(edited, "Некорректная дата") {
+		t.Errorf("Expected invalid date message, got: %s", edited)
+	}
+}
+
+func TestHandleNameInput_StoresCorrectly(t *testing.T) {
+	mockSession := newMockSessionStorage()
+	mockSession.Set(123, SessionKeyService, domain.Service{ID: "s1", Name: "Test", DurationMinutes: 60})
+	mockSession.Set(123, SessionKeyDate, time.Date(2025, 6, 15, 0, 0, 0, 0, time.UTC))
+	mockSession.Set(123, SessionKeyTime, "14:00")
+
+	h := NewBookingHandler(nil, mockSession, nil, nil, nil, nil, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{
+		sender: &telebot.User{ID: 123},
+		text:   "  Иван Петров  ",
+	}
+
+	err := h.HandleNameInput(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	session := mockSession.Get(123)
+	if name, ok := session[SessionKeyName].(string); !ok || name != "Иван Петров" {
+		t.Errorf("Expected trimmed name 'Иван Петров', got %v", name)
 	}
 }

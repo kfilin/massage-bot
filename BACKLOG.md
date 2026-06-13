@@ -264,8 +264,9 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
 - **Status**: In Progress (2026-06-14)
 - **Priority**: High
 - **Goal**: Increase repository test coverage from ~42% to 80%+.
-- **Progress**: Overall ~42% → 47%. Storage 32→54%, transcription 23→88%, cmd/bot 27→36%. Added testcontainers-go integration tests, httptest mocks for Groq API, and media handler tests.
-- **Next targets**: `adapters/googlecalendar` (53%), `delivery/telegram/handlers` (40%), `cmd/bot` remaining functions (36%).
+- **Progress**: Overall ~42% → ~52%. Handlers 40→60%, cmd/bot 36→49%, googlecalendar 53→57%, storage 32→54%, transcription 23→88%.
+- **Next targets**: `storage` (52.7%), remaining `cmd/bot` functions (49.4%), `delivery/telegram` (4.2% - structural ceiling).
+- **Tests added this session**: 25+ new test functions covering all previously uncovered handler functions (HandleDateSelection, HandleCancelAppointmentCallback, HandleManualAppointment, HandleListPatients, HandleEditName, HandleBackup, HandleUploadCommand, HandleNameInput, HandleAdminReplyRequest, HandleReminderConfirmation, HandleReminderCancellation), cmd/bot HTTP handlers (DraftHandler, UpdatePatientHandler, TranscribeHandler), googlecalendar edge cases (isGone, isNotFound positive, eventToAppointment edge cases).
 
 ### 37. [TODO] Grafana Dashboard Sync
 - **Status**: Backlog

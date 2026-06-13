@@ -8,6 +8,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -25,6 +27,7 @@ import (
 type mockRepo struct {
 	ports.Repository // Embed interface
 	patient          domain.Patient
+	media            domain.PatientMedia
 }
 
 func (m *mockRepo) GetPatient(id string) (domain.Patient, error) {
@@ -57,6 +60,21 @@ func (m *mockRepo) SearchPatients(query string) ([]domain.Patient, error) {
 }
 
 func (m *mockRepo) GenerateAdminSearchPage() string { return "ADMIN_SEARCH_PAGE" }
+
+func (m *mockRepo) UpdatePatientProfile(telegramID string, name string, notes string) error {
+	if m.patient.TelegramID == telegramID {
+		m.patient.Name = name
+		m.patient.TherapistNotes = notes
+	}
+	return nil
+}
+
+func (m *mockRepo) GetMediaByID(mediaID string) (*domain.PatientMedia, error) {
+	if m.media.ID == mediaID {
+		return &m.media, nil
+	}
+	return nil, fmt.Errorf("media not found")
+}
 
 type mockApptService struct {
 	ports.AppointmentService
@@ -245,5 +263,272 @@ func TestHandleCancel(t *testing.T) {
 
 	if rrHacker.Code != http.StatusForbidden {
 		t.Errorf("Expected 403 Forbidden, got %d", rrHacker.Code)
+	}
+}
+
+func TestDraftHandler_Approve(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	adminID := "100"
+
+	repo := &mockRepo{
+		patient: domain.Patient{TelegramID: "200", Name: "Test Patient", TherapistNotes: "Old notes"},
+		media:   domain.PatientMedia{ID: "media1", PatientID: "200", Transcript: "Test transcript"},
+	}
+
+	handler := NewDraftHandler(repo, botToken, []string{adminID}, "secret")
+
+	initData := makeInitData(adminID, "Admin", botToken)
+	body := map[string]string{
+		"id":       "media1",
+		"initData": initData,
+	}
+	jsonBody, _ := json.Marshal(body)
+
+	req, _ := http.NewRequest("POST", "/api/drafts/media1/approve", bytes.NewBuffer(jsonBody))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200 OK, got %d. Body: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestDraftHandler_MethodNotAllowed(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	handler := NewDraftHandler(&mockRepo{}, botToken, []string{"100"}, "secret")
+
+	req, _ := http.NewRequest("GET", "/api/drafts", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusMethodNotAllowed {
+		t.Errorf("Expected 405, got %d", rr.Code)
+	}
+}
+
+func TestDraftHandler_Unauthorized(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	handler := NewDraftHandler(&mockRepo{}, botToken, []string{"100"}, "secret")
+
+	body := map[string]string{
+		"id":       "media1",
+		"initData": "invalid",
+	}
+	jsonBody, _ := json.Marshal(body)
+
+	req, _ := http.NewRequest("POST", "/api/drafts/media1/approve", bytes.NewBuffer(jsonBody))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("Expected 401, got %d", rr.Code)
+	}
+}
+
+func TestUpdatePatientHandler_Success(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	adminID := "100"
+
+	repo := &mockRepo{
+		patient: domain.Patient{TelegramID: "200", Name: "Old Name"},
+	}
+
+	handler := NewUpdatePatientHandler(repo, botToken, []string{adminID})
+
+	initData := makeInitData(adminID, "Admin", botToken)
+	body := map[string]string{
+		"initData": initData,
+		"id":       "200",
+		"name":     "New Name",
+		"notes":    "Updated notes",
+	}
+	jsonBody, _ := json.Marshal(body)
+
+	req, _ := http.NewRequest("POST", "/api/patients/update", bytes.NewBuffer(jsonBody))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200 OK, got %d. Body: %s", rr.Code, rr.Body.String())
+	}
+
+	var resp map[string]string
+	json.NewDecoder(rr.Body).Decode(&resp)
+	if resp["status"] != "ok" {
+		t.Errorf("Expected status ok, got %s", resp["status"])
+	}
+}
+
+func TestUpdatePatientHandler_MethodNotAllowed(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	handler := NewUpdatePatientHandler(&mockRepo{}, botToken, []string{"100"})
+
+	req, _ := http.NewRequest("GET", "/api/patients/update", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusMethodNotAllowed {
+		t.Errorf("Expected 405, got %d", rr.Code)
+	}
+}
+
+func TestUpdatePatientHandler_MissingFields(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	handler := NewUpdatePatientHandler(&mockRepo{}, botToken, []string{"100"})
+
+	body := map[string]string{
+		"initData": "some_data",
+		// Missing id
+	}
+	jsonBody, _ := json.Marshal(body)
+
+	req, _ := http.NewRequest("POST", "/api/patients/update", bytes.NewBuffer(jsonBody))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400, got %d", rr.Code)
+	}
+}
+
+func TestUpdatePatientHandler_NotesTooLong(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	handler := NewUpdatePatientHandler(&mockRepo{}, botToken, []string{"100"})
+
+	longNotes := strings.Repeat("x", 60000) // > 50KB
+	body := map[string]string{
+		"initData": "some_data",
+		"id":       "200",
+		"notes":    longNotes,
+	}
+	jsonBody, _ := json.Marshal(body)
+
+	req, _ := http.NewRequest("POST", "/api/patients/update", bytes.NewBuffer(jsonBody))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 for notes too long, got %d", rr.Code)
+	}
+}
+
+func TestUpdatePatientHandler_NonAdmin(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	repo := &mockRepo{}
+
+	handler := NewUpdatePatientHandler(repo, botToken, []string{"999"}) // Admin is 999
+
+	initData := makeInitData("100", "User", botToken) // User 100 is not admin
+	body := map[string]string{
+		"initData": initData,
+		"id":       "200",
+		"name":     "New Name",
+	}
+	jsonBody, _ := json.Marshal(body)
+
+	req, _ := http.NewRequest("POST", "/api/patients/update", bytes.NewBuffer(jsonBody))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("Expected 403, got %d", rr.Code)
+	}
+}
+
+type mockTranscriptionService struct{}
+
+func (m *mockTranscriptionService) Transcribe(ctx context.Context, audio io.Reader, filename string) (string, error) {
+	return "Test transcription result", nil
+}
+
+func TestTranscribeHandler_Success(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+
+	transService := &mockTranscriptionService{}
+	handler := NewTranscribeHandler(transService, botToken)
+
+	// Create multipart form
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+
+	// Add initData field
+	initData := makeInitData("100", "User", botToken)
+	_ = writer.WriteField("initData", initData)
+
+	// Add voice file
+	part, _ := writer.CreateFormFile("voice", "voice.ogg")
+	part.Write([]byte("fake audio data"))
+
+	writer.Close()
+
+	req, _ := http.NewRequest("POST", "/api/transcribe", &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200 OK, got %d. Body: %s", rr.Code, rr.Body.String())
+	}
+
+	var resp map[string]string
+	json.NewDecoder(rr.Body).Decode(&resp)
+	if resp["status"] != "ok" {
+		t.Errorf("Expected status ok, got %s", resp["status"])
+	}
+	if resp["text"] != "Test transcription result" {
+		t.Errorf("Expected transcription result, got %s", resp["text"])
+	}
+}
+
+func TestTranscribeHandler_MethodNotAllowed(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	handler := NewTranscribeHandler(&mockTranscriptionService{}, botToken)
+
+	req, _ := http.NewRequest("GET", "/api/transcribe", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusMethodNotAllowed {
+		t.Errorf("Expected 405, got %d", rr.Code)
+	}
+}
+
+func TestTranscribeHandler_MissingAuth(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	handler := NewTranscribeHandler(&mockTranscriptionService{}, botToken)
+
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	part, _ := writer.CreateFormFile("voice", "voice.ogg")
+	part.Write([]byte("fake audio data"))
+	writer.Close()
+
+	req, _ := http.NewRequest("POST", "/api/transcribe", &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("Expected 401, got %d", rr.Code)
+	}
+}
+
+func TestTranscribeHandler_MissingFile(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	handler := NewTranscribeHandler(&mockTranscriptionService{}, botToken)
+
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	initData := makeInitData("100", "User", botToken)
+	_ = writer.WriteField("initData", initData)
+	writer.Close()
+
+	req, _ := http.NewRequest("POST", "/api/transcribe", &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400, got %d", rr.Code)
 	}
 }
