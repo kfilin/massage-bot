@@ -1,0 +1,10 @@
+# Goose Workspace Hints: massage-bot
+
+This workspace is governed by the Agentic OS framework. Before executing any tasks, you MUST read and obey:
+1. The core guardrails and DOX contract in [AGENTS.md](AGENTS.md).
+2. The project context and priorities in [.agent/skills/startup.md](.agent/skills/startup.md).
+3. The codebase architecture ledger in [.agent/Project-Hub.md](.agent/Project-Hub.md).
+
+Operational Lifecycle:
+- At the start of a session, perform the startup.md checks.
+- When wrapping up, run the handoff routine in [.agent/skills/handoff.md](.agent/skills/handoff.md) to log checkpoints.

@@ -19,7 +19,7 @@ func TestBotPresenter_FormatAppointment(t *testing.T) {
 	}
 
 	t.Run("Admin view", func(t *testing.T) {
-		got := p.FormatAppointment(appt, true)
+		got := p.FormatAppointment(&appt, true)
 		if !strings.Contains(got, "НОВАЯ ЗАПИСЬ") {
 			t.Error("Expected admin header")
 		}
@@ -38,7 +38,7 @@ func TestBotPresenter_FormatAppointment(t *testing.T) {
 	})
 
 	t.Run("Patient view", func(t *testing.T) {
-		got := p.FormatAppointment(appt, false)
+		got := p.FormatAppointment(&appt, false)
 		if !strings.Contains(got, "ЗАПИСЬ ПОДТВЕРЖДЕНА") {
 			t.Error("Expected patient header")
 		}

@@ -205,7 +205,8 @@ func TestHandleCancel(t *testing.T) {
 		},
 	}
 
-	handler := NewCancelHandler(service, botToken, []string{"999"}) // Admin 999
+	presenter := presentation.NewBotPresenter()
+	handler := NewCancelHandler(service, botToken, []string{"999"}, presenter) // Admin 999
 
 	// 1. Valid Cancel by Owner
 	initData := makeInitData(userID, "User", botToken)

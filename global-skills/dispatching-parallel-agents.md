@@ -15,7 +15,23 @@ When you have multiple unrelated failures (different test files, different subsy
 
 ## When to Use
 
-Use this skill when you have 3+ independent problems that don't share state or sequential dependencies. If failures are related or you need full system context to understand the root cause, do not use parallel dispatch.
+```dot
+digraph when_to_use {
+    "Multiple failures?" [shape=diamond];
+    "Are they independent?" [shape=diamond];
+    "Single agent investigates all" [shape=box];
+    "One agent per problem domain" [shape=box];
+    "Can they work in parallel?" [shape=diamond];
+    "Sequential agents" [shape=box];
+    "Parallel dispatch" [shape=box];
+
+    "Multiple failures?" -> "Are they independent?" [label="yes"];
+    "Are they independent?" -> "Single agent investigates all" [label="no - related"];
+    "Are they independent?" -> "Can they work in parallel?" [label="yes"];
+    "Can they work in parallel?" -> "Parallel dispatch" [label="yes"];
+    "Can they work in parallel?" -> "Sequential agents" [label="no - shared state"];
+}
+```
 
 **Use when:**
 - 3+ test files failing with different root causes
