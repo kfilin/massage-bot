@@ -17,7 +17,9 @@ token.json/
 /massage-bot
 /bot
 bin/
-coverage.out
+
+# Coverage profiles
+*.out
 
 # IDE
 .vscode/
@@ -74,3 +76,9 @@ docker-compose.override.yml
 !deploy/docker-compose.test.yml
 !deploy/Caddyfile.example
 ARCHIVE/
+
+# Stale legacy harness artifacts
+.agent_legacy/
+.agent_legacy_20260613/
+global-skills_legacy_20260613/
+graphify-out/
