@@ -2327,6 +2327,230 @@ func TestHandleFileMessage(t *testing.T) {
 			t.Errorf("Expected 'too large' message, got: %s", ctx.sentMsg)
 		}
 	})
+
+	t.Run("Photo without patient returns error", func(t *testing.T) {
+		mockRepo := newMockRepository()
+		h := NewBookingHandler(nil, nil, nil, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+
+		bot, _ := telebot.NewBot(telebot.Settings{Offline: true})
+		ctx := &mockContext{
+			sender: &telebot.User{ID: 123},
+			message: &telebot.Message{
+				Photo: &telebot.Photo{
+					File: telebot.File{FileID: "photo123", FileSize: 512000},
+				},
+			},
+			bot: bot,
+		}
+
+		err := h.HandleFileMessage(ctx)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if !strings.Contains(ctx.sentMsg, "запишитесь на прием") {
+			t.Errorf("Expected 'register first' message, got: %s", ctx.sentMsg)
+		}
+	})
+
+	t.Run("Video without patient returns error", func(t *testing.T) {
+		mockRepo := newMockRepository()
+		h := NewBookingHandler(nil, nil, nil, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+
+		bot, _ := telebot.NewBot(telebot.Settings{Offline: true})
+		ctx := &mockContext{
+			sender: &telebot.User{ID: 123},
+			message: &telebot.Message{
+				Video: &telebot.Video{
+					File:     telebot.File{FileID: "vid123", FileSize: 1024000},
+					FileName: "test.mp4",
+				},
+			},
+			bot: bot,
+		}
+
+		err := h.HandleFileMessage(ctx)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if !strings.Contains(ctx.sentMsg, "запишитесь на прием") {
+			t.Errorf("Expected 'register first' message, got: %s", ctx.sentMsg)
+		}
+	})
+
+	t.Run("Animation without patient returns error", func(t *testing.T) {
+		mockRepo := newMockRepository()
+		h := NewBookingHandler(nil, nil, nil, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+
+		bot, _ := telebot.NewBot(telebot.Settings{Offline: true})
+		ctx := &mockContext{
+			sender: &telebot.User{ID: 123},
+			message: &telebot.Message{
+				Animation: &telebot.Animation{
+					File:     telebot.File{FileID: "anim123", FileSize: 2048000},
+					FileName: "anim.gif",
+				},
+			},
+			bot: bot,
+		}
+
+		err := h.HandleFileMessage(ctx)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if !strings.Contains(ctx.sentMsg, "запишитесь на прием") {
+			t.Errorf("Expected 'register first' message, got: %s", ctx.sentMsg)
+		}
+	})
+
+	t.Run("Voice without patient returns error", func(t *testing.T) {
+		mockRepo := newMockRepository()
+		h := NewBookingHandler(nil, nil, nil, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+
+		bot, _ := telebot.NewBot(telebot.Settings{Offline: true})
+		ctx := &mockContext{
+			sender: &telebot.User{ID: 123},
+			message: &telebot.Message{
+				Voice: &telebot.Voice{
+					File: telebot.File{FileID: "voice123", FileSize: 64000},
+				},
+			},
+			bot: bot,
+		}
+
+		err := h.HandleFileMessage(ctx)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if !strings.Contains(ctx.sentMsg, "запишитесь на прием") {
+			t.Errorf("Expected 'register first' message, got: %s", ctx.sentMsg)
+		}
+	})
+
+	t.Run("Photo too large", func(t *testing.T) {
+		mockRepo := newMockRepository()
+		_ = mockRepo.SavePatient(domain.Patient{TelegramID: "123", Name: "Test"})
+		h := NewBookingHandler(nil, nil, nil, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+
+		bot, _ := telebot.NewBot(telebot.Settings{Offline: true})
+		ctx := &mockContext{
+			sender: &telebot.User{ID: 123},
+			message: &telebot.Message{
+				Photo: &telebot.Photo{
+					File: telebot.File{FileID: "bigphoto", FileSize: 25 * 1024 * 1024},
+				},
+			},
+			bot: bot,
+		}
+
+		err := h.HandleFileMessage(ctx)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if !strings.Contains(ctx.sentMsg, "слишком большой") {
+			t.Errorf("Expected 'too large' message, got: %s", ctx.sentMsg)
+		}
+	})
+
+	t.Run("Video too large", func(t *testing.T) {
+		mockRepo := newMockRepository()
+		_ = mockRepo.SavePatient(domain.Patient{TelegramID: "123", Name: "Test"})
+		h := NewBookingHandler(nil, nil, nil, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+
+		bot, _ := telebot.NewBot(telebot.Settings{Offline: true})
+		ctx := &mockContext{
+			sender: &telebot.User{ID: 123},
+			message: &telebot.Message{
+				Video: &telebot.Video{
+					File:     telebot.File{FileID: "bigvid", FileSize: 30 * 1024 * 1024},
+					FileName: "big.mp4",
+				},
+			},
+			bot: bot,
+		}
+
+		err := h.HandleFileMessage(ctx)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if !strings.Contains(ctx.sentMsg, "слишком большой") {
+			t.Errorf("Expected 'too large' message, got: %s", ctx.sentMsg)
+		}
+	})
+
+	t.Run("Voice too large", func(t *testing.T) {
+		mockRepo := newMockRepository()
+		_ = mockRepo.SavePatient(domain.Patient{TelegramID: "123", Name: "Test"})
+		h := NewBookingHandler(nil, nil, nil, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+
+		bot, _ := telebot.NewBot(telebot.Settings{Offline: true})
+		ctx := &mockContext{
+			sender: &telebot.User{ID: 123},
+			message: &telebot.Message{
+				Voice: &telebot.Voice{
+					File: telebot.File{FileID: "bigvoice", FileSize: 25 * 1024 * 1024},
+				},
+			},
+			bot: bot,
+		}
+
+		err := h.HandleFileMessage(ctx)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if !strings.Contains(ctx.sentMsg, "слишком большой") {
+			t.Errorf("Expected 'too large' message, got: %s", ctx.sentMsg)
+		}
+	})
+
+	t.Run("Animation with empty filename generates default", func(t *testing.T) {
+		mockRepo := newMockRepository()
+		h := NewBookingHandler(nil, nil, nil, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+
+		bot, _ := telebot.NewBot(telebot.Settings{Offline: true})
+		ctx := &mockContext{
+			sender: &telebot.User{ID: 123},
+			message: &telebot.Message{
+				Animation: &telebot.Animation{
+					File:     telebot.File{FileID: "anim456", FileSize: 1024000},
+					FileName: "",
+				},
+			},
+			bot: bot,
+		}
+
+		err := h.HandleFileMessage(ctx)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if !strings.Contains(ctx.sentMsg, "запишитесь на прием") {
+			t.Errorf("Expected 'register first' message, got: %s", ctx.sentMsg)
+		}
+	})
+
+	t.Run("Video with empty filename generates default", func(t *testing.T) {
+		mockRepo := newMockRepository()
+		h := NewBookingHandler(nil, nil, nil, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+
+		bot, _ := telebot.NewBot(telebot.Settings{Offline: true})
+		ctx := &mockContext{
+			sender: &telebot.User{ID: 123},
+			message: &telebot.Message{
+				Video: &telebot.Video{
+					File:     telebot.File{FileID: "vid456", FileSize: 1024000},
+					FileName: "",
+				},
+			},
+			bot: bot,
+		}
+
+		err := h.HandleFileMessage(ctx)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if !strings.Contains(ctx.sentMsg, "запишитесь на прием") {
+			t.Errorf("Expected 'register first' message, got: %s", ctx.sentMsg)
+		}
+	})
 }
 
 func TestHandleConfirmBooking_AdminBlock(t *testing.T) {
@@ -2585,5 +2809,126 @@ func TestHandleTimeSelection_AdminManualWithoutName(t *testing.T) {
 	}
 	if !strings.Contains(ctx.sentMsg, "имя и фамилию") {
 		t.Errorf("Expected name prompt for admin manual without name, got: %s", ctx.sentMsg)
+	}
+}
+
+func TestAskForTime_ErrorFromService(t *testing.T) {
+	mockSession := newMockSessionStorage()
+	userID := int64(123)
+	mockSession.Set(userID, SessionKeyService, domain.Service{ID: "s1", Name: "Massage", DurationMinutes: 60})
+	mockSession.Set(userID, SessionKeyDate, time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC))
+
+	mockApptService := &mockAppointmentService{
+		getAvailableTimeSlotsFunc: func(ctx context.Context, date time.Time, dur int) ([]domain.TimeSlot, error) {
+			return nil, fmt.Errorf("calendar unavailable")
+		},
+	}
+
+	bot, _ := telebot.NewBot(telebot.Settings{Offline: true})
+	h := NewBookingHandler(mockApptService, mockSession, nil, nil, nil, nil, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{
+		sender:  &telebot.User{ID: userID},
+		message: &telebot.Message{Text: "Calendar", ID: 1, Chat: &telebot.Chat{ID: userID}},
+		bot:     bot,
+	}
+
+	err := h.askForTime(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !strings.Contains(ctx.sentMsg, "Ошибка при получении слотов") {
+		t.Errorf("Expected time slots error message, got: %s", ctx.sentMsg)
+	}
+}
+
+func TestAskForTime_NoSlotsAvailable(t *testing.T) {
+	mockSession := newMockSessionStorage()
+	userID := int64(123)
+	mockSession.Set(userID, SessionKeyService, domain.Service{ID: "s1", Name: "Massage", DurationMinutes: 60})
+	mockSession.Set(userID, SessionKeyDate, time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC))
+
+	mockApptService := &mockAppointmentService{
+		getAvailableTimeSlotsFunc: func(ctx context.Context, date time.Time, dur int) ([]domain.TimeSlot, error) {
+			return []domain.TimeSlot{}, nil
+		},
+	}
+
+	h := NewBookingHandler(mockApptService, mockSession, nil, nil, nil, nil, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{
+		sender:  &telebot.User{ID: userID},
+		message: &telebot.Message{Text: "Calendar", ID: 1, Chat: &telebot.Chat{ID: userID}},
+	}
+
+	err := h.askForTime(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !strings.Contains(ctx.sentMsg, "нет доступных временных слотов") && !strings.Contains(fmt.Sprintf("%v", ctx.editedMsg), "нет доступных временных слотов") {
+		t.Errorf("Expected no slots message, got sent=%q edited=%v", ctx.sentMsg, ctx.editedMsg)
+	}
+}
+
+func TestAskForConfirmation_InvalidTimeFormat(t *testing.T) {
+	mockSession := newMockSessionStorage()
+	userID := int64(123)
+	mockSession.Set(userID, SessionKeyService, domain.Service{ID: "s1", Name: "Massage", DurationMinutes: 60})
+	mockSession.Set(userID, SessionKeyDate, time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC))
+	mockSession.Set(userID, SessionKeyTime, "not_a_valid_time")
+	mockSession.Set(userID, SessionKeyName, "Test")
+
+	h := NewBookingHandler(nil, mockSession, nil, nil, nil, nil, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{
+		sender: &telebot.User{ID: userID},
+	}
+
+	err := h.askForConfirmation(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !strings.Contains(ctx.sentMsg, "Ошибка форматирования времени") {
+		t.Errorf("Expected time format error, got: %s", ctx.sentMsg)
+	}
+	t.Run("session cleared", func(t *testing.T) {
+		session := mockSession.Get(userID)
+		if len(session) != 0 {
+			t.Errorf("Expected cleared session, got %d keys", len(session))
+		}
+	})
+}
+
+func TestAskForTime_MissingSessionData(t *testing.T) {
+	mockSession := newMockSessionStorage()
+	userID := int64(123)
+
+	h := NewBookingHandler(nil, mockSession, nil, nil, nil, nil, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{
+		sender: &telebot.User{ID: userID},
+	}
+
+	err := h.askForTime(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !strings.Contains(ctx.sentMsg, "Сессия истекла") {
+		t.Errorf("Expected session expired message, got: %s", ctx.sentMsg)
+	}
+}
+
+func TestAskForConfirmation_MissingSessionData(t *testing.T) {
+	mockSession := newMockSessionStorage()
+	userID := int64(123)
+	mockSession.Set(userID, SessionKeyService, domain.Service{ID: "s1", Name: "Massage"})
+
+	h := NewBookingHandler(nil, mockSession, nil, nil, nil, nil, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{
+		sender: &telebot.User{ID: userID},
+	}
+
+	err := h.askForConfirmation(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !strings.Contains(ctx.sentMsg, "Ошибка сессии") {
+		t.Errorf("Expected session error message, got: %s", ctx.sentMsg)
 	}
 }

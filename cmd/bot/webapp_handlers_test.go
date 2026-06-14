@@ -26,9 +26,11 @@ import (
 // Minimal mocks
 type mockRepo struct {
 	ports.Repository // Embed interface
-	patient          domain.Patient
-	media            domain.PatientMedia
-	getAllPatientsFunc  func() ([]domain.Patient, error)
+	patient            domain.Patient
+	media              domain.PatientMedia
+	getAllPatientsFunc func() ([]domain.Patient, error)
+	getApptHistoryFunc func(id string) ([]domain.Appointment, error)
+	getPatientMediaFunc func(id string) ([]domain.PatientMedia, error)
 }
 
 func (m *mockRepo) GetPatient(id string) (domain.Patient, error) {
@@ -50,12 +52,21 @@ func (m *mockRepo) GenerateHTMLRecord(p domain.Patient, h []domain.Appointment, 
 }
 
 func (m *mockRepo) GetAppointmentHistory(id string) ([]domain.Appointment, error) {
-	return nil, nil // Return empty
+	if m.getApptHistoryFunc != nil {
+		return m.getApptHistoryFunc(id)
+	}
+	return nil, nil
+}
+
+func (m *mockRepo) GetPatientMedia(id string) ([]domain.PatientMedia, error) {
+	if m.getPatientMediaFunc != nil {
+		return m.getPatientMediaFunc(id)
+	}
+	return nil, nil
 }
 
 func (m *mockRepo) UpsertAppointments(a []domain.Appointment) error { return nil }
 
-func (m *mockRepo) GetPatientMedia(id string) ([]domain.PatientMedia, error) { return nil, nil }
 func (m *mockRepo) UpdateMediaStatus(id, status, transcript string) error { return nil }
 
 func (m *mockRepo) SearchPatients(query string) ([]domain.Patient, error) {
@@ -835,5 +846,167 @@ func TestTranscribeHandler_MissingFile(t *testing.T) {
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("Expected 400, got %d", rr.Code)
+	}
+}
+
+func TestTranscribeHandler_InvalidInitData(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	handler := NewTranscribeHandler(&mockTranscriptionService{}, botToken)
+
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	_ = writer.WriteField("initData", "garbage_data")
+	part, _ := writer.CreateFormFile("voice", "voice.ogg")
+	part.Write([]byte("fake audio data"))
+	writer.Close()
+
+	req, _ := http.NewRequest("POST", "/api/transcribe", &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("Expected 401 for invalid auth, got %d", rr.Code)
+	}
+}
+
+func TestTranscribeHandler_NonMultipart(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	handler := NewTranscribeHandler(&mockTranscriptionService{}, botToken)
+
+	req, _ := http.NewRequest("POST", "/api/transcribe", bytes.NewBuffer([]byte("plain text body")))
+	req.Header.Set("Content-Type", "text/plain")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 for non-multipart, got %d", rr.Code)
+	}
+}
+
+func TestWebAppHandler_WithAppointmentsAndMedia(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	patientID := "600"
+	now := time.Now()
+
+	repo := &mockRepo{
+		patient: domain.Patient{TelegramID: patientID, Name: "Patient With Data"},
+		getApptHistoryFunc: func(id string) ([]domain.Appointment, error) {
+			return []domain.Appointment{
+				{
+					ID: "appt1", CustomerTgID: id, CustomerName: "Patient With Data",
+					StartTime: now.AddDate(0, 0, -7), EndTime: now.AddDate(0, 0, -7).Add(1 * time.Hour),
+					Status: "confirmed", Service: domain.Service{Name: "Massage"},
+				},
+				{
+					ID: "appt2", CustomerTgID: id, CustomerName: "Patient With Data",
+					StartTime: now.AddDate(0, 0, -1), EndTime: now.AddDate(0, 0, -1).Add(1 * time.Hour),
+					Status: "cancelled", Service: domain.Service{Name: "Massage"},
+				},
+				{
+					ID: "appt3", CustomerTgID: id, CustomerName: "Patient With Data",
+					StartTime: now.AddDate(0, 0, -14), EndTime: now.AddDate(0, 0, -14).Add(1 * time.Hour),
+					Status: "confirmed", Service: domain.Service{Name: "Block 60"},
+				},
+			}, nil
+		},
+		getPatientMediaFunc: func(id string) ([]domain.PatientMedia, error) {
+			return []domain.PatientMedia{
+				{ID: "m1", PatientID: id, FileType: "photo", FilePath: "media/"+id+"/photo.jpg", CreatedAt: now},
+				{ID: "m2", PatientID: id, FileType: "scan", FilePath: "media/"+id+"/scan.pdf", CreatedAt: now},
+				{ID: "m3", PatientID: id, FileType: "voice", FilePath: "media/"+id+"/voice.ogg", CreatedAt: now, Status: "pending", Transcript: "Test draft"},
+				{ID: "m4", PatientID: id, FileType: "video", FilePath: "media/"+id+"/video.mp4", CreatedAt: now},
+			}, nil
+		},
+	}
+
+	service := &mockApptService{}
+	presenter, _ := presentation.NewWebPresenter()
+	handler := NewWebAppHandler(repo, service, presenter, botToken, []string{}, "secret")
+
+	initData := makeInitData(patientID, "Patient", botToken)
+	req, _ := http.NewRequest("GET", "/?id="+patientID+"&initData="+url.QueryEscape(initData), nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200, got %d. Body: %s", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "Patient With Data") {
+		t.Error("Expected patient name in response")
+	}
+}
+
+func TestWebAppHandler_InitDataFailHMACFallback(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	secret := "fallback_secret"
+	patientID := "700"
+
+	repo := &mockRepo{
+		patient: domain.Patient{TelegramID: patientID, Name: "HMAC Fallback Patient"},
+	}
+	service := &mockApptService{}
+	presenter, _ := presentation.NewWebPresenter()
+	handler := NewWebAppHandler(repo, service, presenter, botToken, []string{}, secret)
+
+	h := hmac.New(sha256.New, []byte(secret))
+	h.Write([]byte(patientID))
+	token := hex.EncodeToString(h.Sum(nil))
+
+	req, _ := http.NewRequest("GET", "/?id="+patientID+"&token="+token+"&initData=invalid_init_data", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200 for HMAC fallback, got %d. Body: %s", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "HMAC Fallback Patient") {
+		t.Error("Expected patient name in response via HMAC fallback")
+	}
+}
+
+func TestUpdatePatientHandler_InvalidJSON(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	handler := NewUpdatePatientHandler(&mockRepo{}, botToken, []string{"100"})
+
+	req, _ := http.NewRequest("POST", "/api/patients/update", bytes.NewBuffer([]byte("not json")))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 for invalid JSON, got %d", rr.Code)
+	}
+}
+
+func TestUpdatePatientHandler_UnauthorizedAuth(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	handler := NewUpdatePatientHandler(&mockRepo{}, botToken, []string{"100"})
+
+	body := map[string]string{
+		"initData": "garbage_auth_data",
+		"id":       "200",
+		"name":     "New Name",
+	}
+	jsonBody, _ := json.Marshal(body)
+
+	req, _ := http.NewRequest("POST", "/api/patients/update", bytes.NewBuffer(jsonBody))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("Expected 401 for unauthorized, got %d", rr.Code)
+	}
+}
+
+func TestUpdatePatientHandler_EmptyBody(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	handler := NewUpdatePatientHandler(&mockRepo{}, botToken, []string{"100"})
+
+	req, _ := http.NewRequest("POST", "/api/patients/update", bytes.NewBuffer([]byte("{}")))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 for empty body, got %d", rr.Code)
 	}
 }

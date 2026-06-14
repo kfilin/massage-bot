@@ -1,12 +1,15 @@
 package googlecalendar
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
 
 	"github.com/kfilin/massage-bot/internal/monitoring"
 	"golang.org/x/oauth2"
+	"google.golang.org/api/calendar/v3"
+	"google.golang.org/api/option"
 )
 
 type mockTokenSource struct {
@@ -58,6 +61,15 @@ func TestMonitoringTokenSource_Token(t *testing.T) {
 			expectSuccess: true,
 		},
 		{
+			name: "Token with zero expiry",
+			token: &oauth2.Token{
+				AccessToken: "no-expiry",
+				Expiry:      time.Time{},
+			},
+			expectedDays:  0,
+			expectSuccess: true,
+		},
+		{
 			name:          "Error from source",
 			err:           errors.New("token error"),
 			expectSuccess: false,
@@ -78,16 +90,39 @@ func TestMonitoringTokenSource_Token(t *testing.T) {
 				if tok.AccessToken != tc.token.AccessToken {
 					t.Errorf("Expected token %s, got %s", tc.token.AccessToken, tok.AccessToken)
 				}
-
-				// Check if metric was updated (we can't easily read back the metric value in unit test
-				// without exposing internal state of monitoring package or using prometheus test util)
-				// But we can verify no panic and logic flow.
-				// In a real integration test we would scrape the metric.
 			} else {
 				if err == nil {
 					t.Fatal("Expected error, got nil")
 				}
 			}
 		})
+	}
+}
+
+func TestTokenFromFile(t *testing.T) {
+	t.Run("File does not exist", func(t *testing.T) {
+		_, err := tokenFromFile("/nonexistent/path/token.json")
+		if err == nil {
+			t.Error("tokenFromFile() should return error for nonexistent file")
+		}
+	})
+}
+
+func TestNewAdapter_EmptyCalendarID(t *testing.T) {
+	ctx := context.Background()
+	svc, err := calendar.NewService(ctx, option.WithoutAuthentication())
+	if err != nil {
+		t.Fatalf("Failed to create calendar service: %v", err)
+	}
+	a := NewAdapter(svc, "")
+	if a == nil {
+		t.Fatal("NewAdapter() returned nil")
+	}
+	casted, ok := a.(*adapter)
+	if !ok {
+		t.Fatal("NewAdapter() did not return *adapter")
+	}
+	if casted.calendarID != "primary" {
+		t.Errorf("NewAdapter() calendarID = %s, want primary", casted.calendarID)
 	}
 }

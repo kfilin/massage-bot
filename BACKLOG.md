@@ -264,9 +264,9 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
 - **Status**: In Progress (2026-06-14)
 - **Priority**: High
 - **Goal**: Increase repository test coverage from ~42% to 80%+.
-- **Progress**: Overall ~42% → ~69.9%. Key gains: storage 32→63.3%, handlers 40→73.7%, cmd/bot 27→56.2%, googlecalendar 53→57.3%, transcription 23→88%, services/appointment 86→92.5%.
-- **Next targets**: `storage` (63.3%), remaining `cmd/bot` functions (56.2%), `googlecalendar` adapter (57.3%).
-- **Tests added across sessions**: 60+ new test functions covering storage CRUD/error paths, handler edge cases, webapp HTTP handlers, service error paths.
+- **Progress**: Overall ~42% → ~68.9%. Key gains: storage 32→68.7%, handlers 40→77.4%, cmd/bot 27→64.1%, googlecalendar 53→66.9%, transcription 23→88.2%, services/appointment 86→92.5%.
+- **Next targets**: `internal/delivery/telegram` (4.2% — Telegram API mock), `HandleFileMessage` deep paths (23.7% — needs Bot.File() mock), `googlecalendar` client (66.9% — OAuth flow), `storage` (68.7%).
+- **Tests added across sessions**: ~105 new test functions.
 
 ### 37. [TODO] Grafana Dashboard Sync
 - **Status**: Backlog

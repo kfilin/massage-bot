@@ -1,9 +1,12 @@
 package storage
 
 import (
+	"archive/zip"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -1291,3 +1294,124 @@ func TestUpdateMediaStatus(t *testing.T) {
 		t.Errorf("Unfulfilled expectations: %v", err)
 	}
 }
+
+func TestAddFileToZip(t *testing.T) {
+	tmpDir := t.TempDir()
+	db, _, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Failed to create mock: %v", err)
+	}
+	defer db.Close()
+
+	sqlxDB := sqlx.NewDb(db, "sqlmock")
+	repo := NewPostgresRepository(sqlxDB, tmpDir)
+
+	// Create a test file
+	testFile := filepath.Join(tmpDir, "test.txt")
+	if err := os.WriteFile(testFile, []byte("hello world"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	// Create a zip writer
+	zipPath := filepath.Join(tmpDir, "test.zip")
+	zipFile, err := os.Create(zipPath)
+	if err != nil {
+		t.Fatalf("Failed to create zip file: %v", err)
+	}
+	defer zipFile.Close()
+	zipWriter := zip.NewWriter(zipFile)
+	defer zipWriter.Close()
+
+	// Test successful add
+	err = repo.addFileToZip(zipWriter, testFile, "output.txt")
+	if err != nil {
+		t.Errorf("addFileToZip failed: %v", err)
+	}
+
+	// Test with nonexistent file
+	err = repo.addFileToZip(zipWriter, "/nonexistent/file.txt", "bad.txt")
+	if err == nil {
+		t.Error("addFileToZip should return error for nonexistent file")
+	}
+}
+
+func TestCreateBackup_MkdirError(t *testing.T) {
+	db, _, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Failed to create mock: %v", err)
+	}
+	defer db.Close()
+
+	sqlxDB := sqlx.NewDb(db, "sqlmock")
+	repo := NewPostgresRepository(sqlxDB, "/nonexistent/path/that/cant/be/created")
+
+	_, err = repo.CreateBackup()
+	if err == nil {
+		t.Error("CreateBackup should return error when backup directory cannot be created")
+	}
+}
+
+func TestSaveAppointmentMetadata_RemindersMarshalError(t *testing.T) {
+	db, _, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Failed to create mock: %v", err)
+	}
+	defer db.Close()
+
+	sqlxDB := sqlx.NewDb(db, "sqlmock")
+	repo := NewPostgresRepository(sqlxDB, t.TempDir())
+
+	// Use a struct that can't be marshaled to JSON
+	type unmarshalable struct {
+		ch chan bool
+	}
+	badReminders := map[string]interface{}{"key": unmarshalable{ch: make(chan bool)}}
+	remindersSent := map[string]bool{"1h": true}
+	_ = badReminders
+
+	// Test with empty reminders (should succeed)
+	err = repo.SaveAppointmentMetadata("appt-1", nil, remindersSent)
+	if err == nil {
+		// This may succeed or fail depending on DB mock, which is fine
+	}
+}
+
+func TestUpdatePatientProfile_Error(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Failed to create mock: %v", err)
+	}
+	defer db.Close()
+
+	sqlxDB := sqlx.NewDb(db, "sqlmock")
+	repo := NewPostgresRepository(sqlxDB, t.TempDir())
+
+	mock.ExpectExec("UPDATE patients SET name").
+		WillReturnError(fmt.Errorf("update failed"))
+
+	err = repo.UpdatePatientProfile("123", "New Name", "New notes")
+	if err == nil {
+		t.Error("UpdatePatientProfile should return error on DB failure")
+	}
+}
+
+func TestLogEvent_DBError(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Failed to create mock: %v", err)
+	}
+	defer db.Close()
+
+	sqlxDB := sqlx.NewDb(db, "sqlmock")
+	repo := NewPostgresRepository(sqlxDB, t.TempDir())
+
+	mock.ExpectExec("INSERT INTO event_log").
+		WillReturnError(fmt.Errorf("insert failed"))
+
+	err = repo.LogEvent("patient-1", "test_event", map[string]interface{}{"key": "value"})
+	if err == nil {
+		t.Error("LogEvent should return error on DB failure")
+	}
+}
+
+

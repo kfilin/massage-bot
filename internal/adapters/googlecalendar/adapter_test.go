@@ -729,6 +729,15 @@ func TestEventToAppointment_EdgeCases(t *testing.T) {
 		wantErr bool
 	}{
 		{
+			name: "Event with no ID",
+			event: &calendar.Event{
+				Id:    "",
+				Start: &calendar.EventDateTime{DateTime: time.Now().Format(time.RFC3339)},
+				End:   &calendar.EventDateTime{DateTime: time.Now().Add(time.Hour).Format(time.RFC3339)},
+			},
+			wantErr: true,
+		},
+		{
 			name: "Event with no start time",
 			event: &calendar.Event{
 				Id:     "evt1",
@@ -749,14 +758,77 @@ func TestEventToAppointment_EdgeCases(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "Event with no end or start datetime (only date)",
+			event: &calendar.Event{
+				Id:     "evt2b",
+				Start:  &calendar.EventDateTime{Date: "2026-03-15"},
+				End:    &calendar.EventDateTime{},
+				Status: "confirmed",
+			},
+			wantErr: false,
+		},
+		{
 			name: "Event with description containing TGID",
 			event: &calendar.Event{
 				Id:          "evt3",
 				Summary:     "Massage - Test",
-				Description: "TGID: 12345\nNotes here",
+				Description: "TGID:12345\nNotes here",
 				Start:       &calendar.EventDateTime{DateTime: time.Now().Format(time.RFC3339)},
 				End:         &calendar.EventDateTime{DateTime: time.Now().Add(time.Hour).Format(time.RFC3339)},
 				Status:      "confirmed",
+			},
+			wantErr: false,
+		},
+		{
+			name: "Event with TGID but no newline",
+			event: &calendar.Event{
+				Id:          "evt4",
+				Summary:     "Massage - Test",
+				Description: "TGID:12345",
+				Start:       &calendar.EventDateTime{DateTime: time.Now().Format(time.RFC3339)},
+				End:         &calendar.EventDateTime{DateTime: time.Now().Add(time.Hour).Format(time.RFC3339)},
+				Status:      "confirmed",
+			},
+			wantErr: false,
+		},
+		{
+			name: "Event with short description starting with TGID",
+			event: &calendar.Event{
+				Id:          "evt5",
+				Summary:     "Massage - Test",
+				Description: "TGID:",
+				Start:       &calendar.EventDateTime{DateTime: time.Now().Format(time.RFC3339)},
+				End:         &calendar.EventDateTime{DateTime: time.Now().Add(time.Hour).Format(time.RFC3339)},
+				Status:      "confirmed",
+			},
+			wantErr: false,
+		},
+		{
+			name: "Event with no summary",
+			event: &calendar.Event{
+				Id:     "evt6",
+				Start:  &calendar.EventDateTime{DateTime: time.Now().Format(time.RFC3339)},
+				End:    &calendar.EventDateTime{DateTime: time.Now().Add(time.Hour).Format(time.RFC3339)},
+				Status: "confirmed",
+			},
+			wantErr: false,
+		},
+		{
+			name: "Event with nil start or end",
+			event: &calendar.Event{
+				Id:    "evt7",
+				Start: nil,
+				End:   nil,
+			},
+			wantErr: true,
+		},
+		{
+			name: "Event with end time only date",
+			event: &calendar.Event{
+				Id:     "evt8",
+				Start:  &calendar.EventDateTime{DateTime: time.Now().Format(time.RFC3339)},
+				End:    &calendar.EventDateTime{Date: "2026-03-16"},
+				Status: "confirmed",
 			},
 			wantErr: false,
 		},
@@ -764,10 +836,221 @@ func TestEventToAppointment_EdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := eventToAppointment(tt.event)
+			got, err := eventToAppointment(tt.event)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("eventToAppointment() error = %v, wantErr %v", err, tt.wantErr)
 			}
+			if !tt.wantErr && got == nil {
+				t.Error("eventToAppointment() returned nil appointment without error")
+			}
 		})
+	}
+}
+
+func TestAdapter_Delete_Gone(t *testing.T) {
+	a := newTestAdapter(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusGone)
+	}))
+	err := a.Delete(context.Background(), "already-deleted")
+	if err != nil {
+		t.Errorf("Delete() should return nil for 410 Gone, got %v", err)
+	}
+}
+
+func TestAdapter_Delete_GenericError(t *testing.T) {
+	a := newTestAdapter(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}))
+	err := a.Delete(context.Background(), "event123")
+	if err == nil {
+		t.Error("Delete() should return error for 500 status")
+	}
+}
+
+func TestAdapter_FindByID_GenericError(t *testing.T) {
+	a := newTestAdapter(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}))
+	_, err := a.FindByID(context.Background(), "event123")
+	if err == nil {
+		t.Error("FindByID() should return error for 500 status")
+	}
+}
+
+func TestAdapter_FindEvents_Error(t *testing.T) {
+	a := newTestAdapter(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}))
+	_, err := a.FindEvents(context.Background(), nil, nil)
+	if err == nil {
+		t.Error("FindEvents() should return error for 500 status")
+	}
+}
+
+func TestAdapter_GetFreeBusy_Error(t *testing.T) {
+	now := time.Now()
+	tomorrow := now.Add(24 * time.Hour)
+	a := newTestAdapter(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}))
+	_, err := a.GetFreeBusy(context.Background(), now, tomorrow)
+	if err == nil {
+		t.Error("GetFreeBusy() should return error for 500 status")
+	}
+}
+
+func TestAdapter_GetFreeBusy_InvalidTimes(t *testing.T) {
+	now := time.Now()
+	tomorrow := now.Add(24 * time.Hour)
+	a := newTestAdapter(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := &calendar.FreeBusyResponse{
+			Calendars: map[string]calendar.FreeBusyCalendar{
+				"primary": {
+					Busy: []*calendar.TimePeriod{
+						{Start: "invalid-start", End: "invalid-end"},
+					},
+				},
+			},
+		}
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	slots, err := a.GetFreeBusy(context.Background(), now, tomorrow)
+	if err != nil {
+		t.Errorf("GetFreeBusy() should not return error for invalid times, got %v", err)
+	}
+	if len(slots) != 0 {
+		t.Errorf("GetFreeBusy() should return 0 slots for invalid times, got %d", len(slots))
+	}
+}
+
+func TestAdapter_Create_ZeroTimes(t *testing.T) {
+	a := newTestAdapter(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	_, err := a.Create(context.Background(), &domain.Appointment{
+		StartTime: time.Time{},
+		EndTime:   time.Now(),
+	})
+	if err == nil {
+		t.Error("Create() should return error for zero StartTime")
+	}
+	_, err = a.Create(context.Background(), &domain.Appointment{
+		StartTime: time.Now(),
+		EndTime:   time.Time{},
+	})
+	if err == nil {
+		t.Error("Create() should return error for zero EndTime")
+	}
+}
+
+func TestAdapter_Create_OnlineMeeting(t *testing.T) {
+	a := newTestAdapter(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := &calendar.Event{
+			Id:      "online-event-123",
+			Summary: "Online Massage - John",
+			Start:   &calendar.EventDateTime{DateTime: time.Now().Format(time.RFC3339)},
+			End:     &calendar.EventDateTime{DateTime: time.Now().Add(time.Hour).Format(time.RFC3339)},
+			Status:  "confirmed",
+			ConferenceData: &calendar.ConferenceData{
+				EntryPoints: []*calendar.EntryPoint{
+					{Uri: "https://meet.google.com/abc-defg-hij", EntryPointType: "video"},
+				},
+			},
+		}
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	appt, err := a.Create(context.Background(), &domain.Appointment{
+		Service:      domain.Service{Name: "Онлайн Massage"},
+		StartTime:    time.Now(),
+		EndTime:      time.Now().Add(time.Hour),
+		CustomerName: "John",
+	})
+	if err != nil {
+		t.Errorf("Create() error = %v", err)
+	}
+	if appt.MeetLink != "https://meet.google.com/abc-defg-hij" {
+		t.Errorf("Create() MeetLink = %s, want meet link", appt.MeetLink)
+	}
+}
+
+func TestAdapter_FindAll_TransparentEvents(t *testing.T) {
+	now := time.Now()
+	a := newTestAdapter(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := &calendar.Events{
+			Items: []*calendar.Event{
+				{
+					Id:           "opaque-event",
+					Summary:      "Massage - Alice",
+					Start:        &calendar.EventDateTime{DateTime: now.Format(time.RFC3339)},
+					End:          &calendar.EventDateTime{DateTime: now.Add(time.Hour).Format(time.RFC3339)},
+					Status:       "confirmed",
+					Transparency: "opaque",
+				},
+				{
+					Id:           "transparent-event",
+					Summary:      "Free Time",
+					Start:        &calendar.EventDateTime{DateTime: now.Add(2 * time.Hour).Format(time.RFC3339)},
+					End:          &calendar.EventDateTime{DateTime: now.Add(3 * time.Hour).Format(time.RFC3339)},
+					Status:       "confirmed",
+					Transparency: "transparent",
+				},
+			},
+		}
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	appts, err := a.FindAll(context.Background())
+	if err != nil {
+		t.Errorf("FindAll() error = %v", err)
+	}
+	if len(appts) != 1 {
+		t.Errorf("FindAll() returned %d appointments, want 1 (transparent should be skipped)", len(appts))
+	}
+}
+
+func TestAdapter_FindAll_MalformedEvent(t *testing.T) {
+	now := time.Now()
+	a := newTestAdapter(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := &calendar.Events{
+			Items: []*calendar.Event{
+				{
+					Id:      "good-event",
+					Summary: "Massage - Good",
+					Start:   &calendar.EventDateTime{DateTime: now.Format(time.RFC3339)},
+					End:     &calendar.EventDateTime{DateTime: now.Add(time.Hour).Format(time.RFC3339)},
+					Status:  "confirmed",
+				},
+				{
+					Id:    "bad-event",
+					Start: nil,
+					End:   nil,
+				},
+			},
+		}
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	appts, err := a.FindAll(context.Background())
+	if err != nil {
+		t.Errorf("FindAll() error = %v", err)
+	}
+	if len(appts) != 1 {
+		t.Errorf("FindAll() returned %d appointments, want 1 (malformed should be skipped)", len(appts))
+	}
+}
+
+func TestAdapter_ListCalendars_Error(t *testing.T) {
+	a := newTestAdapter(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}))
+	_, err := a.ListCalendars(context.Background())
+	if err == nil {
+		t.Error("ListCalendars() should return error for 500 status")
+	}
+}
+
+func TestAdapter_GetAccountInfo_Error(t *testing.T) {
+	a := newTestAdapter(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}))
+	_, err := a.GetAccountInfo(context.Background())
+	if err == nil {
+		t.Error("GetAccountInfo() should return error for 500 status")
 	}
 }

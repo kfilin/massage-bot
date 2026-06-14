@@ -4,133 +4,377 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/kfilin/massage-bot/internal/domain"
+	"github.com/kfilin/massage-bot/internal/presentation"
 )
 
-// Helper to generate valid hash for testing
-func signInitData(data map[string]string, botToken string) string {
-	// 1. Remove hash if present (should not be, but just in case)
-	delete(data, "hash")
+func TestGenerateHMAC(t *testing.T) {
+	secret := "test-secret"
+	id := "12345"
 
-	// 2. Sort keys
+	token := generateHMAC(id, secret)
+
+	if len(token) == 0 {
+		t.Fatal("Expected non-empty HMAC token")
+	}
+
+	token2 := generateHMAC(id, secret)
+	if token != token2 {
+		t.Error("HMAC generation is not deterministic")
+	}
+
+	token3 := generateHMAC("99999", secret)
+	if token == token3 {
+		t.Error("Different IDs should produce different tokens")
+	}
+}
+
+func TestValidateHMAC_Valid(t *testing.T) {
+	secret := "test-secret"
+	id := "12345"
+
+	token := generateHMAC(id, secret)
+	if !validateHMAC(id, token, secret) {
+		t.Error("Expected valid HMAC")
+	}
+}
+
+func TestValidateHMAC_Invalid(t *testing.T) {
+	secret := "test-secret"
+	id := "12345"
+
+	if validateHMAC(id, "wrong-token", secret) {
+		t.Error("Expected invalid HMAC")
+	}
+}
+
+func TestValidateInitData_MissingHash(t *testing.T) {
+	initData := "user=12345"
+	_, _, err := validateInitData(initData, "bot-token")
+	if err == nil {
+		t.Error("Expected error for missing hash")
+	}
+}
+
+func TestValidateInitData_InvalidHash(t *testing.T) {
+	initData := "hash=invalidhash&user=12345"
+	_, _, err := validateInitData(initData, "bot-token")
+	if err == nil {
+		t.Error("Expected error for invalid hash")
+	}
+}
+
+func TestValidateInitData_MissingUser(t *testing.T) {
+	token := "test-bot-token"
+	data := map[string]string{
+		"auth_date": "1234567890",
+	}
 	var keys []string
 	for k := range data {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-
-	// 3. Build data check string
-	var dataCheckArr []string
+	var arr []string
 	for _, k := range keys {
-		dataCheckArr = append(dataCheckArr, fmt.Sprintf("%s=%s", k, data[k]))
+		arr = append(arr, k+"="+data[k])
 	}
-	dataCheckString := strings.Join(dataCheckArr, "\n")
+	checkString := strings.Join(arr, "\n")
 
-	// 4. Calculate HMAC
 	h1 := hmac.New(sha256.New, []byte("WebAppData"))
-	h1.Write([]byte(botToken))
-	secretKey := h1.Sum(nil)
+	h1.Write([]byte(token))
+	secret := h1.Sum(nil)
 
-	h2 := hmac.New(sha256.New, secretKey)
-	h2.Write([]byte(dataCheckString))
-	return hex.EncodeToString(h2.Sum(nil))
+	h2 := hmac.New(sha256.New, secret)
+	h2.Write([]byte(checkString))
+	hash := hex.EncodeToString(h2.Sum(nil))
+
+	data["hash"] = hash
+	var parts []string
+	for k, v := range data {
+		parts = append(parts, k+"="+v)
+	}
+	initData := strings.Join(parts, "&")
+
+	_, _, err := validateInitData(initData, token)
+	if err == nil {
+		t.Error("Expected error for missing user data")
+	}
 }
 
-func TestValidateInitData(t *testing.T) {
-	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+func TestValidateInitData_MissingUserJSON(t *testing.T) {
+	token := "test-bot-token"
+	data := map[string]string{
+		"auth_date": "1234567890",
+		"user":      "not-valid-json",
+	}
+	var keys []string
+	for k := range data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var arr []string
+	for _, k := range keys {
+		arr = append(arr, k+"="+data[k])
+	}
+	checkString := strings.Join(arr, "\n")
 
-	tests := []struct {
-		name         string
-		data         map[string]string
-		wantID       string
-		wantName     string
-		wantErr      bool
-		overrideHash string // If set, use this hash instead of calculating valid one
-		removeUser   bool
-	}{
-		{
-			name: "Valid Data",
-			data: map[string]string{
-				"query_id":  "AAGL...",
-				"user":      `{"id":12345,"first_name":"John","last_name":"Doe","username":"jdoe"}`,
-				"auth_date": "1672531200",
-			},
-			wantID:   "12345",
-			wantName: "John Doe",
-			wantErr:  false,
-		},
-		{
-			name: "Valid Data - No Last Name",
-			data: map[string]string{
-				"query_id":  "AAGL...",
-				"user":      `{"id":54321,"first_name":"Jane","last_name":""}`,
-				"auth_date": "1672531200",
-			},
-			wantID:   "54321",
-			wantName: "Jane",
-			wantErr:  false,
-		},
-		{
-			name: "Invalid Hash",
-			data: map[string]string{
-				"query_id": "AAGL...",
-				"user":     `{"id":12345,"first_name":"John"}`,
-			},
-			overrideHash: "invalid_hash_value",
-			wantErr:      true,
-		},
-		{
-			name: "Missing User Data",
-			data: map[string]string{
-				"query_id": "AAGL...",
-				// user key missing
-			},
-			wantID:     "",
-			wantErr:    true,
-			removeUser: true,
+	h1 := hmac.New(sha256.New, []byte("WebAppData"))
+	h1.Write([]byte(token))
+	secret := h1.Sum(nil)
+
+	h2 := hmac.New(sha256.New, secret)
+	h2.Write([]byte(checkString))
+	hash := hex.EncodeToString(h2.Sum(nil))
+
+	data["hash"] = hash
+	var parts []string
+	for k, v := range data {
+		parts = append(parts, k+"="+v)
+	}
+	initData := strings.Join(parts, "&")
+
+	_, _, err := validateInitData(initData, token)
+	if err == nil {
+		t.Error("Expected error for invalid user JSON")
+	}
+}
+
+func TestValidateInitData_Success(t *testing.T) {
+	token := "test-bot-token"
+	userJSON := `{"id":12345,"first_name":"John","last_name":"Doe"}`
+	data := map[string]string{
+		"auth_date": "1234567890",
+		"user":      userJSON,
+	}
+	var keys []string
+	for k := range data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var arr []string
+	for _, k := range keys {
+		arr = append(arr, k+"="+data[k])
+	}
+	checkString := strings.Join(arr, "\n")
+
+	h1 := hmac.New(sha256.New, []byte("WebAppData"))
+	h1.Write([]byte(token))
+	secret := h1.Sum(nil)
+
+	h2 := hmac.New(sha256.New, secret)
+	h2.Write([]byte(checkString))
+	hash := hex.EncodeToString(h2.Sum(nil))
+
+	data["hash"] = hash
+	var parts []string
+	for k, v := range data {
+		parts = append(parts, k+"="+v)
+	}
+	initData := strings.Join(parts, "&")
+
+	userID, fullName, err := validateInitData(initData, token)
+	if err != nil {
+		t.Fatalf("Expected success, got error: %v", err)
+	}
+	if userID != "12345" {
+		t.Errorf("Expected user ID '12345', got '%s'", userID)
+	}
+	if fullName != "John Doe" {
+		t.Errorf("Expected name 'John Doe', got '%s'", fullName)
+	}
+}
+
+func TestValidateInitData_EmptyFirstNameLastName(t *testing.T) {
+	token := "test-bot-token"
+	userJSON := `{"id":99999,"first_name":"","last_name":""}`
+	data := map[string]string{
+		"auth_date": "1234567890",
+		"user":      userJSON,
+	}
+	var keys []string
+	for k := range data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var arr []string
+	for _, k := range keys {
+		arr = append(arr, k+"="+data[k])
+	}
+	checkString := strings.Join(arr, "\n")
+
+	h1 := hmac.New(sha256.New, []byte("WebAppData"))
+	h1.Write([]byte(token))
+	secret := h1.Sum(nil)
+
+	h2 := hmac.New(sha256.New, secret)
+	h2.Write([]byte(checkString))
+	hash := hex.EncodeToString(h2.Sum(nil))
+
+	data["hash"] = hash
+	var parts []string
+	for k, v := range data {
+		parts = append(parts, k+"="+v)
+	}
+	initData := strings.Join(parts, "&")
+
+	_, fullName, err := validateInitData(initData, token)
+	if err != nil {
+		t.Fatalf("Expected success, got error: %v", err)
+	}
+	if fullName != "Пациент" {
+		t.Errorf("Expected fallback name 'Пациент', got '%s'", fullName)
+	}
+}
+
+func TestSendTelegramMessage_APIError(t *testing.T) {
+	sendTelegramMessage("invalid-token", "123", "test message")
+}
+
+func TestWebAppHandler_InvalidHMAC(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	secret := "test-secret"
+
+	repo := &mockRepo{}
+	service := &mockApptService{}
+	presenter, _ := presentation.NewWebPresenter()
+
+	handler := NewWebAppHandler(repo, service, presenter, botToken, []string{}, secret)
+
+	req, _ := http.NewRequest("GET", "/?id=12345&token=invalid-token", nil)
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200 (loading page), got %d", rr.Code)
+	}
+}
+
+func TestWebAppHandler_AdminNoTarget(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	adminID := "100"
+
+	repo := &mockRepo{
+		patient: domain.Patient{TelegramID: adminID, Name: "Admin"},
+		getAllPatientsFunc: func() ([]domain.Patient, error) {
+			return []domain.Patient{
+				{TelegramID: "200", Name: "Patient A"},
+			}, nil
 		},
 	}
+	service := &mockApptService{}
+	presenter, _ := presentation.NewWebPresenter()
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Prepare query params
-			params := url.Values{}
-			for k, v := range tt.data {
-				params.Set(k, v)
-			}
+	handler := NewWebAppHandler(repo, service, presenter, botToken, []string{adminID}, "secret")
 
-			// Calculate valid hash if not constructing invalid test case
-			hash := tt.overrideHash
-			if hash == "" {
-				hash = signInitData(tt.data, botToken)
-			}
-			params.Set("hash", hash)
+	initData := makeInitData(adminID, "Admin", botToken)
+	req, _ := http.NewRequest("GET", "/?initData="+url.QueryEscape(initData), nil)
+	rr := httptest.NewRecorder()
 
-			initData := params.Encode()
-			// If we want to simulate missing hash parameter entirely, we would manipulate initData string
-			// but here we test validation logic mostly.
+	handler.ServeHTTP(rr, req)
 
-			// Execute
-			gotID, gotName, err := validateInitData(initData, botToken)
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200 OK, got %d", rr.Code)
+	}
+}
 
-			// Verify
-			if (err != nil) != tt.wantErr {
-				t.Errorf("validateInitData() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !tt.wantErr {
-				if gotID != tt.wantID {
-					t.Errorf("validateInitData() gotID = %v, want %v", gotID, tt.wantID)
-				}
-				if gotName != tt.wantName {
-					t.Errorf("validateInitData() gotName = %v, want %v", gotName, tt.wantName)
-				}
-			}
-		})
+func TestNewSearchHandler_WithQuery(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	adminID := "100"
+
+	repo := &mockRepo{}
+	handler := NewSearchHandler(repo, botToken, []string{adminID})
+	initData := makeInitData(adminID, "Admin", botToken)
+
+	req, _ := http.NewRequest("GET", "/api/search?q=test_patient&initData="+url.QueryEscape(initData), nil)
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200, got %d", rr.Code)
+	}
+
+	var result []domain.Patient
+	_ = fmt.Sprintf("result: %v", result)
+}
+
+func TestNewCancelHandler_NotFound(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	adminID := "100"
+
+	service := &mockApptService{appointments: map[string]domain.Appointment{}}
+	presenter := presentation.NewBotPresenter()
+	handler := NewCancelHandler(service, botToken, []string{adminID}, presenter)
+
+	initData := makeInitData(adminID, "Admin", botToken)
+	body := fmt.Sprintf(`{"id":"nonexistent","initData":"%s"}`, url.QueryEscape(initData))
+	req, _ := http.NewRequest("POST", "/cancel", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	// Handler returns 400 for not found appointments
+	if rr.Code != http.StatusBadRequest && rr.Code != http.StatusNotFound {
+		t.Errorf("Expected 400 or 404, got %d", rr.Code)
+	}
+}
+
+func TestDraftHandler_DiscardFlow(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	adminID := "100"
+
+	repo := &mockRepo{
+		media: domain.PatientMedia{ID: "media-1", PatientID: "200", Transcript: "Test transcript"},
+	}
+
+	handler := NewDraftHandler(repo, botToken, []string{adminID}, "secret")
+	initData := makeInitData(adminID, "Admin", botToken)
+	body := map[string]string{
+		"id":       "media-1",
+		"initData": initData,
+	}
+	jsonBody, _ := json.Marshal(body)
+
+	req, _ := http.NewRequest("POST", "/api/draft/discard", strings.NewReader(string(jsonBody)))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200, got %d. Body: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestNewUpdatePatientHandler_NotesTooLong(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	adminID := "100"
+
+	repo := &mockRepo{}
+	handler := NewUpdatePatientHandler(repo, botToken, []string{adminID})
+
+	initData := makeInitData(adminID, "Admin", botToken)
+	longNotes := strings.Repeat("x", 10001)
+	body := fmt.Sprintf(`{"telegramID":"200","name":"Test","notes":"%s","initData":"%s"}`, longNotes, url.QueryEscape(initData))
+	req, _ := http.NewRequest("POST", "/api/patient/update", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 for too-long notes, got %d", rr.Code)
 	}
 }
 

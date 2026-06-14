@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"context"
+	"fmt"
 	"testing"
 
 	"github.com/kfilin/massage-bot/internal/presentation"
@@ -64,6 +66,24 @@ func TestAdminHandlers(t *testing.T) {
 			},
 			wantMsg: "разблокирован",
 			wantErr: false,
+		},
+		{
+			name:          "Unban User - Not Admin",
+			handlerMethod: (*BookingHandler).HandleUnban,
+			userID:        123456,
+			args:          []string{"111111"},
+			adminIDs:      []string{adminID},
+			wantMsg:       "Доступ запрещен",
+			wantErr:       false,
+		},
+		{
+			name:          "Unban User - Missing Args",
+			handlerMethod: (*BookingHandler).HandleUnban,
+			userID:        999999,
+			args:          []string{},
+			adminIDs:      []string{adminID},
+			wantMsg:       "Использование",
+			wantErr:       false,
 		},
 
 		// HandleStatus Tests
@@ -184,4 +204,39 @@ func TestHandleBlock(t *testing.T) {
 
 func (m *mockRepository) DeleteAppointment(appointmentID string) error {
 	return nil
+}
+
+func TestHandleStatus_ErrorFromService(t *testing.T) {
+	mockRepo := newMockRepository()
+	mockSession := newMockSessionStorage()
+
+	mockApptService := &mockAppointmentService{
+		getTotalUpcomingCountFunc: func(ctx context.Context) (int, error) {
+			return 0, fmt.Errorf("database unavailable")
+		},
+	}
+
+	handler := NewBookingHandler(
+		mockApptService,
+		mockSession,
+		[]string{"999999"},
+		nil,
+		nil,
+		mockRepo,
+		&presentation.BotPresenter{},
+		"",
+		"",
+	)
+
+	ctx := &mockContext{
+		sender: &telebot.User{ID: 999999},
+	}
+
+	err := handler.HandleStatus(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !contains(ctx.sentMsg, "Статус бота") {
+		t.Errorf("Expected status message, got: %s", ctx.sentMsg)
+	}
 }
