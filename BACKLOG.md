@@ -330,9 +330,11 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
 - **Verification**: `docker ps | grep massage-bot` shows Up, `/health` returns 200, smoke-test booking flow on staging first, then repeat on prod.
 - **Source**: User report (2026-06-16) + `ssh server` inspection + `what_to_fix.md` cross-reference.
 
-### 42. [TODO] Audit and Slim `.agent/` Folder — Migrate to Agentic OS v2 Template
-- **Status**: Backlog
+### 42. [DONE] Audit and Slim `.agent/` Folder — Migrate to Agentic OS v2 Template
+- **Status**: Completed (2026-06-17)
 - **Priority**: High (blocks future agent sessions; current harness has stale + duplicated content)
+- **Resolution**: Identified `agentic-os` (`/home/kirillfilin/Projects/agentic-os/`) as canonical template source via WORKSPACE.md. Added new **Operational Rules** section to `agentic-os/AGENTS.md` (commit `0919985`). Re-hydrated `massage-bot/AGENTS.md` from template (commit `0c039b6`) with extended Child DOX Index. Created `.pi/skills/` mirror (Agent Skills standard) for all 7 canonical skills. Refreshed `.agent/Project-Hub.md`. Created handoff document for agentic-lab-2.0 cleanup at `Cleanup/cleanup.md`. Single AGENTS.md pattern (with merged Operational Rules) works in pi's auto-load model.
+- **Commits**: `0919985` (agentic-os), `0c039b6` (massage-bot hydration)
 - **Goal**: Analyze the current `.agent/` folder, retain only project-specific value, and adopt the **agentic-lab-2.0 OS template** as the canonical harness.
 - **Current `.agent/` inventory** (11 files):
   | File | Decision | Reason |
@@ -432,5 +434,5 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
 
 ---
 
-#### Last updated: 2026-06-16 (Infrastructure Hygiene Sprint planning)
+#### Last updated: 2026-06-17 (post-harness-migration; #42 marked DONE)
 
