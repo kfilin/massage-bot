@@ -31,6 +31,7 @@ type mockRepo struct {
 	getAllPatientsFunc func() ([]domain.Patient, error)
 	getApptHistoryFunc func(id string) ([]domain.Appointment, error)
 	getPatientMediaFunc func(id string) ([]domain.PatientMedia, error)
+	updatePatientProfileFunc func(telegramID string, name string, notes string) error
 }
 
 func (m *mockRepo) GetPatient(id string) (domain.Patient, error) {
@@ -79,6 +80,9 @@ func (m *mockRepo) SearchPatients(query string) ([]domain.Patient, error) {
 func (m *mockRepo) GenerateAdminSearchPage() string { return "ADMIN_SEARCH_PAGE" }
 
 func (m *mockRepo) UpdatePatientProfile(telegramID string, name string, notes string) error {
+	if m.updatePatientProfileFunc != nil {
+		return m.updatePatientProfileFunc(telegramID, name, notes)
+	}
 	if m.patient.TelegramID == telegramID {
 		m.patient.Name = name
 		m.patient.TherapistNotes = notes
@@ -751,9 +755,14 @@ func TestUpdatePatientHandler_NonAdmin(t *testing.T) {
 	}
 }
 
-type mockTranscriptionService struct{}
+type mockTranscriptionService struct{
+	transcribeFunc func(ctx context.Context, audio io.Reader, filename string) (string, error)
+}
 
 func (m *mockTranscriptionService) Transcribe(ctx context.Context, audio io.Reader, filename string) (string, error) {
+	if m.transcribeFunc != nil {
+		return m.transcribeFunc(ctx, audio, filename)
+	}
 	return "Test transcription result", nil
 }
 
@@ -1008,5 +1017,112 @@ func TestUpdatePatientHandler_EmptyBody(t *testing.T) {
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("Expected 400 for empty body, got %d", rr.Code)
+	}
+}
+
+func TestTranscribeHandler_TranscriptionError(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	transService := &mockTranscriptionService{
+		transcribeFunc: func(ctx context.Context, audio io.Reader, filename string) (string, error) {
+			return "", fmt.Errorf("AI service down")
+		},
+	}
+	handler := NewTranscribeHandler(transService, botToken)
+
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	initData := makeInitData("100", "User", botToken)
+	_ = writer.WriteField("initData", initData)
+	part, _ := writer.CreateFormFile("voice", "voice.ogg")
+	part.Write([]byte("fake audio data"))
+	writer.Close()
+
+	req, _ := http.NewRequest("POST", "/api/transcribe", &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("Expected 500 for transcription error, got %d. Body: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestTranscribeHandler_FileFallback(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	handler := NewTranscribeHandler(&mockTranscriptionService{}, botToken)
+
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	initData := makeInitData("100", "User", botToken)
+	_ = writer.WriteField("initData", initData)
+	part, _ := writer.CreateFormFile("file", "voice.ogg")
+	part.Write([]byte("fake audio data"))
+	writer.Close()
+
+	req, _ := http.NewRequest("POST", "/api/transcribe", &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200 for file fallback, got %d. Body: %s", rr.Code, rr.Body.String())
+	}
+	var resp map[string]string
+	json.NewDecoder(rr.Body).Decode(&resp)
+	if resp["status"] != "ok" {
+		t.Errorf("Expected status ok, got %s", resp["status"])
+	}
+}
+
+func TestUpdatePatientHandler_UpdateError(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	repo := &mockRepo{
+		updatePatientProfileFunc: func(telegramID string, name string, notes string) error {
+			return fmt.Errorf("db error")
+		},
+	}
+	handler := NewUpdatePatientHandler(repo, botToken, []string{"100"})
+
+	initData := makeInitData("100", "Admin", botToken)
+	body := map[string]string{
+		"initData": initData,
+		"id":       "200",
+		"name":     "Updated Name",
+		"notes":    "Updated notes",
+	}
+	jsonBody, _ := json.Marshal(body)
+
+	req, _ := http.NewRequest("POST", "/api/patients/update", bytes.NewBuffer(jsonBody))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("Expected 500 for update error, got %d. Body: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestWebAppHandler_HMACAdminSearchPage(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	secret := "hmac_admin_secret"
+	adminID := "100"
+
+	repo := &mockRepo{}
+	service := &mockApptService{}
+	presenter, _ := presentation.NewWebPresenter()
+	handler := NewWebAppHandler(repo, service, presenter, botToken, []string{adminID}, secret)
+
+	h := hmac.New(sha256.New, []byte(secret))
+	h.Write([]byte(adminID))
+	token := hex.EncodeToString(h.Sum(nil))
+
+	req, _ := http.NewRequest("GET", "/?id="+adminID+"&token="+token, nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200 for HMAC admin search page, got %d. Body: %s", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "Поиск пациентов") {
+		t.Errorf("Expected admin search page, got: %s", rr.Body.String())
 	}
 }

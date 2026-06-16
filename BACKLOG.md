@@ -1,5 +1,12 @@
 # Project Backlog
 
+## 🟢 Session 2026-06-14 08:20 — Vault Project Scoping Alignment
+
+- [x] Aligned handoff path to `Bridge/massage-bot/Checkpoints/`
+- [x] Migrated handoff notes from flat `Bridge/Checkpoints/` to project-scoped directory
+- [x] Updated `handoff.md`, `obsidian_management.md`, `startup.md` skills
+- [x] No Go code changes required (uses own data directory, not shared vault)
+
 ## 📋 Observation & Improvement Ideas
 
 ### 1. [DONE] "History of Visits" Data Accuracy & Utility
@@ -261,12 +268,13 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
 - **Rationale**: Currently, handlers are mixed with application entry logic. Moving them to `internal/` ensures better architecture alignment and follows the "package by feature/layer" pattern used in the rest of the project.
 
 ### 36. [IN PROGRESS] Test Coverage Hardening (80%+)
-- **Status**: In Progress (2026-06-14)
+- **Status**: In Progress — paused by user (2026-06-14)
 - **Priority**: High
 - **Goal**: Increase repository test coverage from ~42% to 80%+.
-- **Progress**: Overall ~42% → ~68.9%. Key gains: storage 32→68.7%, handlers 40→77.4%, cmd/bot 27→64.1%, googlecalendar 53→66.9%, transcription 23→88.2%, services/appointment 86→92.5%.
-- **Next targets**: `internal/delivery/telegram` (4.2% — Telegram API mock), `HandleFileMessage` deep paths (23.7% — needs Bot.File() mock), `googlecalendar` client (66.9% — OAuth flow), `storage` (68.7%).
-- **Tests added across sessions**: ~105 new test functions.
+- **Progress (after Sprint 5)**: Overall ~42% → ~70%+. Key gains: storage 32→68.7%, handlers 40→78.1%, cmd/bot 27→66.1%, googlecalendar 53→69.7%, transcription 23→88.2%, services/appointment 86→92.5%.
+- **Per-function wins**: NewTranscribeHandler 73→100%, NewUpdatePatientHandler 73.8→100%, tokenFromFile 33.3→100%, backoff 83.3→100%, NewWebAppHandler 57.3→87.9%.
+- **Next targets**: `reminder` (81.5%), `domain` (91.7%), `logging` (91.2%), `services/appointment` (92.5%). Structural ceilings: `delivery/telegram` (4.2%), googlecalendar OAuth (getToken/saveToken 0%).
+- **Tests added across sessions**: ~121 new test functions.
 
 ### 37. [TODO] Grafana Dashboard Sync
 - **Status**: Backlog
@@ -289,3 +297,140 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
 - **Goal**: Port the high-density Antigravity collaboration harness to the Massage Bot ecosystem.
 - **Resolution**: Migrated rules, skills, and Hub structure. Verified identical collaboration DNA with the Agentic Lab project.
 - **Commit**: `3637715`
+
+---
+
+## 🟠 Infrastructure Hygiene Sprint — 2026-06-16
+
+> **Trigger**: User session review of `what_to_fix.md` + server inspection revealed a stack of long-standing hygiene issues that all need to be resolved together. Not blocking P0 fix in #41 but should be sequenced after it.
+
+### 41. [TODO] Production Bot Offline — Fix Container Collision + Missing .env
+- **Status**: Backlog (P0 — production down)
+- **Priority**: P0
+- **Goal**: Restore the vera-bot service. Two stacked issues confirmed by server inspection:
+  1. `vera-bot-massage-bot-1` exited with code 1 at `2026-06-16T20:45:36Z`. **Actual root cause** (not port collision): `No .env file found or error loading .env file` → `Environment variable TG_BOT_TOKEN is not set` (fatal). `/opt/vera-bot/.env` exists with the token — `docker compose up` either ran from wrong CWD or `env_file` directive wasn't honored. A second `massage-bot` container exists in `Created` status with zero logs (from `deploy.sh`'s `docker run` path).
+  2. Port 8082 is held by `gateway-2` (29h uptime, `0.0.0.0:8082->8080/tcp`). Compose's default `HOST_WEBAPP_PORT:-8082` will continue to collide even after #1 is fixed.
+- **Secondary issues to fix in the same change window**:
+  - `docker-compose.override.yml` redefines the service as `massage-bot`, conflicting with the `app` service in the base compose — caused the dual-container mess.
+  - `deploy.sh` has no `cd $APP_DIR` and uses `-p 8080:8080 -p 8081:8081` (wrong ports). Replace with `deploy_home_server.sh` semantics or remove.
+  - `chmod 600 /opt/vera-bot/.env` — currently `0644` (group-readable credentials in production, also confirmed in `what_to_fix.md` #4.1).
+- **Proposed fix sequence** (NOT to execute without explicit user approval):
+  ```bash
+  ssh server "cd /opt/vera-bot && \
+    docker compose down && \
+    docker rm -f massage-bot 2>/dev/null || true && \
+    chmod 600 .env && \
+    rm docker-compose.override.yml && \
+    sed -i 's/HOST_WEBAPP_PORT:-8082/HOST_WEBAPP_PORT:-8086/' .env && \
+    docker compose pull && \
+    docker compose up -d && \
+    sleep 15 && \
+    curl -s http://localhost:8086/health"
+  ```
+- **Verification**: `docker ps | grep massage-bot` shows Up, `/health` returns 200, smoke-test booking flow on staging first, then repeat on prod.
+- **Source**: User report (2026-06-16) + `ssh server` inspection + `what_to_fix.md` cross-reference.
+
+### 42. [TODO] Audit and Slim `.agent/` Folder — Migrate to Agentic OS v2 Template
+- **Status**: Backlog
+- **Priority**: High (blocks future agent sessions; current harness has stale + duplicated content)
+- **Goal**: Analyze the current `.agent/` folder, retain only project-specific value, and adopt the **agentic-lab-2.0 OS template** as the canonical harness.
+- **Current `.agent/` inventory** (11 files):
+  | File | Decision | Reason |
+  |---|---|---|
+  | `HARNESS_GUIDE.md` (3.8 KB) | REMOVE | Universal meta-doc, superseded by agentic-lab-2.0 docs |
+  | `handoff.md` (root) | REMOVE | Outdated — references "Phase 13 Redis" from an old session |
+  | `Project-Hub.md` | KEEP & REFRESH | Project-specific, needs current state |
+  | `project-config.env` | KEEP | `HYDRATED=true`, `PROJECT_NAME=massage-bot`, `GIT_MAIN_BRANCH=master` |
+  | `skills/startup.md` | KEEP & REFRESH | Mandatory startup, references graphify which is mostly offline |
+  | `skills/handoff.md` | KEEP & REFRESH | End-of-session routine |
+  | `skills/obsidian_management.md` | KEEP | Vault path config |
+  | `skills/hydrate-harness.md` | REMOVE | Superseded by agentic-lab-2.0 model |
+  | `skills/fleet-orchestration.md` | KEEP & SYNC | agentic-lab-2.0 source skill |
+  | `skills/fleet-roles.md` | KEEP & SYNC | agentic-lab-2.0 source skill |
+  | `skills/multi-modal-intelligence.md` | KEEP & SYNC | agentic-lab-2.0 source skill |
+  | `global-skills/` (15 files) | KEEP | Anthropic-style methodology library (TDD, debugging, etc.) |
+  | `global-skills_legacy_20260613/` (25 files) | REMOVE | Legacy duplicate workspace; user confirmed "anything experimental can be removed" |
+- **Template files to import from agentic-lab-2.0** (after project-agnostic cleanup — see constraint below):
+  - [AgenticLab 2.0/Checkpoints/2026-06-15-handoff.md](file:///home/kirillfilin/Projects/agentic-lab-2.0/docs/AgenticLab%202.0/Checkpoints/2026-06-15-handoff.md) — handoff format reference
+  - [AgenticLab 2.0/Checkpoints/2026-06-15-handoff-phase3.md](file:///home/kirillfilin/Projects/agentic-lab-2.0/docs/AgenticLab%202.0/Checkpoints/2026-06-15-handoff-phase3.md)
+  - [AGENTIC_OS_INTEGRATION.md](file:///home/kirillfilin/Projects/agentic-lab-2.0/docs/AGENTIC_OS_INTEGRATION.md) — explains how a project integrates with Agentic OS
+  - [Agent-Prompt.md](file:///home/kirillfilin/Projects/agentic-lab-2.0/docs/Agent-Prompt.md) — session entry / cost control rules
+  - [AGENTS.md](file:///home/kirillfilin/Projects/agentic-lab-2.0/docs/AGENTS.md) — **docs-folder** AGENTS.md (note: differs from root AGENTS.md; this one governs the `docs/` subfolder)
+  - [Bot-Commands.md](file:///home/kirillfilin/Projects/agentic-lab-2.0/docs/Bot-Commands.md) — command surface reference
+- **⚠️ Constraint**: User explicitly stated the agentic-lab-2.0 docs **must be cleaned up first to be project-agnostic before adoption**, and "we'll take care of them together". So:
+  - Do NOT copy these files verbatim into massage-bot.
+  - First, in a joint session with the user, scrub domain-specific references (e.g., "Agentic Lab", "agentic-lab", "bridge-2", "orchestrator-2", "Pilot/Concierge/Architect" role names if not relevant) and parameterize them.
+  - Then import the cleaned versions into massage-bot's `.agent/` and `docs/`.
+- **Success criteria**:
+  - `.agent/` has only project-relevant files; no duplicates with `global-skills/`.
+  - `Project-Hub.md` reflects current state (Sprint #5 coverage done, Phase 4 testcontainers in progress, Clinical Patterns backlog #30 active).
+  - `startup.md` and `handoff.md` follow the agentic-lab-2.0 pattern.
+  - `legacy_20260613` folder removed.
+  - One end-to-end session passes startup → handoff without warnings.
+
+### 43. [TODO] Consolidate Local Projects to `/home/Projects/`
+- **Status**: Backlog
+- **Priority**: Medium (housekeeping; enables consistent scripts and IDE paths)
+- **Goal**: Move all active code projects into a single root: `/home/kirillfilin/Projects/`.
+- **Current scattered locations** (from `ls /home/kirillfilin/Documents/`):
+  - `massage-bot/` → move to `/home/kirillfilin/Projects/massage-bot/`
+  - `watchtower-masterbot/` → move to `/home/kirillfilin/Projects/watchtower-masterbot/`
+  - `mcp-server/` → move to `/home/kirillfilin/Projects/mcp-server/`
+  - Others under `Documents/` need audit (anything with `.git`, `go.mod`, `package.json`).
+- **Pre-existing `/home/kirillfilin/Projects/` content** (keep in place):
+  - `agentic-lab` (legacy, see #42 for cleanup)
+  - `agentic-lab-2.0` (template source, do NOT move)
+  - `agentic-os` (template source, do NOT move)
+  - `Antigravity_On_Steroids` (template source, do NOT move)
+  - `TIL` (knowledge base, do NOT move)
+- **Tasks**:
+  1. Audit `/home/kirillfilin/Documents/` for project directories.
+  2. Create new paths under `/home/kirillfilin/Projects/`.
+  3. `git remote -v` to confirm each project before move.
+  4. `mv` (preserves git metadata), then `git status` to verify clean.
+  5. Update IDE workspace files (e.g., `massage-bot.code-workspace`) and shell aliases if they hardcode `Documents/` paths.
+  6. Update `startup.md`, `Project-Hub.md`, and any `.agent/skills/*.md` that reference `~/Documents/massage-bot/`.
+- **Risk**: Hardcoded paths in scripts, CI, and IDE configs. Need `grep -r "Documents/massage-bot"` and `grep -r "Documents/watchtower-masterbot"` audit.
+- **Verification**: All projects still build/test; IDE workspaces open; CI references resolve.
+
+### 44. [TODO] CI/CD Pipeline Audit
+- **Status**: Backlog
+- **Priority**: Medium
+- **Goal**: Audit `.gitlab-ci.yml` and deploy scripts, fix known flaws.
+- **Known issues** (from user + server inspection + cross-validation with `what_to_fix.md`):
+  - **Go version mismatch**: `.gitlab-ci.yml` L7 declares `GO_VERSION: "1.25.3"` but L14 uses `image: golang:1.23` for tests. `Dockerfile` uses `golang:1.25-alpine`. Tests and prod builds run on different Go versions — subtle incompatibilities possible. `what_to_fix.md` #2.4 also flagged this.
+  - **`deploy.sh` is broken** (see #41): wrong ports, no `cd $APP_DIR`, uses `docker run` while production uses `docker compose`.
+  - **`deploy_home_server.sh` is the working path** — uses `docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml build --no-cache --pull`. Audit but don't break.
+  - **Other CI images unpinned**: `docker:latest`, `alpine:latest` — can break silently on upstream changes.
+  - **No port-collision pre-flight**: the current P0 incident could have been caught at deploy time.
+- **Tasks**:
+  1. Pin all images to specific versions (e.g., `golang:1.25-alpine`, `docker:27-dind`, `alpine:3.20`).
+  2. Add port-collision pre-flight check to deploy scripts.
+  3. Add `memory: 512m` to `docker-compose.yml` resource limits (currently only CPU).
+  4. Add backup verification step (daily ZIP backup exists per startup.md, but restore is never tested).
+  5. Review GitLab CI manual gate for prod — verify it actually gates correctly.
+  6. Decide: keep `deploy.sh` as a thin wrapper around `docker compose`, OR delete it.
+- **Source**: User (2026-06-16) + `what_to_fix.md` review (cross-validated with server inspection).
+
+### 45. [TODO] Git Sync Hygiene (PC ↔ Server)
+- **Status**: Backlog
+- **Priority**: Medium
+- **Goal**: Make local and server git states consistent and easily reconcilable. Reduce manual drift between `~/Documents/massage-bot/` (or `/home/Projects/massage-bot/` after #43) and `/opt/vera-bot/`.
+- **Known drift** (from server inspection):
+  - Server `AGENTS.md` is 1550 bytes, references skills that don't exist in current `.agent/skills/` (`database-expert`, `devops-harness`, `ai-integration-expert`, `twa-aesthetics`). Stale — was probably from an older bootstrap.
+  - `docker-compose.override.yml` exists on server (167 bytes) but NOT in local repo — implies uncommitted server-side drift, or it was deleted locally.
+  - `deploy.sh` on server is dated `дек 26 19:48` (Dec 26, 2025) — much older than other files dated May 2026.
+  - `.env` on server is dated `апр 24 08:40` (Apr 24, 2026) — credentials haven't been rotated since April, despite being `0644`.
+  - `.env.example` on server is dated `мая 13 14:36` (May 13, 2026) — newer than `.env`, suggesting `.env.example` was updated after `.env` was last touched.
+- **Tasks**:
+  1. `ssh server "cd /opt/vera-bot && git status && git log --oneline -5"` to see server's actual state.
+  2. Diff server files vs local files for non-git-tracked drift (`docker-compose.override.yml`, `AGENTS.md`, `deploy.sh`).
+  3. Decide per file: commit server-specific to repo, OR remove as "experimental".
+  4. Establish convention: server is read-only except for `data/` and `.env`; everything else comes from git.
+  5. Update `startup.md` reference paths once #43 is done.
+- **Verification**: `git status` clean on both sides; deploy succeeds without manual intervention; no `docker-compose.override.yml`-style files reappear.
+
+---
+
+#### Last updated: 2026-06-16 (Infrastructure Hygiene Sprint planning)
+

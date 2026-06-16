@@ -250,6 +250,9 @@ type mockRepository struct {
 	saveMediaFunc       func(media domain.PatientMedia) error
 	getPatientMediaFunc func(patientID string) ([]domain.PatientMedia, error)
 	getMediaByIDFunc    func(mediaID string) (*domain.PatientMedia, error)
+	banUserFunc         func(telegramID string) error
+	unbanUserFunc       func(telegramID string) error
+	createBackupFunc    func() (string, error)
 }
 
 func newMockRepository() *mockRepository {
@@ -300,13 +303,26 @@ func (m *mockRepository) IsUserBanned(telegramID string, username string) (bool,
 }
 
 func (m *mockRepository) BanUser(telegramID string) error {
+	if m.banUserFunc != nil {
+		return m.banUserFunc(telegramID)
+	}
 	m.bannedUsers[telegramID] = true
 	return nil
 }
 
 func (m *mockRepository) UnbanUser(telegramID string) error {
+	if m.unbanUserFunc != nil {
+		return m.unbanUserFunc(telegramID)
+	}
 	delete(m.bannedUsers, telegramID)
 	return nil
+}
+
+func (m *mockRepository) CreateBackup() (string, error) {
+	if m.createBackupFunc != nil {
+		return m.createBackupFunc()
+	}
+	return "/tmp/backup.zip", nil
 }
 
 func (m *mockRepository) LogEvent(patientID string, eventType string, details map[string]interface{}) error {
@@ -319,10 +335,6 @@ func (m *mockRepository) GenerateHTMLRecord(patient domain.Patient, history []do
 
 func (m *mockRepository) GenerateAdminSearchPage() string {
 	return "<html>Mock Search Page</html>"
-}
-
-func (m *mockRepository) CreateBackup() (string, error) {
-	return "/tmp/backup.zip", nil
 }
 
 func (m *mockRepository) SaveMedia(media domain.PatientMedia) error {

@@ -240,3 +240,105 @@ func TestHandleStatus_ErrorFromService(t *testing.T) {
 		t.Errorf("Expected status message, got: %s", ctx.sentMsg)
 	}
 }
+
+func TestHandleBan_Error(t *testing.T) {
+	mockRepo := newMockRepository()
+	mockRepo.banUserFunc = func(telegramID string) error {
+		return fmt.Errorf("database error")
+	}
+
+	h := NewBookingHandler(nil, nil, []string{"999999"}, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{
+		sender: &telebot.User{ID: 999999},
+		args:   []string{"123456"},
+	}
+
+	err := h.HandleBan(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !contains(ctx.sentMsg, "Ошибка при блокировке") {
+		t.Errorf("Expected ban error message, got: %s", ctx.sentMsg)
+	}
+}
+
+func TestHandleUnban_Error(t *testing.T) {
+	mockRepo := newMockRepository()
+	mockRepo.unbanUserFunc = func(telegramID string) error {
+		return fmt.Errorf("database error")
+	}
+
+	h := NewBookingHandler(nil, nil, []string{"999999"}, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{
+		sender: &telebot.User{ID: 999999},
+		args:   []string{"123456"},
+	}
+
+	err := h.HandleUnban(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !contains(ctx.sentMsg, "Ошибка при разблокировке") {
+		t.Errorf("Expected unban error message, got: %s", ctx.sentMsg)
+	}
+}
+
+func TestHandleStatus_CalendarInfoError(t *testing.T) {
+	mockApptService := &mockAppointmentService{
+		getTotalUpcomingCountFunc: func(ctx context.Context) (int, error) { return 5, nil },
+		getCalendarAccountInfoFunc: func(ctx context.Context) (string, error) {
+			return "", fmt.Errorf("auth error")
+		},
+		listCalendarsFunc: func(ctx context.Context) ([]string, error) {
+			return nil, fmt.Errorf("api error")
+		},
+	}
+
+	h := NewBookingHandler(mockApptService, nil, []string{"999999"}, nil, nil, nil, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{sender: &telebot.User{ID: 999999}}
+
+	err := h.HandleStatus(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !contains(ctx.sentMsg, "Unknown") || !contains(ctx.sentMsg, "Статус бота") {
+		t.Errorf("Expected fallback status message with Unknown, got: %s", ctx.sentMsg)
+	}
+}
+
+func TestHandleBackup_CreateError(t *testing.T) {
+	mockRepo := newMockRepository()
+	mockRepo.createBackupFunc = func() (string, error) {
+		return "", fmt.Errorf("disk full")
+	}
+
+	h := NewBookingHandler(nil, nil, []string{"999999"}, nil, nil, mockRepo, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{sender: &telebot.User{ID: 999999}}
+
+	err := h.HandleBackup(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !contains(ctx.sentMsg, "Ошибка при создании") {
+		t.Errorf("Expected backup error message, got: %s", ctx.sentMsg)
+	}
+}
+
+func TestHandleStatus_AdminFallback(t *testing.T) {
+	mockApptService := &mockAppointmentService{
+		getTotalUpcomingCountFunc:  func(ctx context.Context) (int, error) { return 5, nil },
+		getCalendarAccountInfoFunc: func(ctx context.Context) (string, error) { return "test@example.com", nil },
+		listCalendarsFunc:          func(ctx context.Context) ([]string, error) { return nil, nil },
+	}
+
+	h := NewBookingHandler(mockApptService, nil, []string{"999999"}, nil, nil, nil, &presentation.BotPresenter{}, "", "")
+	ctx := &mockContext{sender: &telebot.User{ID: 999999}}
+
+	err := h.HandleStatus(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !contains(ctx.sentMsg, "Статус бота") {
+		t.Errorf("Expected status message, got: %s", ctx.sentMsg)
+	}
+}

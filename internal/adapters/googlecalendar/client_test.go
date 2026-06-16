@@ -3,6 +3,7 @@ package googlecalendar
 import (
 	"context"
 	"errors"
+	"os"
 	"testing"
 	"time"
 
@@ -104,6 +105,56 @@ func TestTokenFromFile(t *testing.T) {
 		_, err := tokenFromFile("/nonexistent/path/token.json")
 		if err == nil {
 			t.Error("tokenFromFile() should return error for nonexistent file")
+		}
+	})
+
+	t.Run("Valid token file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		tokenPath := tmpDir + "/valid_token.json"
+		validJSON := `{"access_token":"ya29.test","token_type":"Bearer","refresh_token":"1/refresh","expiry":"2026-07-15T00:00:00Z"}`
+		if err := os.WriteFile(tokenPath, []byte(validJSON), 0644); err != nil {
+			t.Fatalf("Failed to write test token file: %v", err)
+		}
+
+		tok, err := tokenFromFile(tokenPath)
+		if err != nil {
+			t.Fatalf("tokenFromFile() unexpected error: %v", err)
+		}
+		if tok.AccessToken != "ya29.test" {
+			t.Errorf("AccessToken = %s, want ya29.test", tok.AccessToken)
+		}
+		if tok.RefreshToken != "1/refresh" {
+			t.Errorf("RefreshToken = %s, want 1/refresh", tok.RefreshToken)
+		}
+	})
+
+	t.Run("Invalid JSON in file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		tokenPath := tmpDir + "/invalid_token.json"
+		if err := os.WriteFile(tokenPath, []byte("not valid json"), 0644); err != nil {
+			t.Fatalf("Failed to write test token file: %v", err)
+		}
+
+		_, err := tokenFromFile(tokenPath)
+		if err == nil {
+			t.Error("tokenFromFile() should return error for invalid JSON")
+		}
+	})
+
+	t.Run("Token with zero expiry but has refresh token", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		tokenPath := tmpDir + "/refresh_token.json"
+		validJSON := `{"access_token":"ya29.refresh","token_type":"Bearer","refresh_token":"1/refresh"}`
+		if err := os.WriteFile(tokenPath, []byte(validJSON), 0644); err != nil {
+			t.Fatalf("Failed to write test token file: %v", err)
+		}
+
+		tok, err := tokenFromFile(tokenPath)
+		if err != nil {
+			t.Fatalf("tokenFromFile() unexpected error: %v", err)
+		}
+		if tok.Expiry.After(time.Now()) {
+			t.Error("tokenFromFile() should set Expiry to past for refresh tokens with zero expiry")
 		}
 	})
 }
