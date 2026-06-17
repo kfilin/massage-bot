@@ -108,25 +108,7 @@ func main() {
 
 	// 8. Start Web App server
 	if cfg.WebAppSecret != "" {
-		adminMap := make(map[string]struct{})
-		if cfg.AdminTelegramID != "" {
-			adminMap[cfg.AdminTelegramID] = struct{}{}
-		}
-		for _, id := range cfg.AllowedTelegramIDs {
-			if id != "" {
-				adminMap[id] = struct{}{}
-			}
-		}
-		for _, id := range cfg.TherapistIDs {
-			if id != "" {
-				adminMap[id] = struct{}{}
-			}
-		}
-
-		var allAdmins []string
-		for id := range adminMap {
-			allAdmins = append(allAdmins, id)
-		}
+		allAdmins := config.ResolveAdminIDs(cfg.AdminTelegramID, cfg.AllowedTelegramIDs, cfg.TherapistIDs)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
