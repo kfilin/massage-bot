@@ -355,3 +355,27 @@ func TestRunLoop_MultipleTicksAreProcessed(t *testing.T) {
 		t.Fatal("RunLoopForTest did not exit within 1s after context cancel")
 	}
 }
+
+// TestStart_RunsAndStopsOnContextCancel exercises the top-level Start
+// entry point. The 10-minute real ticker is acceptable because we
+// cancel the context immediately; the loop's select observes ctx.Done()
+// and exits, triggering ticker.Stop() via defer.
+func TestStart_RunsAndStopsOnContextCancel(t *testing.T) {
+	bot := &mockBotSender{}
+	repo := newMockReminderRepo()
+	svc := NewService(&mockApptService{}, repo, bot, nil, presentation.NewBotPresenter())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := svc.Start(ctx)
+	cancel()
+
+	// Start now returns a done channel that closes when the inner
+	// goroutine has exited. This makes the test deterministic —
+	// no sleep-based polling, no flake window.
+	select {
+	case <-done:
+		// loop exited
+	case <-time.After(2 * time.Second):
+		t.Fatal("Start did not stop within 2s after context cancel")
+	}
+}

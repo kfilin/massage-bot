@@ -16,6 +16,7 @@ import (
 	"github.com/kfilin/massage-bot/internal/domain"
 	"github.com/kfilin/massage-bot/internal/logging"
 	"github.com/kfilin/massage-bot/internal/monitoring"
+	"github.com/kfilin/massage-bot/internal/ports"
 	"gopkg.in/telebot.v3"
 )
 
@@ -125,7 +126,7 @@ func (h *BookingHandler) HandleBackup(c telebot.Context) error {
 	return err
 }
 
-func (h *BookingHandler) BotNotify(b *telebot.Bot, to int64, message string, opts ...interface{}) {
+func (h *BookingHandler) BotNotify(b ports.BotAPI, to int64, message string, opts ...interface{}) {
 	_, err := b.Send(&telebot.User{ID: to}, message, append([]interface{}{telebot.ModeHTML}, opts...)...)
 	if err != nil {
 		logging.Errorf(": Failed to send notification to admin %d: %v", to, err)

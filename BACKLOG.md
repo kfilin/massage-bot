@@ -277,13 +277,29 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
 - **Rationale**: Currently, handlers are mixed with application entry logic. Moving them to `internal/` ensures better architecture alignment and follows the "package by feature/layer" pattern used in the rest of the project.
 
 ### 36. [IN PROGRESS] Test Coverage Hardening (80%+)
-- **Status**: In Progress — resumed 2026-06-17
+- **Status**: In Progress — 2026-06-17 sprint
 - **Priority**: High
 - **Goal**: Increase repository test coverage from ~42% to 80%+.
-- **Progress (after Sprint 5 + 2026-06-17)**: Overall ~42% → ~70%+. Key gains: storage 32→68.7%, handlers 40→78.1%, cmd/bot 27→66.1%, googlecalendar 53→69.7%, transcription 23→88.2%, services/appointment 86→92.5%.
-- **Per-function wins**: NewTranscribeHandler 73→100%, NewUpdatePatientHandler 73.8→100%, tokenFromFile 33.3→100%, backoff 83.3→100%, NewWebAppHandler 57.3→87.9%.
-- **Next targets**: `reminder` (81.5%), `domain` (91.7%), `logging` (91.2%), `services/appointment` (92.5%). Structural ceilings: `delivery/telegram` (4.2%), googlecalendar OAuth (getToken/saveToken 0%).
-- **Tests added across sessions**: ~121 new test functions.
+- **Progress (2026-06-17 sprint)**: Overall **73.9% → 74.8%**. Per-package:
+  - `storage`: 68.7% → **86.0%** (unit) / **91.7%** (integration). +17.3pp / +23.0pp.
+  - `googlecalendar`: 69.7% → **74.3%** (+4.6pp). Covered `getToken` env-var branches and `saveToken` round-trip with file-mode check.
+  - `reminder`: 91.4% → **96.6%** (+5.2pp). Added `TestStart_RunsAndStopsOnContextCancel`.
+  - `delivery/telegram`: 21.2% → **24.6%** (+3.4pp). Session helpers 0% → 100% (19 new sub-cases).
+  - `services/appointment`: 93.5% (unchanged aggregate; metrics.go 0% → 100% via 5 new cases).
+  - `delivery/web`: 78.4% (unchanged; `sendTelegramMessage` tests added but no measurable gain — function calls real Telegram API).
+- **Tests added this session**: 20+ new test functions across 6 packages:
+  - storage: 4 MigrateJSONToPostgres, 3 CreateBackup, 4 getPatientDir, plus not-found/nil cases for LogEvent/UpdatePatientProfile/SaveAppointmentMetadata/GetPatient; 1 integration test for InitDB.
+  - googlecalendar: 2 getToken (env-var happy path + zero-expiry refresh), 1 saveToken round-trip.
+  - web: 3 sendTelegramMessage (panic guards, no real coverage).
+  - delivery/telegram: 19 sub-cases for 3 session helpers.
+  - reminder: 1 Start coverage test.
+  - services/appointment: 5 metrics collector tests.
+- **Next targets** (for 80%): Close the 5.2pp gap by addressing structural ceilings:
+  1. **`delivery/telegram` wiring (24.6% → ~70%)**: requires `BotAPI` interface refactor — see #34 next-action.
+  2. **`cmd/bot` (6.6% → ~40%)**: low ROI glue code, but adds ~3pp overall.
+  3. **`delivery/web` StartServer (0% → ~50%)**: requires extracting the HTTP-server bootstrap from `StartServer` into a testable function.
+- **Structural ceilings**: `delivery/telegram` (RunBot/InitBot need `*telebot.Bot` mocking), googlecalendar OAuth (NewGoogleCalendarClient needs real Google creds).
+- **Tests added across all sessions**: ~140 new test functions.
 
 ### 37. [TODO] Grafana Dashboard Sync
 - **Status**: Backlog
@@ -407,7 +423,7 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
 - **Risk**: Hardcoded paths in scripts, CI, and IDE configs. Need `grep -r "Documents/massage-bot"` and `grep -r "Documents/watchtower-masterbot"` audit.
 - **Verification**: All projects still build/test; IDE workspaces open; CI references resolve.
 
-### 44. [TODO] CI/CD Pipeline Audit
+### 44. [DONE] CI/CD Pipeline Audit
 - **Status**: Backlog
 - **Priority**: Medium
 - **Goal**: Audit `.gitlab-ci.yml` and deploy scripts, fix known flaws.
@@ -425,7 +441,9 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
 - ✅ **Image pinning** (2026-06-17): `alpine:latest` → `alpine:3.21` (CI runtime + Dockerfile); `docker:latest` → `docker:27-cli`; `docker:dind` → `docker:27-dind`; `caddy:latest` → `caddy:2.8-alpine` (dev compose). All base images now pinned to specific versions.
 - ✅ **Backup-restore verification** (2026-06-17): New `scripts/verify_backup.sh` with explicit exit codes (0/1/2/3/4) for happy path, missing arg, corrupt ZIP, missing entries, and invalid JSON. Tested against synthetic good/bad/corrupt backups.
 - ✅ **GitLab CI manual prod gate audit** (2026-06-17): Gate is functionally correct (`when: manual` + `needs: ["run-tests"]` + branch restriction). Migrated deprecated `only:` to modern `rules:` syntax. Added `environment:` blocks for both deploy jobs (enables GitLab deployment board + rollback UI).
-- ❌ `docker-compose.override.yml` on server (167 bytes) — diff vs repo not yet inspected; presumed server-side drift.
+- ✅ **`go test ./...` permission fix** (2026-06-17): `.gitlab-ci.yml` test job changed from `go test ./...` to `go test ./cmd/... ./internal/...`. The old pattern failed on this dev machine with `open postgres_data: permission denied` (UID 70 postgres owns the volume); would have failed in CI too on any runner with similar permission layout. Also applies to `go vet` calls.
+- ✅ **Testcontainers as direct dep** (2026-06-17): `go.mod` now has `github.com/testcontainers/testcontainers-go` and `modules/postgres` as direct requires (were `// indirect` because the import is gated by `//go:build integration`).
+- 🔁 `docker-compose.override.yml` on server (167 bytes) — diff vs repo not yet inspected; presumed server-side drift. **Moved to #45 (Git Sync Hygiene) for follow-up.**
 - **Tasks**:
   1. Pin all images to specific versions (e.g., `golang:1.25-alpine`, `docker:27-dind`, `alpine:3.20`).
   2. Add port-collision pre-flight check to deploy scripts.
@@ -455,5 +473,5 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
 
 ---
 
-#### Last updated: 2026-06-17 (post-P2s; #41 + #44 mostly complete (image pinning, backup verify, manual gate audit done); #34 routing extracted + tested; reminder 81.5→91.4%)
+#### Last updated: 2026-06-17 19:10 (caveat-fix pass complete: sendTelegramMessage 100%, Start done channel, BotAPI refactor → 76.1% overall; #34 ceiling partially broken; #36 at 76.1%, 3.9pp short of 80%)
 

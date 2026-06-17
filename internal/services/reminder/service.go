@@ -37,11 +37,11 @@ func NewService(as ports.AppointmentService, repo ports.Repository, bot BotSende
 	}
 }
 
-func (s *Service) Start(ctx context.Context) {
+func (s *Service) Start(ctx context.Context) <-chan struct{} {
 	ticker := time.NewTicker(10 * time.Minute)
 	logging.Infof("Reminder Service started.")
 
-	s.RunLoopForTest(ctx, ticker.C, ticker.Stop)
+	return s.RunLoopForTest(ctx, ticker.C, ticker.Stop)
 }
 
 // RunLoopForTest is the inner goroutine extracted from Start so it can be

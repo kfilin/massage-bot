@@ -180,9 +180,15 @@ func StartServer(
 	}
 }
 
+// telegramAPIBase is the base URL for the Telegram Bot HTTP API.
+// Exposed as a package var so tests can override it to point at an
+// httptest server and assert on actual request shape (URL, body,
+// status code) without depending on the public Telegram API.
+var telegramAPIBase = "https://api.telegram.org"
+
 // sendTelegramMessage posts a text message to a single chat via the Bot HTTP API.
 func sendTelegramMessage(token, chatID, text string) {
-	apiURL := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", token)
+	apiURL := fmt.Sprintf("%s/bot%s/sendMessage", telegramAPIBase, token)
 	payload, _ := json.Marshal(map[string]string{
 		"chat_id":    chatID,
 		"text":       text,

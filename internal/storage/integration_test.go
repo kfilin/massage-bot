@@ -5,6 +5,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"os"
 	"testing"
 	"time"
 
@@ -20,9 +21,11 @@ import (
 
 type IntegrationTestSuite struct {
 	suite.Suite
-	repo *PostgresRepository
-	db   *sqlx.DB
-	ctx  context.Context
+	repo      *PostgresRepository
+	db        *sqlx.DB
+	container testcontainers.Container
+	connStr   string
+	ctx       context.Context
 }
 
 func TestIntegrationSuite(t *testing.T) {
@@ -69,6 +72,8 @@ func (s *IntegrationTestSuite) SetupSuite() {
 
 	s.db = db
 	s.repo = NewPostgresRepository(db, s.T().TempDir())
+	s.container = pgContainer
+	s.connStr = connStr
 }
 
 func (s *IntegrationTestSuite) TearDownSuite() {
@@ -359,4 +364,47 @@ func (s *IntegrationTestSuite) TestSessionStorage_CRUD() {
 
 	data = sessionStore.Get(99901)
 	s.Nil(data)
+}
+
+// TestInitDB verifies the top-level database initializer can connect
+// against a real Postgres (via testcontainers) and apply the schema.
+// This was previously 0% covered — InitDB shells out to the `postgres`
+// driver with env-var config, so it needs a real socket.
+//
+// Strategy: extract host/port from the running container, set the env
+// vars InitDB reads, then call InitDB(). Schema is idempotent (uses
+// CREATE TABLE IF NOT EXISTS) so the pre-applied schema is fine.
+func (s *IntegrationTestSuite) TestInitDB() {
+	host, err := s.container.Host(s.ctx)
+	s.Require().NoError(err)
+	port, err := s.container.MappedPort(s.ctx, "5432/tcp")
+	s.Require().NoError(err)
+
+	prevHost, prevPort, prevUser, prevPass, prevName, prevSSL := os.Getenv("DB_HOST"), os.Getenv("DB_PORT"), os.Getenv("DB_USER"), os.Getenv("DB_PASSWORD"), os.Getenv("DB_NAME"), os.Getenv("DB_SSL_MODE")
+	s.T().Cleanup(func() {
+		os.Setenv("DB_HOST", prevHost)
+		os.Setenv("DB_PORT", prevPort)
+		os.Setenv("DB_USER", prevUser)
+		os.Setenv("DB_PASSWORD", prevPass)
+		os.Setenv("DB_NAME", prevName)
+		os.Setenv("DB_SSL_MODE", prevSSL)
+	})
+
+	os.Setenv("DB_HOST", host)
+	os.Setenv("DB_PORT", port.Port())
+	os.Setenv("DB_USER", "testuser")
+	os.Setenv("DB_PASSWORD", "testpass")
+	os.Setenv("DB_NAME", "testdb")
+	os.Setenv("DB_SSL_MODE", "disable")
+
+	db, err := InitDB()
+	s.Require().NoError(err, "InitDB should connect against testcontainers Postgres")
+	s.Require().NotNil(db)
+	s.Equal(db, DB, "InitDB should set package-level DB")
+
+	// Smoke: schema applied, can run a query.
+	var n int
+	err = db.Get(&n, "SELECT COUNT(*) FROM patients")
+	s.Require().NoError(err)
+	s.GreaterOrEqual(n, 0)
 }

@@ -18,10 +18,11 @@ import (
 // resolves TextActionAdminReply.
 //
 // Side effects: sends a message via the bot, writes to Med-Card, mutates
-// session. Not unit-tested directly because it requires a real *telebot.Bot.
+// session. The `b` parameter is an interface so tests can inject a mock
+// (see mockBotAPI in the test file).
 func handleAdminReply(
 	c telebot.Context,
-	b *telebot.Bot,
+	b ports.BotAPI,
 	repo ports.Repository,
 	sessionStorage ports.SessionStorage,
 	adminUserID int64,
@@ -62,13 +63,26 @@ func handleAdminReply(
 // notifies every configured admin with a deep-link to the Med-Card and a
 // "Reply" inline button.
 //
-// Side effects: sends messages via the bot, writes to Med-Card. Not
-// unit-tested directly because it requires a real *telebot.Bot.
+// Side effects: sends messages via the bot, writes to Med-Card. The `b`
+// parameter is an interface so tests can inject a mock.
+// forwardPatientMessageToAdmins handles a free-text patient message that
+// arrives while the booking session is fully populated (service + name set).
+// It acknowledges the patient, persists the exchange to the Med-Card, and
+// notifies every configured admin with a deep-link to the Med-Card and a
+// "Reply" inline button.
+//
+// Side effects: sends messages via the bot, writes to Med-Card. The `b`
+// parameter is an interface so tests can inject a mock. The function
+// takes a `generateCardURL` callback rather than a *handlers.BookingHandler
+// directly so that it can be tested without the handler package (avoids
+// an import cycle with the handlers package, which itself depends on
+// this package).
 func forwardPatientMessageToAdmins(
 	c telebot.Context,
-	b *telebot.Bot,
+	b ports.BotAPI,
 	repo ports.Repository,
-	bookingHandler *handlers.BookingHandler,
+	webAppURL string,
+	generateCardURL func(telegramID string) string,
 	adminIDs []string,
 	text string,
 ) error {
@@ -98,8 +112,8 @@ func forwardPatientMessageToAdmins(
 	selector := &telebot.ReplyMarkup{}
 	btnReply := selector.Data("✍️ Ответить", "admin_reply", telegramID)
 
-	if bookingHandler.WebAppURL != "" {
-		cardURL := bookingHandler.GenerateWebAppURL(telegramID)
+	if webAppURL != "" && generateCardURL != nil {
+		cardURL := generateCardURL(telegramID)
 		notification += fmt.Sprintf("\n\n📄 <a href=\"%s\">Открыть мед-карту</a>", cardURL)
 	}
 	selector.Inline(selector.Row(btnReply))

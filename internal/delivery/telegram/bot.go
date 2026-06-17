@@ -314,7 +314,12 @@ func RunBot(
 		case TextActionNameInput:
 			return bookingHandler.HandleNameInput(c)
 		case TextActionForwardToAdmins:
-			return forwardPatientMessageToAdmins(c, b, repo, bookingHandler, finalAdminIDs, text)
+			return forwardPatientMessageToAdmins(
+				c, b, repo,
+				bookingHandler.WebAppURL,
+				bookingHandler.GenerateWebAppURL,
+				finalAdminIDs, text,
+			)
 		}
 		return nil
 	})
