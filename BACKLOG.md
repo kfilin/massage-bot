@@ -304,7 +304,10 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
 
 > **Trigger**: User session review of `what_to_fix.md` + server inspection revealed a stack of long-standing hygiene issues that all need to be resolved together. Not blocking P0 fix in #41 but should be sequenced after it.
 
-### 41. [TODO] Production Bot Offline — Fix Container Collision + Missing .env
+### 41. [DONE] Production Bot Offline — Fix Container Collision + Missing .env
+- **Status**: Completed (2026-06-17) — prod bot back online, port 8082 bound, LOG_LEVEL=INFO, auth_date check deployed.
+- **Resolution**: Root cause was a zombie `massage-bot` container stuck in `Created` state from a prior failed `docker compose up`, holding the port 8082 Docker-internal allocation even though the port appeared free in `ss` (the allocation is in Docker's network, not the host's listen list). `docker rm -f massage-bot` + `docker compose up -d app` brought it back. The original P0 path-collison narrative (gateway-2 holding 8082) was outdated — gateway-2 had moved to 8088. The .env / TG_BOT_TOKEN issue from the earlier `vera-bot-massage-bot-1` failure (Apr 2026 gitlab image) was resolved by the time the new `massage-bot` image ran (env_file directive honoured). `LOG_LEVEL=DEBUG → INFO` applied via `docker compose up -d` (restart doesn't re-read `env_file`). Removed `HEALTH_PORT=8081` dead override line from `/opt/vera-bot/.env`. Removed the old `vera-bot-massage-bot-1` Exited container. **Remaining from this issue's secondary items**: `chmod 600 /opt/vera-bot/.env` (still 0644) and the `docker-compose.override.yml` on the server (see #44/#45).
+- **Commits**: `08a50a9` (auth_date), `fe16a0e` (webapp move), `7975878` (booking split), `e66ef8a` (memory limit), `119bc85`/`d7ed7ba`/`b6a9fdb`/`8c99feb` (P2s).
 - **Status**: Backlog (P0 — production down)
 - **Priority**: P0
 - **Goal**: Restore the vera-bot service. Two stacked issues confirmed by server inspection:
@@ -405,6 +408,15 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
   - **`deploy_home_server.sh` is the working path** — uses `docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml build --no-cache --pull`. Audit but don't break.
   - **Other CI images unpinned**: `docker:latest`, `alpine:latest` — can break silently on upstream changes.
   - **No port-collision pre-flight**: the current P0 incident could have been caught at deploy time.
+
+**Audit progress** (2026-06-17):
+- ✅ Go version mismatch: `.gitlab-ci.yml` test stage now `image: golang:1.25.3-alpine` (commit `ef5e173`).
+- ✅ `deploy.sh`: New in-repo wrapper at `scripts/deploy.sh` (commit `ea1377a`) — `test|prod` arg, port-collision pre-flight, docker compose under the hood. Old per-env scripts (`deploy_home_server.sh`, `deploy_test_server.sh`) kept for now to avoid breaking GitLab CI which still calls them.
+- ✅ `docker-compose.yml` resource limits: `memory: 512M` added (commit `e66ef8a`).
+- ❌ `docker:latest`/`alpine:latest` unpinned — not yet done.
+- ❌ Backup-restore verification — not yet done.
+- ❌ `docker-compose.override.yml` on server (167 bytes) — diff vs repo not yet inspected; presumed server-side drift.
+- ❌ GitLab CI manual prod gate — not yet audited.
 - **Tasks**:
   1. Pin all images to specific versions (e.g., `golang:1.25-alpine`, `docker:27-dind`, `alpine:3.20`).
   2. Add port-collision pre-flight check to deploy scripts.
@@ -434,5 +446,5 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
 
 ---
 
-#### Last updated: 2026-06-17 (post-harness-migration; #42 marked DONE)
+#### Last updated: 2026-06-17 (post-P2s; #41 + #44 partial complete)
 
