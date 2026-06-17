@@ -26,21 +26,61 @@ const initDataMaxAge = 1 * time.Hour
 // initDataClockSkew tolerates client/server clock drift of up to 5 minutes.
 const initDataClockSkew = 5 * time.Minute
 
-// generateHMAC produces a hex-encoded HMAC-SHA256 of the (trimmed) id using secret.
-func generateHMAC(id string, secret string) string {
+// hmacMaxAge is the maximum tolerated age of an HMAC-signed webapp link.
+// Links older than this are rejected to limit replay window for shared URLs.
+const hmacMaxAge = 7 * 24 * time.Hour
+
+// generateHMAC produces a hex-encoded HMAC-SHA256 of (id+":"+ts) using secret.
+// Including the timestamp in the signed payload prevents an attacker from
+// rolling the ts value forward to extend a link's lifetime.
+func generateHMAC(id string, ts string, secret string) string {
 	h := hmac.New(sha256.New, []byte(secret))
-	h.Write([]byte(strings.TrimSpace(id)))
+	h.Write([]byte(strings.TrimSpace(id) + ":" + ts))
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-// validateHMAC compares a provided token to the expected HMAC for id/secret.
-func validateHMAC(id string, token string, secret string) bool {
-	expected := generateHMAC(id, secret)
+// validateHMAC compares a provided token to the expected HMAC for (id, ts, secret)
+// and rejects payloads with a ts older than hmacMaxAge.
+func validateHMAC(id string, ts string, token string, secret string) bool {
+	if ts == "" {
+		logging.Warnf(" [validateHMAC]: Legacy link without ts for ID=%s. Accepting without expiry check.", id)
+		// Backward-compat: accept old (id-only) tokens but warn so operator
+		// can see how many legacy links are still in circulation.
+		expected := generateHMACNoTS(id, secret)
+		match := hmac.Equal([]byte(token), []byte(expected))
+		if !match {
+			logging.Debugf(" [validateHMAC]: Legacy mismatch for ID=%s. Provided=%s, Expected=%s, SecretLen=%d", id, token, expected, len(secret))
+		}
+		return match
+	}
+	tsUnix, err := strconv.ParseInt(ts, 10, 64)
+	if err != nil {
+		logging.Warnf(" [validateHMAC]: Invalid ts=%q for ID=%s: %v", ts, id, err)
+		return false
+	}
+	age := time.Since(time.Unix(tsUnix, 0))
+	if age > hmacMaxAge {
+		logging.Warnf(" [validateHMAC]: Link expired for ID=%s (age=%s, max=%s)", id, age.Round(time.Second), hmacMaxAge)
+		return false
+	}
+	if age < -initDataClockSkew {
+		logging.Warnf(" [validateHMAC]: Link ts in the future for ID=%s (ahead=%s)", id, -age.Round(time.Second))
+		return false
+	}
+	expected := generateHMAC(id, ts, secret)
 	match := hmac.Equal([]byte(token), []byte(expected))
 	if !match {
 		logging.Debugf(" [validateHMAC]: Mismatch for ID=%s. Provided=%s, Expected=%s, SecretLen=%d", id, token, expected, len(secret))
 	}
 	return match
+}
+
+// generateHMACNoTS is the legacy HMAC for backward compat with links generated
+// before the ts hardening. New code should use generateHMAC.
+func generateHMACNoTS(id string, secret string) string {
+	h := hmac.New(sha256.New, []byte(secret))
+	h.Write([]byte(strings.TrimSpace(id)))
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // validateInitData validates Telegram WebApp initData, including signature,

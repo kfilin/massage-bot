@@ -1024,11 +1024,14 @@ func TestBookingHandler_IsAdmin(t *testing.T) {
 
 func TestBookingHandler_GenerateWebAppURL(t *testing.T) {
 	h := NewBookingHandler(nil, nil, nil, nil, nil, nil, &presentation.BotPresenter{}, "http://example.com", "secret123")
-	
+
 	url := h.GenerateWebAppURL("42")
-	
-	if !strings.HasPrefix(url, "https://example.com/card?id=42&token=") {
+
+	if !strings.HasPrefix(url, "https://example.com/card?id=42&ts=") {
 		t.Errorf("Unexpected URL format: %s", url)
+	}
+	if !strings.Contains(url, "&token=") {
+		t.Errorf("Missing token in URL: %s", url)
 	}
 
 	// Empty config

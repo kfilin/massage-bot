@@ -278,6 +278,10 @@ func (h *BookingHandler) HandleEditName(c telebot.Context) error {
 	return c.Send(fmt.Sprintf("✅ Имя пациента обновлено:\n<b>Old:</b> %s\n<b>New:</b> %s", oldName, newName), telebot.ModeHTML)
 }
 
+// GenerateWebAppURL creates a signed URL for the Telegram Web App.
+// Includes a unix timestamp in both the URL and the HMAC payload, so links
+// expire after 7 days (configured via web.hmacMaxAge) and the ts cannot be
+// rolled without invalidating the signature.
 func (h *BookingHandler) GenerateWebAppURL(telegramID string) string {
 	if h.WebAppURL == "" || h.webAppSecret == "" {
 		return ""
@@ -291,13 +295,14 @@ func (h *BookingHandler) GenerateWebAppURL(telegramID string) string {
 		url = strings.Replace(url, "http://", "https://", 1)
 	}
 
+	ts := strconv.FormatInt(time.Now().Unix(), 10)
 	mac := hmac.New(sha256.New, []byte(h.webAppSecret))
-	mac.Write([]byte(strings.TrimSpace(telegramID)))
+	mac.Write([]byte(strings.TrimSpace(telegramID) + ":" + ts))
 	token := hex.EncodeToString(mac.Sum(nil))
 
-	logging.Infof("[URL_GEN] ID: %s, SecretLen: %d, Token: %s", telegramID, len(h.webAppSecret), token)
+	logging.Infof("[URL_GEN] ID: %s, TS: %s, SecretLen: %d, Token: %s", telegramID, ts, len(h.webAppSecret), token)
 
-	return fmt.Sprintf("%s/card?id=%s&token=%s", url, telegramID, token)
+	return fmt.Sprintf("%s/card?id=%s&ts=%s&token=%s", url, telegramID, ts, token)
 }
 
 func (h *BookingHandler) HandleListPatients(c telebot.Context) error {

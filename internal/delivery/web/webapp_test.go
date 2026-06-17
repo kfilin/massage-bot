@@ -21,19 +21,20 @@ import (
 func TestGenerateHMAC(t *testing.T) {
 	secret := "test-secret"
 	id := "12345"
+	ts := fmt.Sprintf("%d", time.Now().Unix())
 
-	token := generateHMAC(id, secret)
+	token := generateHMAC(id, ts, secret)
 
 	if len(token) == 0 {
 		t.Fatal("Expected non-empty HMAC token")
 	}
 
-	token2 := generateHMAC(id, secret)
+	token2 := generateHMAC(id, ts, secret)
 	if token != token2 {
 		t.Error("HMAC generation is not deterministic")
 	}
 
-	token3 := generateHMAC("99999", secret)
+	token3 := generateHMAC("99999", ts, secret)
 	if token == token3 {
 		t.Error("Different IDs should produce different tokens")
 	}
@@ -42,9 +43,10 @@ func TestGenerateHMAC(t *testing.T) {
 func TestValidateHMAC_Valid(t *testing.T) {
 	secret := "test-secret"
 	id := "12345"
+	ts := fmt.Sprintf("%d", time.Now().Unix())
 
-	token := generateHMAC(id, secret)
-	if !validateHMAC(id, token, secret) {
+	token := generateHMAC(id, ts, secret)
+	if !validateHMAC(id, ts, token, secret) {
 		t.Error("Expected valid HMAC")
 	}
 }
@@ -52,9 +54,33 @@ func TestValidateHMAC_Valid(t *testing.T) {
 func TestValidateHMAC_Invalid(t *testing.T) {
 	secret := "test-secret"
 	id := "12345"
+	ts := fmt.Sprintf("%d", time.Now().Unix())
 
-	if validateHMAC(id, "wrong-token", secret) {
+	if validateHMAC(id, ts, "wrong-token", secret) {
 		t.Error("Expected invalid HMAC")
+	}
+}
+
+func TestValidateHMAC_Expired(t *testing.T) {
+	secret := "test-secret"
+	id := "12345"
+	// 8 days ago — exceeds the 7-day hmacMaxAge window.
+	ts := fmt.Sprintf("%d", time.Now().Add(-8*24*time.Hour).Unix())
+
+	token := generateHMAC(id, ts, secret)
+	if validateHMAC(id, ts, token, secret) {
+		t.Error("Expected expired HMAC to be rejected")
+	}
+}
+
+func TestValidateHMAC_LegacyNoTS(t *testing.T) {
+	secret := "test-secret"
+	id := "12345"
+
+	// Legacy link without ts should still work (backward compat).
+	token := generateHMACNoTS(id, secret)
+	if !validateHMAC(id, "", token, secret) {
+		t.Error("Expected legacy HMAC without ts to be accepted")
 	}
 }
 
@@ -509,18 +535,19 @@ func TestNewUpdatePatientHandler_NotesTooLong(t *testing.T) {
 func TestValidateHMAC(t *testing.T) {
 	secret := "my_secret_key"
 	id := "123456789"
+	ts := fmt.Sprintf("%d", time.Now().Unix())
 
-	validToken := generateHMAC(id, secret)
+	validToken := generateHMAC(id, ts, secret)
 
-	if !validateHMAC(id, validToken, secret) {
+	if !validateHMAC(id, ts, validToken, secret) {
 		t.Errorf("validateHMAC failed for valid token")
 	}
 
-	if validateHMAC(id, "invalid_token", secret) {
+	if validateHMAC(id, ts, "invalid_token", secret) {
 		t.Errorf("validateHMAC succeeded for invalid token")
 	}
 
-	if validateHMAC("wrong_id", validToken, secret) {
+	if validateHMAC("wrong_id", ts, validToken, secret) {
 		t.Errorf("validateHMAC succeeded for wrong ID")
 	}
 }

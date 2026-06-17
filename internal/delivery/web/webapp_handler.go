@@ -12,6 +12,7 @@ import (
 	"github.com/kfilin/massage-bot/internal/logging"
 	"github.com/kfilin/massage-bot/internal/ports"
 	"github.com/kfilin/massage-bot/internal/presentation"
+	"github.com/kfilin/massage-bot/internal/version"
 )
 
 // NewWebAppHandler creates the main handler for the WebApp.
@@ -22,6 +23,7 @@ func NewWebAppHandler(repo ports.Repository, apptService ports.AppointmentServic
 		logging.Debugf(" [WebApp]: Incoming Request: %s %s RemoteAddr: %s", r.Method, r.URL.String(), r.RemoteAddr)
 		// Prepare paths for query parsing (supports both root and /card)
 		id := r.URL.Query().Get("id")
+		ts := r.URL.Query().Get("ts")
 		token := r.URL.Query().Get("token")
 		initData := r.URL.Query().Get("initData")
 
@@ -42,11 +44,11 @@ func NewWebAppHandler(repo ports.Repository, apptService ports.AppointmentServic
 		}
 
 		if finalID == "" && id != "" && token != "" {
-			if validateHMAC(id, token, secret) {
+			if validateHMAC(id, ts, token, secret) {
 				finalID = id
-				logging.Debugf(" [WebApp]: Authenticated via legacy HMAC for ID %s", id)
+				logging.Debugf(" [WebApp]: Authenticated via HMAC for ID %s (ts=%s)", id, ts)
 			} else {
-				logging.Warnf("AUTH ERROR: HMAC Mismatch for ID %s. Token may be stale.", id)
+				logging.Warnf("AUTH ERROR: HMAC Mismatch for ID %s. Token may be stale or expired.", id)
 			}
 		}
 
@@ -293,7 +295,7 @@ func NewWebAppHandler(repo ports.Repository, apptService ports.AppointmentServic
 			RecentVisits: appts,
 			Drafts:       drafts,
 			DocGroups:    docGroups,
-			BotVersion:   "v6.0.0-sage",
+			BotVersion:   version.FullName,
 			IsAdmin:      isAdmin,
 		}
 
