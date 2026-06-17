@@ -1,10 +1,9 @@
-package main
+package web
 
 import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -16,12 +15,15 @@ import (
 	"github.com/kfilin/massage-bot/internal/ports"
 )
 
+// MediaHandler serves patient media files (/api/media/<id>) after verifying
+// the auth cookie (telegramID:timestamp:HMAC) and checking access control.
 type MediaHandler struct {
 	repo     ports.Repository
 	secret   string
 	adminIDs []string
 }
 
+// NewMediaHandler constructs a MediaHandler.
 func NewMediaHandler(repo ports.Repository, secret string, adminIDs []string) *MediaHandler {
 	return &MediaHandler{
 		repo:     repo,
@@ -30,8 +32,9 @@ func NewMediaHandler(repo ports.Repository, secret string, adminIDs []string) *M
 	}
 }
 
+// GetMedia serves a single media file by ID. Assumes StripPrefix is used,
+// so valid path is just the ID.
 func (h *MediaHandler) GetMedia(w http.ResponseWriter, r *http.Request) {
-	// Assumes StripPrefix is used, so valid path is just the ID
 	mediaID := strings.TrimPrefix(r.URL.Path, "/")
 	if mediaID == "" {
 		http.Error(w, "Missing media ID", http.StatusBadRequest)
@@ -83,13 +86,11 @@ func (h *MediaHandler) GetMedia(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 4. Serve File
-	// Resolve path against DATA_DIR
 	dataDir := os.Getenv("DATA_DIR")
 	if dataDir == "" {
 		dataDir = "data"
 	}
 
-	// If the stored path is absolute, use it. If relative, join with dataDir.
 	finalPath := media.FilePath
 	if !filepath.IsAbs(finalPath) {
 		finalPath = filepath.Join(dataDir, finalPath)
@@ -139,13 +140,3 @@ func (h *MediaHandler) validateSignature(telegramID, timestamp, signature string
 	return match
 }
 
-// GenerateAuthCookie creates a time-limited cookie value.
-// Format: telegramID:unixTimestamp:HMAC_SHA256(telegramID:unixTimestamp, secret)
-// Tokens expire after 24 hours, preventing replay attacks from leaked URLs/logs.
-func GenerateAuthCookie(telegramID, secret string) string {
-	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write([]byte(telegramID + ":" + timestamp))
-	signature := hex.EncodeToString(mac.Sum(nil))
-	return fmt.Sprintf("%s:%s:%s", telegramID, timestamp, signature)
-}

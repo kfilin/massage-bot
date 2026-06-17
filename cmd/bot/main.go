@@ -13,6 +13,7 @@ import (
 	"github.com/kfilin/massage-bot/internal/adapters/transcription"
 	"github.com/kfilin/massage-bot/internal/config"
 	"github.com/kfilin/massage-bot/internal/delivery/telegram"
+	"github.com/kfilin/massage-bot/internal/delivery/web"
 	"github.com/kfilin/massage-bot/internal/domain"
 	"github.com/kfilin/massage-bot/internal/logging"
 	"github.com/kfilin/massage-bot/internal/services/appointment"
@@ -129,7 +130,7 @@ func main() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			startWebAppServer(ctx, cfg.WebAppPort, cfg.WebAppSecret, cfg.TgBotToken, allAdmins, patientRepo, appointmentService, transcriptionAdapter, os.Getenv("DATA_DIR"), botUsername)
+			web.StartServer(ctx, cfg.WebAppPort, cfg.WebAppSecret, cfg.TgBotToken, allAdmins, patientRepo, appointmentService, transcriptionAdapter, os.Getenv("DATA_DIR"), botUsername)
 		}()
 	} else {
 		logging.Warn("Warning: WEBAPP_SECRET not set, Web App server not started.")

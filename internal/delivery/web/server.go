@@ -1,135 +1,36 @@
-package main
+package web
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
-	"sort"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/kfilin/massage-bot/internal/logging"
-
 	"github.com/kfilin/massage-bot/internal/ports"
 	"github.com/kfilin/massage-bot/internal/presentation"
 	"golang.org/x/net/webdav"
 )
 
-// initDataMaxAge is the maximum tolerated age of a Telegram WebApp initData payload.
-// After this window, the payload is considered stale and rejected, preventing replay
-// of leaked URLs beyond initDataMaxAge.
-const initDataMaxAge = 1 * time.Hour
-
-// initDataClockSkew tolerates client/server clock drift of up to 5 minutes.
-const initDataClockSkew = 5 * time.Minute
-
-func generateHMAC(id string, secret string) string {
-	h := hmac.New(sha256.New, []byte(secret))
-	h.Write([]byte(strings.TrimSpace(id)))
-	return hex.EncodeToString(h.Sum(nil))
-}
-
-func validateHMAC(id string, token string, secret string) bool {
-	expected := generateHMAC(id, secret)
-	match := hmac.Equal([]byte(token), []byte(expected))
-	if !match {
-		logging.Debugf(" [validateHMAC]: Mismatch for ID=%s. Provided=%s, Expected=%s, SecretLen=%d", id, token, expected, len(secret))
-	}
-	return match
-}
-
-// validateInitData validates Telegram WebApp initData
-func validateInitData(initData string, botToken string) (string, string, error) {
-	values, err := url.ParseQuery(initData)
-	if err != nil {
-		return "", "", err
-	}
-
-	hash := values.Get("hash")
-	if hash == "" {
-		return "", "", fmt.Errorf("missing hash")
-	}
-	values.Del("hash")
-
-	// Reject stale initData: auth_date must be present and within the last hour.
-	// Without this, a leaked initData URL grants permanent access to the patient card.
-	authDateStr := values.Get("auth_date")
-	if authDateStr == "" {
-		return "", "", fmt.Errorf("missing auth_date")
-	}
-	authDateUnix, err := strconv.ParseInt(authDateStr, 10, 64)
-	if err != nil {
-		return "", "", fmt.Errorf("invalid auth_date: %w", err)
-	}
-	authDate := time.Unix(authDateUnix, 0)
-	if age := time.Since(authDate); age > initDataMaxAge {
-		return "", "", fmt.Errorf("initData expired (%s old, max %s)", age.Round(time.Second), initDataMaxAge)
-	}
-	if age := time.Since(authDate); age < -initDataClockSkew {
-		return "", "", fmt.Errorf("initData auth_date is in the future (%s ahead)", -age.Round(time.Second))
-	}
-
-	// Sort keys
-	var keys []string
-	for k := range values {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	// Build data check string
-	var dataCheckArr []string
-	for _, k := range keys {
-		dataCheckArr = append(dataCheckArr, fmt.Sprintf("%s=%s", k, values.Get(k)))
-	}
-	dataCheckString := strings.Join(dataCheckArr, "\n")
-
-	// Calculate HMAC
-	// Step 1: secret_key = HMAC_SHA256("WebAppData", botToken)
-	h1 := hmac.New(sha256.New, []byte("WebAppData"))
-	h1.Write([]byte(botToken))
-	secretKey := h1.Sum(nil)
-
-	// Step 2: result = HMAC_SHA256(secret_key, dataCheckString)
-	h2 := hmac.New(sha256.New, secretKey)
-	h2.Write([]byte(dataCheckString))
-	expectedHash := hex.EncodeToString(h2.Sum(nil))
-
-	if expectedHash != hash {
-		return "", "", fmt.Errorf("hash mismatch")
-	}
-
-	// Extract user data
-	userJSON := values.Get("user")
-	if userJSON == "" {
-		return "", "", fmt.Errorf("missing user data")
-	}
-
-	var user struct {
-		ID        int64  `json:"id"`
-		FirstName string `json:"first_name"`
-		LastName  string `json:"last_name"`
-	}
-	if err := json.Unmarshal([]byte(userJSON), &user); err != nil {
-		return "", "", err
-	}
-
-	fullName := strings.TrimSpace(user.FirstName + " " + user.LastName)
-	if fullName == "" {
-		fullName = "Пациент"
-	}
-
-	return fmt.Sprintf("%d", user.ID), fullName, nil
-}
-
-func startWebAppServer(ctx context.Context, port string, secret string, botToken string, adminIDs []string, repo ports.Repository, apptService ports.AppointmentService, transcriptionService ports.TranscriptionService, dataDir string, botUsername string) {
+// StartServer launches the HTTP server for the WebApp on the given port.
+// It registers all webapp routes (patient card, search, draft, cancel,
+// update, transcribe, media, WebDAV) and blocks until ctx is cancelled.
+func StartServer(
+	ctx context.Context,
+	port string,
+	secret string,
+	botToken string,
+	adminIDs []string,
+	repo ports.Repository,
+	apptService ports.AppointmentService,
+	transcriptionService ports.TranscriptionService,
+	dataDir string,
+	botUsername string,
+) {
 	if port == "" {
 		port = "8082"
 	}
@@ -187,11 +88,9 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 		}
 
 		webdavAuthHandler := func(w http.ResponseWriter, r *http.Request) {
-			// Add CORS headers for Obsidian/Browser compatibility
-			// SECURITY: Restrict to known origin — wildcard + Basic Auth is exploitable
 			allowedOrigin := os.Getenv("WEBAPP_URL")
 			if allowedOrigin == "" {
-				allowedOrigin = "*" // Dev fallback only — set WEBAPP_URL in production
+				allowedOrigin = "*"
 			}
 			w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PROPFIND, PROPPATCH, MKCOL, COPY, MOVE, LOCK, UNLOCK")
@@ -199,7 +98,6 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 			w.Header().Set("Access-Control-Expose-Headers", "DAV, content-length, Allow")
 
 			if r.Method == "OPTIONS" {
-				// Let WebDAV handler provide the DAV: 1, 2 headers required for client discovery
 				davHandler.ServeHTTP(w, r)
 				return
 			}
@@ -216,11 +114,9 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 				return
 			}
 
-			// Browser-friendly landing page if accessing /webdav/ directly via GET
 			if r.Method == "GET" && r.URL.Path == "/webdav/" && !(strings.Contains(r.Header.Get("User-Agent"), "Obsidian") || strings.Contains(r.Header.Get("User-Agent"), "DAV")) {
 				w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
-				// Diagnostic check of the storage directory
 				info, err := os.Stat(dataDir)
 				storageStatus := "✅ Доступно"
 				if err != nil {
@@ -252,7 +148,6 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 			davHandler.ServeHTTP(w, r)
 		}
 
-		// Use a single handler for /webdav/ and redirect /webdav (no slash)
 		mux.HandleFunc("/webdav", func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/webdav/", http.StatusMovedPermanently)
 		})
@@ -285,7 +180,7 @@ func startWebAppServer(ctx context.Context, port string, secret string, botToken
 	}
 }
 
-// Helper to send simple Telegram messages without complex dependencies
+// sendTelegramMessage posts a text message to a single chat via the Bot HTTP API.
 func sendTelegramMessage(token, chatID, text string) {
 	apiURL := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", token)
 	payload, _ := json.Marshal(map[string]string{

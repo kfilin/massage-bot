@@ -1,12 +1,10 @@
-package main
+package web
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
-	"sort"
 	"strings"
 	"time"
 
@@ -16,7 +14,9 @@ import (
 	"github.com/kfilin/massage-bot/internal/presentation"
 )
 
-// NewWebAppHandler creates the main handler for the WebApp
+// NewWebAppHandler creates the main handler for the WebApp.
+// It performs auth (InitData preferred, HMAC fallback), enforces admin
+// routing, and renders either the patient card or the admin search page.
 func NewWebAppHandler(repo ports.Repository, apptService ports.AppointmentService, presenter *presentation.WebPresenter, botToken string, adminIDs []string, secret string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		logging.Debugf(" [WebApp]: Incoming Request: %s %s RemoteAddr: %s", r.Method, r.URL.String(), r.RemoteAddr)
@@ -215,14 +215,14 @@ func NewWebAppHandler(repo ports.Repository, apptService ports.AppointmentServic
 		// Fetch Media (including Drafts)
 		allMedia, _ := repo.GetPatientMedia(finalID)
 		var drafts []map[string]interface{}
-		
+
 		// Grouping Logic for Files Tab
 		groups := make(map[string]*struct {
 			Name  string
 			Count int
 			Files []domain.PatientMedia
 		})
-		
+
 		initGroup := func(name string) {
 			groups[name] = &struct {
 				Name  string
@@ -251,11 +251,16 @@ func NewWebAppHandler(repo ports.Repository, apptService ports.AppointmentServic
 			// Discarded files are still accessible as raw media
 			var targetGroup string
 			switch m.FileType {
-			case "scan": targetGroup = "Снимки"
-			case "photo", "image": targetGroup = "Фотографии"
-			case "voice", "audio": targetGroup = "Голосовые заметки"
-			case "video": targetGroup = "Видео"
-			default: targetGroup = "Прочее"
+			case "scan":
+				targetGroup = "Снимки"
+			case "photo", "image":
+				targetGroup = "Фотографии"
+			case "voice", "audio":
+				targetGroup = "Голосовые заметки"
+			case "video":
+				targetGroup = "Видео"
+			default:
+				targetGroup = "Прочее"
 			}
 
 			if g, ok := groups[targetGroup]; ok {
@@ -297,287 +302,5 @@ func NewWebAppHandler(repo ports.Repository, apptService ports.AppointmentServic
 			logging.Errorf("Template rendering failed: %v", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		}
-	}
-}
-
-// NewDraftHandler handles Draft Approval/Discard
-func NewDraftHandler(repo ports.Repository, botToken string, adminIDs []string, secret string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		var req struct {
-			ID       string `json:"id"`
-			InitData string `json:"initData"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "Bad request", http.StatusBadRequest)
-			return
-		}
-
-		userID, _, err := validateInitData(req.InitData, botToken)
-		if err != nil {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		isAdmin := false
-		for _, adminID := range adminIDs {
-			if adminID == userID {
-				isAdmin = true
-				break
-			}
-		}
-		if !isAdmin {
-			http.Error(w, "Forbidden", http.StatusForbidden)
-			return
-		}
-
-		media, err := repo.GetMediaByID(req.ID)
-		if err != nil {
-			http.Error(w, "Draft not found", http.StatusNotFound)
-			return
-		}
-
-		if strings.HasSuffix(r.URL.Path, "/approve") {
-			// Approve: Add to therapist notes
-			patient, _ := repo.GetPatient(media.PatientID)
-			newNotes := patient.TherapistNotes + "\n\n--- 🎤 Расшифровка ---\n" + media.Transcript
-			_ = repo.UpdatePatientProfile(media.PatientID, patient.Name, newNotes)
-			_ = repo.UpdateMediaStatus(req.ID, "approved", media.Transcript)
-		} else {
-			// Discard
-			_ = repo.UpdateMediaStatus(req.ID, "discarded", media.Transcript)
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
-	}
-}
-
-// NewSearchHandler creates the handler for the Patient Search API
-func NewSearchHandler(repo ports.Repository, botToken string, adminIDs []string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
-		initData := r.Header.Get("X-Telegram-Init-Data")
-		if initData == "" {
-			initData = r.URL.Query().Get("initData")
-		}
-
-		if initData == "" {
-			http.Error(w, "Unauthorized: missing initData", http.StatusUnauthorized)
-			return
-		}
-
-		userID, _, err := validateInitData(initData, botToken)
-		if err != nil {
-			http.Error(w, "Unauthorized: invalid initData", http.StatusUnauthorized)
-			return
-		}
-
-		// Check Admin
-		isAdmin := false
-		for _, id := range adminIDs {
-			if id == userID {
-				isAdmin = true
-				break
-			}
-		}
-		if !isAdmin {
-			http.Error(w, "Forbidden", http.StatusForbidden)
-			return
-		}
-
-		query := r.URL.Query().Get("q")
-		var patients []domain.Patient
-		if query == "" {
-			// Get all patients for the initial view
-			patients, err = repo.GetAllPatients()
-		} else {
-			patients, err = repo.SearchPatients(query)
-		}
-
-		if err != nil {
-			logging.Errorf("Search failed: %v", err)
-			http.Error(w, "Search failed", http.StatusInternalServerError)
-			return
-		}
-
-		// Sort alphabetically by name
-		sort.Slice(patients, func(i, j int) bool {
-			return strings.ToLower(patients[i].Name) < strings.ToLower(patients[j].Name)
-		})
-
-		type patResult struct {
-			TelegramID  string `json:"telegram_id"`
-			Name        string `json:"name"`
-			TotalVisits int    `json:"total_visits"`
-		}
-		results := make([]patResult, 0)
-		for _, p := range patients {
-			results = append(results, patResult{
-				TelegramID:  p.TelegramID,
-				Name:        p.Name,
-				TotalVisits: p.TotalVisits,
-			})
-		}
-		json.NewEncoder(w).Encode(results)
-	}
-}
-
-// NewCancelHandler creates the handler for Appointment Cancellation
-func NewCancelHandler(apptService ports.AppointmentService, botToken string, adminIDs []string, presenter *presentation.BotPresenter) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
-		if r.Method != http.MethodPost {
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Method not allowed"})
-			return
-		}
-
-		var reqBody struct {
-			InitData string `json:"initData"`
-			ApptID   string `json:"apptId"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Invalid request"})
-			return
-		}
-
-		if reqBody.InitData == "" || reqBody.ApptID == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Missing parameters"})
-			return
-		}
-
-		userID, _, err := validateInitData(reqBody.InitData, botToken)
-		if err != nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Сессия недействительна."})
-			return
-		}
-
-		isAdmin := false
-		for _, adminID := range adminIDs {
-			if adminID == userID {
-				isAdmin = true
-				break
-			}
-		}
-
-		appt, err := apptService.FindByID(r.Context(), reqBody.ApptID)
-		if err != nil {
-			w.WriteHeader(http.StatusNotFound)
-			_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Запись не найдена"})
-			return
-		}
-
-		if !isAdmin && appt.CustomerTgID != userID {
-			w.WriteHeader(http.StatusForbidden)
-			_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Доступ запрещен"})
-			return
-		}
-
-		now := time.Now().In(domain.ApptTimeZone)
-		if !isAdmin && appt.StartTime.Sub(now) < 72*time.Hour {
-			w.WriteHeader(http.StatusBadRequest)
-			_ = json.NewEncoder(w).Encode(map[string]string{
-				"status": "error",
-				"error":  "До приема менее 72 часов. Напишите терапевту.",
-			})
-			return
-		}
-
-		err = apptService.CancelAppointment(r.Context(), reqBody.ApptID)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Не удалось отменить запись"})
-			return
-		}
-
-		notificationMsg := presenter.FormatCancellation(appt, true)
-		for _, adminID := range adminIDs {
-			sendTelegramMessage(botToken, adminID, notificationMsg)
-		}
-
-		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
-	}
-}
-
-// NewUpdatePatientHandler creates the handler for updating patient profile
-func NewUpdatePatientHandler(repo ports.Repository, botToken string, adminIDs []string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
-		if r.Method != http.MethodPost {
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Method not allowed"})
-			return
-		}
-
-		var reqBody struct {
-			InitData string `json:"initData"`
-			ID       string `json:"id"`
-			Name     string `json:"name"`
-			Notes    string `json:"notes"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
-			logging.Errorf("Failed to decode update request: %v", err)
-			w.WriteHeader(http.StatusBadRequest)
-			_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Invalid JSON"})
-			return
-		}
-
-		if reqBody.InitData == "" || reqBody.ID == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Missing initData or ID"})
-			return
-		}
-
-		// SECURITY: Cap notes length to prevent payload stuffing
-		const maxNotesLength = 50_000 // ~50KB
-		if len(reqBody.Notes) > maxNotesLength {
-			w.WriteHeader(http.StatusBadRequest)
-			_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Notes too long (max 50KB)"})
-			return
-		}
-
-		// Authenticate Admin
-		userID, _, err := validateInitData(reqBody.InitData, botToken)
-		if err != nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Unauthorized"})
-			return
-		}
-
-		isAdmin := false
-		for _, adminID := range adminIDs {
-			if adminID == userID {
-				isAdmin = true
-				break
-			}
-		}
-
-		if !isAdmin {
-			w.WriteHeader(http.StatusForbidden)
-			_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Access denied"})
-			return
-		}
-
-		// Perform Update
-		if err := repo.UpdatePatientProfile(reqBody.ID, reqBody.Name, reqBody.Notes); err != nil {
-			logging.Errorf("Failed to update patient %s: %v", reqBody.ID, err)
-			w.WriteHeader(http.StatusInternalServerError)
-			_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": "Database update failed"})
-			return
-		}
-
-		logging.Infof("Admin %s updated patient %s", userID, reqBody.ID)
-		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	}
 }

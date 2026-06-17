@@ -1,4 +1,4 @@
-package main
+package web
 
 import (
 	"encoding/json"
@@ -8,7 +8,9 @@ import (
 	"github.com/kfilin/massage-bot/internal/ports"
 )
 
-// NewTranscribeHandler creates the handler for Voice Transcription API
+// NewTranscribeHandler creates the handler for the Voice Transcription API.
+// Accepts a multipart form with a 'voice' or 'file' field (max 10MB) and
+// returns the transcribed text. Requires valid initData.
 func NewTranscribeHandler(transcriptionService ports.TranscriptionService, botToken string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -45,11 +47,9 @@ func NewTranscribeHandler(transcriptionService ports.TranscriptionService, botTo
 			return
 		}
 
-		// Get File
-		// We expect the client to send the file in a field named 'voice' or 'file'
+		// Get File — accept either 'voice' or 'file' field.
 		file, header, err := r.FormFile("voice")
 		if err != nil {
-			// Try "file" key as fallback
 			file, header, err = r.FormFile("file")
 			if err != nil {
 				w.WriteHeader(http.StatusBadRequest)
