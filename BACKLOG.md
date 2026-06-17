@@ -1,5 +1,9 @@
 # Project Backlog
 
+## 🟢 Session 2026-06-17 13:55 — Startup: replace project-agnostic with project-specific
+
+- [x] Replaced `.pi/skills/startup/SKILL.md` project-agnostic skeleton (hydrated on 2026-06-17 morning) with project-specific lean version (241 lines). Now bakes in: architecture (Hexagonal/Clean, Go binary, telebot, PostgreSQL, Google Calendar, Groq Whisper, WebDAV), source layout (77 Go files, 11 internal packages), deploy targets (local docker, test :8086, prod :8082), and top 6 gotchas (PII Shield, No Production Commits, pre-commit audit, credentials.json, coverage.out, `.agent_legacy*` cleanup). **Pending**: remove `.agent_legacy*` dirs in a dedicated cleanup session.
+
 ## 🟢 Session 2026-06-14 08:20 — Vault Project Scoping Alignment
 
 - [x] Aligned handoff path to `Bridge/massage-bot/Checkpoints/`
