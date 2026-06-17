@@ -23,14 +23,6 @@ Orient the agent in any project the Agentic OS hydrates. This skill provides the
 
 **You MUST execute these steps automatically at the start of every conversation, BEFORE responding to any user task.**
 
-### Step 0 — Hydration Check (3-Strike Nag)
-
-1. Read `.agent/project-config.env`. If the file is absent, skip to Step 1 (legacy project).
-2. If `HYDRATED=false`:
-   - **Tell the user**: *"This project harness has not been hydrated. Please fill out `.agent/project-config.env` and run `/hydrate`."*
-   - **3-Strike Rule**: If the user persists with a normal task, remind them up to **3 times per session** before relenting (prevents hard blockages). After 3 strikes, proceed.
-3. If `HYDRATED=true`, continue to Step 1.
-
 ### Step 1 — Graph Awareness (Codebase Understanding)
 
 If a code-graph MCP server is available (`graphify`, `repomix`, `code-graph`, etc.), run three queries silently. Do not print raw output:
