@@ -48,6 +48,7 @@ data_test/
 .gemini/
 AGENTIC_OS_TEMPLATE/
 verification-checklist.md
+what_to_fix.md
 docs/
 # scripts/ - REMOVED: deploy scripts need to be tracked
 DEVELOPER.md
