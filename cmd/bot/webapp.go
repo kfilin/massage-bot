@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,6 +22,14 @@ import (
 	"github.com/kfilin/massage-bot/internal/presentation"
 	"golang.org/x/net/webdav"
 )
+
+// initDataMaxAge is the maximum tolerated age of a Telegram WebApp initData payload.
+// After this window, the payload is considered stale and rejected, preventing replay
+// of leaked URLs beyond initDataMaxAge.
+const initDataMaxAge = 1 * time.Hour
+
+// initDataClockSkew tolerates client/server clock drift of up to 5 minutes.
+const initDataClockSkew = 5 * time.Minute
 
 func generateHMAC(id string, secret string) string {
 	h := hmac.New(sha256.New, []byte(secret))
@@ -49,6 +58,24 @@ func validateInitData(initData string, botToken string) (string, string, error) 
 		return "", "", fmt.Errorf("missing hash")
 	}
 	values.Del("hash")
+
+	// Reject stale initData: auth_date must be present and within the last hour.
+	// Without this, a leaked initData URL grants permanent access to the patient card.
+	authDateStr := values.Get("auth_date")
+	if authDateStr == "" {
+		return "", "", fmt.Errorf("missing auth_date")
+	}
+	authDateUnix, err := strconv.ParseInt(authDateStr, 10, 64)
+	if err != nil {
+		return "", "", fmt.Errorf("invalid auth_date: %w", err)
+	}
+	authDate := time.Unix(authDateUnix, 0)
+	if age := time.Since(authDate); age > initDataMaxAge {
+		return "", "", fmt.Errorf("initData expired (%s old, max %s)", age.Round(time.Second), initDataMaxAge)
+	}
+	if age := time.Since(authDate); age < -initDataClockSkew {
+		return "", "", fmt.Errorf("initData auth_date is in the future (%s ahead)", -age.Round(time.Second))
+	}
 
 	// Sort keys
 	var keys []string
