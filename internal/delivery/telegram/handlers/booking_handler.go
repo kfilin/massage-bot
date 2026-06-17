@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"log"
 	"sort"
 	"strconv"
 	"strings"
@@ -502,7 +501,6 @@ func (h *BookingHandler) HandleAdminReplyRequest(c telebot.Context) error {
 	}
 
 	h.sessionStorage.Set(c.Sender().ID, SessionKeyAdminReplyingTo, patientID)
-	h.sessionStorage.Set(c.Sender().ID, SessionKeyAdminReplyingTo, patientID)
 	return c.Send(fmt.Sprintf("✍️ Введите ответ для пациента <b>%s</b> (ID: %s):", patient.Name, patient.TelegramID), telebot.ModeHTML, telebot.ForceReply)
 }
 
@@ -523,7 +521,7 @@ func (h *BookingHandler) askForTime(c telebot.Context) error {
 	// Make sure the selected date is at the beginning of the day in the correct timezone
 	loc := domain.ApptTimeZone
 	if loc == nil {
-		log.Println("WARNING: domain.ApptTimeZone is nil, defaulting to Local time.")
+		logging.Warnf("WARNING: domain.ApptTimeZone is nil, defaulting to Local time.")
 		loc = time.Local
 	}
 	selectedDateInLoc := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, loc)
@@ -757,7 +755,7 @@ func (h *BookingHandler) HandleConfirmBooking(c telebot.Context) error {
 	// Adjust appointmentTime to the correct timezone (e.g., Europe/Istanbul)
 	loc := domain.ApptTimeZone
 	if loc == nil {
-		log.Println("WARNING: domain.ApptTimeZone is nil during appointment creation, defaulting to Local time.")
+		logging.Warnf("WARNING: domain.ApptTimeZone is nil during appointment creation, defaulting to Local time.")
 		loc = time.Local
 	}
 	appointmentTime = time.Date(appointmentTime.Year(), appointmentTime.Month(), appointmentTime.Day(),
