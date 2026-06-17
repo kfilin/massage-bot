@@ -449,23 +449,26 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
   6. Decide: keep `deploy.sh` as a thin wrapper around `docker compose`, OR delete it.
 - **Source**: User (2026-06-16) + `what_to_fix.md` review (cross-validated with server inspection).
 
-### 45. [TODO] Git Sync Hygiene (PC ↔ Server)
-- **Status**: Backlog
-- **Priority**: Medium
-- **Goal**: Make local and server git states consistent and easily reconcilable. Reduce manual drift between `~/Documents/massage-bot/` (or `/home/Projects/massage-bot/` after #43) and `/opt/vera-bot/`.
-- **Known drift** (from server inspection, **partially resolved 2026-06-17**):
-  - Server `AGENTS.md` is 1550 bytes, references skills that don't exist in current `.agent/skills/` (`database-expert`, `devops-harness`, `ai-integration-expert`, `twa-aesthetics`). Stale — was probably from an older bootstrap.
-  - ~~`docker-compose.override.yml` exists on server (167 bytes) but NOT in local repo~~ — **RESOLVED**: file removed during #41 incident-2 fix.
-  - `deploy.sh` on server is dated `дек 26 19:48` (Dec 26, 2025) — much older than other files dated May 2026.
-  - `.env` on server is dated `апр 24 08:40` (Apr 24, 2026) — credentials haven't been rotated since April, but perms are now 0600 (was 0644) as of 2026-06-17.
-  - `.env.example` on server is dated `мая 13 14:36` (May 13, 2026) — newer than `.env`, suggesting `.env.example` was updated after `.env` was last touched.
-- **Tasks**:
-  1. `ssh server "cd /opt/vera-bot && git status && git log --oneline -5"` to see server's actual state.
-  2. Diff server files vs local files for non-git-tracked drift (`docker-compose.override.yml`, `AGENTS.md`, `deploy.sh`).
-  3. Decide per file: commit server-specific to repo, OR remove as "experimental".
-  4. Establish convention: server is read-only except for `data/` and `.env`; everything else comes from git.
-  5. Update `startup.md` reference paths once #43 is done.
-- **Verification**: `git status` clean on both sides; deploy succeeds without manual intervention; no `docker-compose.override.yml`-style files reappear.
+### 45. [DONE] Git Sync Hygiene (PC ↔ Server)
+- **Status**: ✅ DONE 2026-06-18
+- **Server-state inspection findings** (2026-06-18 01:15):
+  - **AGENTS.md drift was already resolved** — the BACKLOG's claim of 1550B and stale skill references was stale itself; the server's `AGENTS.md` is 10793B and matches local byte-for-byte. Probably resolved by the recent deploy of `8e150f4` (which did `git reset --hard origin/master`).
+  - **HEAD was 2 commits behind** (`9577fcc` vs `5c920a4` on origin) — the server had my deploy.sh fix in its working tree (from a `scp` during #46) but the git tree still had the old version. Resolved by running the same `git fetch && git reset --hard origin/master` pattern that `scripts/deploy.sh` uses.
+  - **Untracked drift removed**:
+    - 🗑️ `/opt/vera-bot/deploy.sh` (root, 1245B, Dec 26 2025) — legacy script, used `docker pull registry.gitlab.com/...` against a dead image. Superseded by `scripts/deploy.sh`.
+    - 🗑️ `/opt/vera-bot/docker-compose.yml.backup` (1387B, Jan 9 2026) — stale backup, not in active use.
+  - **Intentionally left alone**:
+    - `.env.backup` (gitignored, 0600 perms, Jan 9 2026) — pre-credential-rotation snapshot. Could be useful as a fallback; deletion is a separate decision.
+    - `.env`, `.env.test`, `data/`, `data_test/`, `telegram_api_data/`, `credentials.json` — all gitignored, all expected to be server-local.
+- **New convention** (added to `AGENTS.md` Guardrails): **Server Read-Only Convention** — `/opt/vera-bot/` is read-only except for `data/`, `credentials.json`, `.env`, `.env.test`. All other changes flow through `scripts/deploy.sh prod` (which does `git reset --hard origin/master`). No `scp`, no `ssh ... vi`, no `git commit` on the server. Root cause of the drift I just fixed was a `scp` during #46 that bypassed the deploy script.
+- **Verification**: `git status` clean on both sides; deploy script's pre-flight (now fixed in #46) works on the live server; prod health 200 throughout.
+- **Tasks** (all DONE):
+  1. ✅ `ssh server` state inspection.
+  2. ✅ Diffed server files vs local; identified 3 drift items.
+  3. ✅ Deleted 2 stale files; left 1 (`.env.backup`) as optional follow-up.
+  4. ✅ Server synced with origin/master (`5c920a4`).
+  5. ✅ Convention documented in `AGENTS.md` Guardrails.
+  6. ✅ `startup.md` path updates deferred — depends on #43 (project dir rename), still open.
 
 ### 46. [DONE] Fix `scripts/deploy.sh` port-collision pre-flight (broken for normal deploys)
 - **Status**: ✅ DONE 2026-06-18
@@ -482,5 +485,5 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
 
 ---
 
-#### Last updated: 2026-06-18 01:10 (#46 done — smart pre-flight via docker compose labels; commit 2e007da)
+#### Last updated: 2026-06-18 01:25 (#45 done — server synced to 5c920a4, 2 stale files removed, "Server Read-Only Convention" added to AGENTS.md guardrails)
 
