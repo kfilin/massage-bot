@@ -159,6 +159,9 @@ func (m *tfMockRepo) CreateBackup() (string, error) { return "", nil }
 func (m *tfMockRepo) GetAppointmentHistory(_ string) ([]domain.Appointment, error) {
 	return nil, nil
 }
+func (m *tfMockRepo) GetAppointmentHistoryPaginated(_ string, _, _ int) ([]domain.Appointment, bool, error) {
+	return nil, false, nil
+}
 func (m *tfMockRepo) UpsertAppointments(_ []domain.Appointment) error { return nil }
 func (m *tfMockRepo) DeleteAppointment(_ string) error                { return nil }
 func (m *tfMockRepo) SaveAppointmentMetadata(_ string, _ *time.Time, _ map[string]bool) error {

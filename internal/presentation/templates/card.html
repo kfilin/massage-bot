@@ -42,16 +42,7 @@
         <div id="content-history" class="segment-content">
              <!-- History Items -->
               {{if .RecentVisits}}
-                  {{range .RecentVisits}}
-                  <div class="card">
-                      <div class="subtitle">{{.StartTime.Format "02.01.2006"}}</div>
-                      <div style="font-weight: 600; font-size: 17px;">{{.Service.Name}}</div>
-                      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
-                          <div style="font-size: 12px; color: var(--accent); background: rgba(74, 103, 74, 0.1); padding: 4px 8px; border-radius: 6px; font-weight: 600;">#подтвержден</div>
-                          <div style="font-size: 13px; color: var(--text-secondary);">{{.StartTime.Format "15:04"}}</div>
-                      </div>
-                  </div>
-                  {{end}}
+                  {{template "history_fragment" .}}
               {{else}}
                   <div style="text-align: center; padding: 40px 20px; color: var(--text-secondary);">
                       <i class="ph-duotone ph-calendar-blank" style="font-size: 48px; opacity: 0.3;"></i>
@@ -59,6 +50,30 @@
                   </div>
               {{end}}
         </div>
+
+        <!-- Standalone history fragment definition, used by both the
+             full card render (via the template call above) and the AJAX
+             "Show more" flow (via RenderHistoryFragment). The fragment
+             contains the visit cards plus an optional show-more button. -->
+{{define "history_fragment"}}
+    {{range .RecentVisits}}
+    <div class="card">
+        <div class="subtitle">{{.StartTime.Format "02.01.2006"}}</div>
+        <div style="font-weight: 600; font-size: 17px;">{{.Service.Name}}</div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+            <div style="font-size: 12px; color: var(--accent); background: rgba(74, 103, 74, 0.1); padding: 4px 8px; border-radius: 6px; font-weight: 600;">#подтвержден</div>
+            <div style="font-size: 13px; color: var(--text-secondary);">{{.StartTime.Format "15:04"}}</div>
+        </div>
+    </div>
+    {{end}}
+    {{if .HasMore}}
+    <div class="show-more-row" style="text-align: center; padding: 16px 0;">
+        <button class="btn-show-more" data-next-offset="{{.NextOffset}}" data-limit="{{.Limit}}" style="background: none; border: 1px solid var(--accent); color: var(--accent); padding: 10px 24px; border-radius: 12px; font-weight: 600; cursor: pointer;">
+            Показать ещё
+        </button>
+    </div>
+    {{end}}
+{{end}}
 
         <div id="content-notes" class="segment-content" style="display:none;">
             <!-- Orange Drafts (Review Needed) -->

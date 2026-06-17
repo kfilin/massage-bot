@@ -27,6 +27,11 @@ type Repository interface {
 	UpdateMediaStatus(mediaID string, status string, transcript string) error
 	CreateBackup() (string, error)
 	GetAppointmentHistory(telegramID string) ([]domain.Appointment, error)
+	// GetAppointmentHistoryPaginated returns up to `limit` appointments
+	// starting at `offset`, ordered by start_time DESC, plus a boolean
+	// indicating whether more visits exist beyond the returned slice.
+	// Used by the webapp card view to cap long histories.
+	GetAppointmentHistoryPaginated(telegramID string, limit, offset int) ([]domain.Appointment, bool, error)
 	UpsertAppointments(appts []domain.Appointment) error
 	DeleteAppointment(appointmentID string) error
 

@@ -629,6 +629,9 @@ func (m *mockDBRepo) GetMediaByID(id string) (*domain.PatientMedia, error) { ret
 func (m *mockDBRepo) UpdateMediaStatus(id string, s string, t string) error { return nil }
 func (m *mockDBRepo) CreateBackup() (string, error)                       { return "", nil }
 func (m *mockDBRepo) GetAppointmentHistory(id string) ([]domain.Appointment, error) { return nil, nil }
+func (m *mockDBRepo) GetAppointmentHistoryPaginated(id string, limit, offset int) ([]domain.Appointment, bool, error) {
+	return nil, false, nil
+}
 func (m *mockDBRepo) UpsertAppointments(a []domain.Appointment) error     { return nil }
 func (m *mockDBRepo) SaveAppointmentMetadata(id string, t *time.Time, r map[string]bool) error { return nil }
 func (m *mockDBRepo) GetAppointmentMetadata(id string) (*time.Time, map[string]bool, error) {

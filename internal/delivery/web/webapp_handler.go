@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -280,6 +281,39 @@ func NewWebAppHandler(repo ports.Repository, apptService ports.AppointmentServic
 			}
 		}
 
+		// Pagination: keep the full `appts` list in memory for stats (TotalVisits,
+		// FirstVisit, LastVisit) but only send a page to the template. The handler
+		// already loads the full list, so this is a free in-memory slice.
+		// Query params: ?limit=N (default 30, max 100) and ?offset=M (default 0).
+		// ?partial=history returns just the history fragment for AJAX "Show more".
+		limit := 30
+		if v := r.URL.Query().Get("limit"); v != "" {
+			if n, err := strconv.Atoi(v); err == nil && n > 0 {
+				limit = n
+			}
+		}
+		if limit > 100 {
+			limit = 100
+		}
+		offset := 0
+		if v := r.URL.Query().Get("offset"); v != "" {
+			if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+				offset = n
+			}
+		}
+		viewAppts := appts
+		if offset >= len(viewAppts) {
+			viewAppts = nil
+		} else {
+			end := offset + limit
+			if end > len(viewAppts) {
+				end = len(viewAppts)
+			}
+			viewAppts = viewAppts[offset:end]
+		}
+		hasMore := offset+limit < len(appts)
+		nextOffset := offset + limit
+
 		// Prepare Template Data
 		data := struct {
 			Title        string
@@ -289,17 +323,32 @@ func NewWebAppHandler(repo ports.Repository, apptService ports.AppointmentServic
 			DocGroups    []interface{}
 			BotVersion   string
 			IsAdmin      bool
+			HasMore      bool
+			NextOffset   int
+			Limit        int
 		}{
 			Title:        "Карта пациента",
 			Patient:      patient,
-			RecentVisits: appts,
+			RecentVisits: viewAppts,
 			Drafts:       drafts,
 			DocGroups:    docGroups,
 			BotVersion:   version.FullName,
 			IsAdmin:      isAdmin,
+			HasMore:      hasMore,
+			NextOffset:   nextOffset,
+			Limit:        limit,
 		}
 
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		// Partial render: when ?partial=history, return just the visit cards
+		// (and a possible "Show more" button) for the AJAX load-more flow.
+		if r.URL.Query().Get("partial") == "history" {
+			if err := presenter.RenderHistoryFragment(w, data); err != nil {
+				logging.Errorf("History fragment render failed: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			}
+			return
+		}
 		if err := presenter.RenderCard(w, data); err != nil {
 			logging.Errorf("Template rendering failed: %v", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)

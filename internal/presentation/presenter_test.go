@@ -146,3 +146,48 @@ func TestWebPresenter_RenderSearch(t *testing.T) {
 		t.Error("Expected search title in HTML")
 	}
 }
+
+func TestWebPresenter_RenderHistoryFragment(t *testing.T) {
+	p, err := NewWebPresenter()
+	if err != nil {
+		t.Fatalf("Failed to create WebPresenter: %v", err)
+	}
+
+	data := struct {
+		Title        string
+		RecentVisits []domain.Appointment
+		HasMore      bool
+		NextOffset   int
+		Limit        int
+	}{
+		RecentVisits: []domain.Appointment{
+			{
+				StartTime: time.Date(2026, 6, 1, 10, 0, 0, 0, time.UTC),
+				Service:   domain.Service{Name: "Test Service"},
+			},
+		},
+		HasMore:    true,
+		NextOffset: 30,
+		Limit:      30,
+	}
+
+	var buf bytes.Buffer
+	if err := p.RenderHistoryFragment(&buf, data); err != nil {
+		t.Fatalf("RenderHistoryFragment failed: %v", err)
+	}
+	got := buf.String()
+
+	if !strings.Contains(got, "Test Service") {
+		t.Error("Expected visit card with service name in fragment")
+	}
+	if !strings.Contains(got, "Показать ещё") {
+		t.Error("Expected 'Show more' button in fragment when HasMore=true")
+	}
+	if !strings.Contains(got, `data-next-offset="30"`) {
+		t.Error("Expected next-offset data attribute on show-more button")
+	}
+	// Fragment must NOT include the full page chrome
+	if strings.Contains(got, "<!DOCTYPE html>") {
+		t.Error("History fragment leaked full page chrome")
+	}
+}

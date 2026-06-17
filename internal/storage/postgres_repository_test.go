@@ -1143,6 +1143,170 @@ func TestGetAppointmentHistory_DBError(t *testing.T) {
 	}
 }
 
+// TestGetAppointmentHistoryPaginated_ExactPage covers the common case:
+// the patient has exactly `limit` visits, so no more pages exist.
+func TestGetAppointmentHistoryPaginated_ExactPage(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Failed to create mock: %v", err)
+	}
+	defer db.Close()
+
+	sqlxDB := sqlx.NewDb(db, "sqlmock")
+	repo := NewPostgresRepository(sqlxDB, t.TempDir())
+
+	telegramID := "123456789"
+	now := time.Now()
+
+	rows := sqlmock.NewRows([]string{
+		"id", "customer_id", "service_id", "start_time", "status", "customer_name",
+		"service.name", "service.duration", "service.price",
+	})
+	for i := 0; i < 30; i++ {
+		rows.AddRow(
+			fmt.Sprintf("appt-%d", i), telegramID, "massage-60",
+			now.Add(-time.Duration(i)*time.Hour), "confirmed", "Test Patient",
+			"Massage 60", 60, 5000,
+		)
+	}
+
+	// limit=30, offset=0: expect a LIMIT/OFFSET query that fetches limit+1=31 rows
+	// to detect whether more visits exist. The repository must return exactly 30
+	// visits and hasMore=false.
+	mock.ExpectQuery("SELECT (.+) FROM appointments WHERE customer_id").
+		WithArgs(telegramID, 31, 0).
+		WillReturnRows(rows)
+
+	appts, hasMore, err := repo.GetAppointmentHistoryPaginated(telegramID, 30, 0)
+	if err != nil {
+		t.Fatalf("GetAppointmentHistoryPaginated failed: %v", err)
+	}
+	if len(appts) != 30 {
+		t.Errorf("Expected 30 appointments, got %d", len(appts))
+	}
+	if hasMore {
+		t.Errorf("Expected hasMore=false when patient has exactly 30 visits, got true")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Unfulfilled expectations: %v", err)
+	}
+}
+
+// TestGetAppointmentHistoryPaginated_HasMore covers the "Show more" trigger:
+// the patient has more than `limit` visits, so hasMore must be true and the
+// returned slice must be capped at `limit`.
+func TestGetAppointmentHistoryPaginated_HasMore(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Failed to create mock: %v", err)
+	}
+	defer db.Close()
+
+	sqlxDB := sqlx.NewDb(db, "sqlmock")
+	repo := NewPostgresRepository(sqlxDB, t.TempDir())
+
+	telegramID := "123456789"
+	now := time.Now()
+
+	// Repository must request limit+1=31 rows. We return 31 to signal "more exists".
+	rows := sqlmock.NewRows([]string{
+		"id", "customer_id", "service_id", "start_time", "status", "customer_name",
+		"service.name", "service.duration", "service.price",
+	})
+	for i := 0; i < 31; i++ {
+		rows.AddRow(
+			fmt.Sprintf("appt-%d", i), telegramID, "massage-60",
+			now.Add(-time.Duration(i)*time.Hour), "confirmed", "Test Patient",
+			"Massage 60", 60, 5000,
+		)
+	}
+
+	mock.ExpectQuery("SELECT (.+) FROM appointments WHERE customer_id").
+		WithArgs(telegramID, 31, 0).
+		WillReturnRows(rows)
+
+	appts, hasMore, err := repo.GetAppointmentHistoryPaginated(telegramID, 30, 0)
+	if err != nil {
+		t.Fatalf("GetAppointmentHistoryPaginated failed: %v", err)
+	}
+	if len(appts) != 30 {
+		t.Errorf("Expected 30 appointments (capped), got %d", len(appts))
+	}
+	if !hasMore {
+		t.Errorf("Expected hasMore=true when 31 rows returned for limit=30, got false")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Unfulfilled expectations: %v", err)
+	}
+}
+
+// TestGetAppointmentHistoryPaginated_Offset verifies that offset is forwarded
+// to the SQL query (so the "Show more" button can fetch page 2, 3, ...).
+func TestGetAppointmentHistoryPaginated_Offset(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Failed to create mock: %v", err)
+	}
+	defer db.Close()
+
+	sqlxDB := sqlx.NewDb(db, "sqlmock")
+	repo := NewPostgresRepository(sqlxDB, t.TempDir())
+
+	telegramID := "123456789"
+	now := time.Now()
+
+	rows := sqlmock.NewRows([]string{
+		"id", "customer_id", "service_id", "start_time", "status", "customer_name",
+		"service.name", "service.duration", "service.price",
+	})
+	for i := 0; i < 10; i++ {
+		rows.AddRow(
+			fmt.Sprintf("appt-page2-%d", i), telegramID, "massage-60",
+			now.Add(-time.Duration(30+i)*time.Hour), "confirmed", "Test Patient",
+			"Massage 60", 60, 5000,
+		)
+	}
+
+	// offset=30, limit=10 → query fetches 11 rows starting at offset 30
+	mock.ExpectQuery("SELECT (.+) FROM appointments WHERE customer_id").
+		WithArgs(telegramID, 11, 30).
+		WillReturnRows(rows)
+
+	appts, hasMore, err := repo.GetAppointmentHistoryPaginated(telegramID, 10, 30)
+	if err != nil {
+		t.Fatalf("GetAppointmentHistoryPaginated failed: %v", err)
+	}
+	if len(appts) != 10 {
+		t.Errorf("Expected 10 appointments, got %d", len(appts))
+	}
+	if hasMore {
+		t.Errorf("Expected hasMore=false (returned exactly limit rows), got true")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Unfulfilled expectations: %v", err)
+	}
+}
+
+// TestGetAppointmentHistoryPaginated_DBError covers the failure path.
+func TestGetAppointmentHistoryPaginated_DBError(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Failed to create mock: %v", err)
+	}
+	defer db.Close()
+
+	sqlxDB := sqlx.NewDb(db, "sqlmock")
+	repo := NewPostgresRepository(sqlxDB, t.TempDir())
+
+	mock.ExpectQuery("SELECT (.+) FROM appointments WHERE customer_id").
+		WillReturnError(fmt.Errorf("history query failed"))
+
+	_, _, err = repo.GetAppointmentHistoryPaginated("123", 30, 0)
+	if err == nil {
+		t.Error("GetAppointmentHistoryPaginated should return error on DB failure")
+	}
+}
+
 func TestUpsertAppointments_DBError(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {

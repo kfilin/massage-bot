@@ -117,6 +117,9 @@ func (m *mockReminderRepo) UpdateMediaStatus(mid, status, transcript string) err
 func (m *mockReminderRepo) GetAppointmentHistory(tid string) ([]domain.Appointment, error) {
 	return nil, nil
 }
+func (m *mockReminderRepo) GetAppointmentHistoryPaginated(tid string, limit, offset int) ([]domain.Appointment, bool, error) {
+	return nil, false, nil
+}
 func (m *mockReminderRepo) UpsertAppointments(appts []domain.Appointment) error { return nil }
 func (m *mockReminderRepo) DeleteAppointment(id string) error                   { return nil }
 

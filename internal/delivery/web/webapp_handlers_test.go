@@ -59,6 +59,14 @@ func (m *mockRepo) GetAppointmentHistory(id string) ([]domain.Appointment, error
 	return nil, nil
 }
 
+func (m *mockRepo) GetAppointmentHistoryPaginated(id string, limit, offset int) ([]domain.Appointment, bool, error) {
+	if m.getApptHistoryFunc != nil {
+		appts, err := m.getApptHistoryFunc(id)
+		return appts, false, err
+	}
+	return nil, false, nil
+}
+
 func (m *mockRepo) GetPatientMedia(id string) ([]domain.PatientMedia, error) {
 	if m.getPatientMediaFunc != nil {
 		return m.getPatientMediaFunc(id)
@@ -1124,5 +1132,157 @@ func TestWebAppHandler_HMACAdminSearchPage(t *testing.T) {
 	}
 	if !strings.Contains(rr.Body.String(), "Поиск пациентов") {
 		t.Errorf("Expected admin search page, got: %s", rr.Body.String())
+	}
+}
+
+// --- History pagination (BACKLOG #21) ---
+
+// countVisitCards returns the number of <div class="card"> occurrences in
+// the history section of the rendered HTML. The full page has cards in
+// other sections (notes, files), so we look for the history-specific
+// service-name "Massage Pagination Test" to disambiguate.
+func countHistoryCards(body string) int {
+	// Each history card contains the service name we set in the test
+	return strings.Count(body, "Massage Pagination Test")
+}
+
+// makePaginationHandler builds a handler that returns N appointments for
+// the given patient ID. Used by the pagination tests below.
+func makePaginationHandler(t *testing.T, n int) (http.HandlerFunc, string, string, *mockRepo) {
+	t.Helper()
+	adminID := "100"
+	patientID := "200"
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+
+	appts := make([]domain.Appointment, n)
+	now := time.Now()
+	for i := 0; i < n; i++ {
+		appts[i] = domain.Appointment{
+			ID:           fmt.Sprintf("appt-%d", i),
+			ClientID:     patientID,
+			CustomerTgID: patientID,
+			StartTime:    now.Add(-time.Duration(i) * time.Hour),
+			Status:       "confirmed",
+			Service:      domain.Service{Name: "Massage Pagination Test", DurationMinutes: 60, Price: 5000},
+		}
+	}
+	repo := &mockRepo{
+		patient: domain.Patient{TelegramID: patientID, Name: "Target Patient"},
+		getApptHistoryFunc: func(id string) ([]domain.Appointment, error) {
+			return appts, nil
+		},
+	}
+	service := &mockApptService{}
+	presenter, _ := presentation.NewWebPresenter()
+	handler := NewWebAppHandler(repo, service, presenter, botToken, []string{adminID}, "secret")
+	return handler, adminID, patientID, repo
+}
+
+func TestPagination_DefaultLimit30(t *testing.T) {
+	handler, adminID, patientID, _ := makePaginationHandler(t, 50)
+
+	initData := makeInitData(adminID, "Admin", "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11")
+	req, _ := http.NewRequest("GET", "/?id="+patientID+"&initData="+url.QueryEscape(initData), nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200, got %d. Body: %s", rr.Code, rr.Body.String())
+	}
+	body := rr.Body.String()
+	if got := countHistoryCards(body); got != 30 {
+		t.Errorf("Expected 30 history cards (default limit), got %d", got)
+	}
+	if !strings.Contains(body, "Показать ещё") {
+		t.Errorf("Expected 'Show more' button when more pages exist, got body: %s", body)
+	}
+}
+
+func TestPagination_ExplicitLimit(t *testing.T) {
+	handler, adminID, patientID, _ := makePaginationHandler(t, 50)
+
+	initData := makeInitData(adminID, "Admin", "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11")
+	req, _ := http.NewRequest("GET", "/?id="+patientID+"&initData="+url.QueryEscape(initData)+"&limit=10", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200, got %d", rr.Code)
+	}
+	if got := countHistoryCards(rr.Body.String()); got != 10 {
+		t.Errorf("Expected 10 history cards, got %d", got)
+	}
+	if !strings.Contains(rr.Body.String(), "Показать ещё") {
+		t.Errorf("Expected 'Show more' button when more pages exist")
+	}
+}
+
+func TestPagination_LastPageNoButton(t *testing.T) {
+	handler, adminID, patientID, _ := makePaginationHandler(t, 50)
+
+	initData := makeInitData(adminID, "Admin", "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11")
+	// offset=45, limit=10 → last 5 visits, no more
+	req, _ := http.NewRequest("GET", "/?id="+patientID+"&initData="+url.QueryEscape(initData)+"&offset=45&limit=10", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200, got %d", rr.Code)
+	}
+	if got := countHistoryCards(rr.Body.String()); got != 5 {
+		t.Errorf("Expected 5 history cards on last page, got %d", got)
+	}
+	if strings.Contains(rr.Body.String(), "Показать ещё") {
+		t.Errorf("Expected NO 'Show more' button on last page, but found one")
+	}
+}
+
+func TestPagination_PartialRender(t *testing.T) {
+	handler, adminID, patientID, _ := makePaginationHandler(t, 50)
+
+	initData := makeInitData(adminID, "Admin", "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11")
+	// ?partial=history returns just the cards + possible show-more button
+	req, _ := http.NewRequest("GET", "/?id="+patientID+"&initData="+url.QueryEscape(initData)+"&offset=20&limit=10&partial=history", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200, got %d", rr.Code)
+	}
+	body := rr.Body.String()
+	if got := countHistoryCards(body); got != 10 {
+		t.Errorf("Expected 10 history cards in partial render, got %d", got)
+	}
+	// Partial render must NOT include the full page chrome
+	if strings.Contains(body, "<!DOCTYPE html>") {
+		t.Errorf("Partial render leaked full page chrome")
+	}
+	if !strings.Contains(body, "МЕДИЦИНСКАЯ КАРТА") && strings.Contains(body, "<!DOCTYPE") {
+		// ignore — partial should not have card title
+	}
+	// Partial render at offset=20, limit=10 with 50 total → still has more
+	if !strings.Contains(body, "Показать ещё") {
+		t.Errorf("Expected 'Show more' button in partial render when more pages exist")
+	}
+}
+
+func TestPagination_LimitCap(t *testing.T) {
+	handler, adminID, patientID, _ := makePaginationHandler(t, 50)
+
+	initData := makeInitData(adminID, "Admin", "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11")
+	// limit=500 must be capped at 100
+	req, _ := http.NewRequest("GET", "/?id="+patientID+"&initData="+url.QueryEscape(initData)+"&limit=500", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200, got %d", rr.Code)
+	}
+	// 50 visits total, cap is 100, so we render all 50, no button
+	if got := countHistoryCards(rr.Body.String()); got != 50 {
+		t.Errorf("Expected 50 history cards (limit capped at 100, all rendered), got %d", got)
+	}
+	if strings.Contains(rr.Body.String(), "Показать ещё") {
+		t.Errorf("Expected NO 'Show more' button when all visits fit in one page")
 	}
 }

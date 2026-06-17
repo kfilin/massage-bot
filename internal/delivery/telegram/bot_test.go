@@ -277,6 +277,12 @@ func (m *mockRepository) GetAppointmentHistory(telegramID string) ([]domain.Appo
 	}
 	return []domain.Appointment{}, nil
 }
+func (m *mockRepository) GetAppointmentHistoryPaginated(telegramID string, limit, offset int) ([]domain.Appointment, bool, error) {
+	if history, ok := m.appointmentHistory[telegramID]; ok {
+		return history, false, nil
+	}
+	return []domain.Appointment{}, false, nil
+}
 
 func (m *mockRepository) UpsertAppointments(appts []domain.Appointment) error {
 	return nil

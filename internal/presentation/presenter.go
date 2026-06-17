@@ -40,6 +40,14 @@ func (p *WebPresenter) RenderSearch(w io.Writer, data interface{}) error {
 	return p.templates.ExecuteTemplate(w, "search.html", data)
 }
 
+// RenderHistoryFragment renders the inner visit-cards block used by the
+// "Show more" AJAX flow on the patient card. The card.html template must
+// define a "{{define "history_fragment"}}" block that contains just the
+// visit cards plus an optional show-more button.
+func (p *WebPresenter) RenderHistoryFragment(w io.Writer, data interface{}) error {
+	return p.templates.ExecuteTemplate(w, "history_fragment", data)
+}
+
 // BotPresenter handles Telegram message formatting
 type BotPresenter struct{}
 

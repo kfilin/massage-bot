@@ -191,6 +191,53 @@ func (r *PostgresRepository) GetAppointmentHistory(telegramID string) ([]domain.
 	return appts, nil
 }
 
+// GetAppointmentHistoryPaginated returns up to `limit` appointments starting at
+// `offset` (ordered by start_time DESC) plus a boolean indicating whether more
+// visits exist beyond the returned slice. The repository fetches `limit+1` rows
+// internally so the hasMore signal is computed without a separate COUNT query.
+func (r *PostgresRepository) GetAppointmentHistoryPaginated(telegramID string, limit, offset int) ([]domain.Appointment, bool, error) {
+	if limit <= 0 {
+		return nil, false, fmt.Errorf("limit must be positive, got %d", limit)
+	}
+	if offset < 0 {
+		return nil, false, fmt.Errorf("offset must be non-negative, got %d", offset)
+	}
+
+	query := `
+		SELECT id, customer_id, service_id, start_time, status, customer_name,
+		       service_name as "service.name", service_duration as "service.duration", service_price as "service.price"
+		FROM appointments
+		WHERE customer_id = $1
+		ORDER BY start_time DESC
+		LIMIT $2 OFFSET $3
+	`
+
+	// Fetch limit+1 to detect whether more rows exist beyond this page.
+	rows, err := r.db.Queryx(query, telegramID, limit+1, offset)
+	if err != nil {
+		return nil, false, err
+	}
+	defer rows.Close()
+
+	var appts []domain.Appointment
+	for rows.Next() {
+		var a domain.Appointment
+		if err := rows.StructScan(&a); err != nil {
+			return nil, false, err
+		}
+		appts = append(appts, a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, false, err
+	}
+
+	hasMore := len(appts) > limit
+	if hasMore {
+		appts = appts[:limit]
+	}
+	return appts, hasMore, nil
+}
+
 func (r *PostgresRepository) SaveMedia(media domain.PatientMedia) error {
 	if media.Status == "" {
 		media.Status = "approved"

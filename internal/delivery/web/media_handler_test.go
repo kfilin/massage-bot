@@ -47,6 +47,9 @@ func (m *mockMediaRepo) CreateBackup() (string, error)                     { ret
 func (m *mockMediaRepo) GetAppointmentHistory(id string) ([]domain.Appointment, error) {
 	return nil, nil
 }
+func (m *mockMediaRepo) GetAppointmentHistoryPaginated(id string, limit, offset int) ([]domain.Appointment, bool, error) {
+	return nil, false, nil
+}
 func (m *mockMediaRepo) UpsertAppointments(a []domain.Appointment) error { return nil }
 func (m *mockMediaRepo) SaveAppointmentMetadata(id string, t *time.Time, reminders map[string]bool) error {
 	return nil
