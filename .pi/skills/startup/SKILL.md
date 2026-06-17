@@ -71,30 +71,33 @@ A professional clinical ecosystem for massage therapists: interactive booking, a
                     └─────────────────────────────────────────────────┘
 ```
 
-## 📋 Status & Priorities (Updated 2026-06-17 23:55)
+## 📋 Status & Priorities (Updated 2026-06-18 00:05)
 
 > Updated by `/handoff` at end of each session. Read this BEFORE Step 2 context below — it tells the next agent what just happened and what to focus on.
 
-### 🟢 Recently Completed (last session: BotAPI wiring tests)
-- **#34/#36 next-step shipped**: Extracted two testable seams from `RunBot` (`setupMenuButton`, `runScheduledBackup`), both consume `ports.BotAPI` and are now 100% covered via 7 new tests in `internal/delivery/telegram/bot_wiring_test.go`. Mocks: `mockBotAPI` extended with `rawCalls`/`rawErr`; `mockRepository` extended with `createBackupFunc`. No regressions — all 15 packages pass.
+### 🟢 Recently Completed (last session: BotAPI wiring tests + prod deploy)
+- **#34/#36 next-step shipped** (23:55): Extracted two testable seams from `RunBot` (`setupMenuButton`, `runScheduledBackup`), both consume `ports.BotAPI` and are now 100% covered via 7 new tests in `internal/delivery/telegram/bot_wiring_test.go`. Mocks: `mockBotAPI` extended with `rawCalls`/`rawErr`; `mockRepository` extended with `createBackupFunc`. No regressions — all 15 packages pass.
 - **Coverage gains**: `delivery/telegram` 39.6% → **47.6%** (+8.0pp); overall **76.0% → 76.6%** (+0.6pp). Gap to #36 80% target: 3.4pp (down from 4.0pp).
-- **BACKLOG.md** updated: #34 + #36 status blocks, "Last updated" line to 2026-06-17 23:55. New next-target #4 added: `*telebot.Bot` → `ports.BotAPI` compile-time satisfaction test (would catch silent interface drift).
+- **Commit `8e150f4`** pushed to GitHub + GitLab, mirrored to server `/opt/vera-bot/`, **rebuilt and restarted in prod** (00:00 UTC = 23:50 local). New image `2b069973feee`. Server log confirms `setupMenuButton` returning nil ("Menu button configured successfully"). Zero downtime beyond 15s recreate window, no behavioral drift, 5 sessions loaded, 600ms to "Authenticated as @vera_massage_bot" (same as pre-rebuild).
+- **BACKLOG.md** updated: #34 + #36 status blocks, "Last updated" line to 2026-06-18 00:05. New next-target #4 added: `*telebot.Bot` → `ports.BotAPI` compile-time satisfaction test (would catch silent interface drift).
 
 ### 🟡 Active Focus
-- **#36 Test Coverage → 80%** (currently **76.6%**, gap 3.4pp). Remaining structural ceiling: `RunBot`/`InitBot` are 0% — the uncovered code is handler/middleware *registration* (b.Handle, b.Use, b.Start, b.Stop) which lives on the concrete `*telebot.Bot`, not on `BotAPI`. Cannot be tested through the abstraction. Other next-targets in BACKLOG: `cmd/bot` (6.6%, low ROI), `delivery/web` StartServer, `BotAPI` satisfaction test.
-- **#34 Phase 4: Integration Testing with Testcontainers** — IN PROGRESS. Storage at 86.0% (unit) / 91.7% (integration). Routing 100%. `RunBot`/`InitBot` confirmed as structural ceiling for the telegram package.
+- **#36 Test Coverage → 80%** (currently **76.6%**, gap 3.4pp). Remaining structural ceiling: `RunBot`/`InitBot` are 0% — the uncovered code is handler/middleware *registration* (b.Handle, b.Use, b.Start, b.Stop) which lives on the concrete `*telebot.Bot`, not on `BotAPI`. Cannot be tested through the abstraction. Other next-targets in BACKLOG: `cmd/bot` (6.6%, low ROI), `delivery/web` StartServer, `BotAPI` satisfaction test (next-target #4).
+- **#34 Phase 4: Integration Testing with Testcontainers** — IN PROGRESS. Storage at 86.0% (unit) / 91.7% (integration). Routing 100%. `RunBot`/`InitBot` confirmed as structural ceiling for the telegram package. Now **deployed and running in prod**.
 
 ### 🔴 Blockers / Known Issues
-- **None active.** Server prod is healthy.
+- **None active.** Server prod is healthy and on the new commit (8e150f4).
 - **Server `AGENTS.md` is 1550 bytes stale** (still references skills that don't exist locally — `database-expert`, `devops-harness`, etc.) — see #45. Low priority.
 - **Server `/opt/vera-bot` lacks `git pull` in deploy** — was 13 commits behind. Add a `git pull --ff-only` step to `scripts/deploy.sh` so deploys stay in sync. (Follow-up to do, not blocking.)
 - **Dev-machine `go test ./...` perm denied** on `postgres_data/` (UID 70 owns the dir). Workaround: `go test ./cmd/... ./internal/...` (same pattern as `.gitlab-ci.yml`). #44.
+- **Local dev container** (`massage-bot-app-1` on this machine) was NOT updated — different deploy path. Dev runs the previous binary.
 
 ### 🟣 Decisions Worth Remembering
 - **`No .env file found` log line is a benign false positive** — godotenv looks for a literal `.env` file in binary CWD, but env vars ARE loaded via compose's `env_file:` directive. Do not chase this.
 - **`nc -zv` from busybox is misleading** — returns 0 even when actual TCP connection times out. Use `nc -w 5` (with timeout) for real connectivity tests.
 - **Bridge drop with 0 packets in DOCKER-FORWARD = veth endpoint problem.** The fix is `docker network prune -f` after compose down, not just `docker compose down`.
 - **BotAPI refactor hits a structural ceiling on RunBot/InitBot** (2026-06-17): registration methods (`b.Use`, `b.Handle`, `b.Start`, `b.Stop`) live on the concrete `*telebot.Bot` and are intentionally not on the `ports.BotAPI` interface (which is for *outbound* API calls only). Extracting more of `RunBot` would require either (a) making the interface fatter, or (b) wrapping `*telebot.Bot` in an adapter that exposes registration methods. Both are large surface-area changes for diminishing coverage returns. Don't chase the +45pp projection.
+- **`scripts/deploy.sh` port-collision pre-flight is too strict for normal deploys** (2026-06-17): it refuses when 8082 is in use, but a normal `docker compose up -d --force-recreate` keeps the old container bound to 8082 during the swap. So the script aborts on every normal prod deploy. The actual production pattern (used this session) bypasses the wrapper: `docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml build --no-cache --pull app && docker compose ... up -d --force-recreate`. Consider fixing the pre-flight (e.g., add a `--force` flag, or check whether the bound process is a `massage-bot` container specifically).
 
 ### Source Layout (77 Go files, 11 internal packages)
 

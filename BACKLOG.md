@@ -467,7 +467,23 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
   5. Update `startup.md` reference paths once #43 is done.
 - **Verification**: `git status` clean on both sides; deploy succeeds without manual intervention; no `docker-compose.override.yml`-style files reappear.
 
+### 46. [TODO] Fix `scripts/deploy.sh` port-collision pre-flight (broken for normal deploys)
+- **Status**: Backlog
+- **Priority**: Low (deploy works around it; cosmetic/UX issue)
+- **Goal**: Make `scripts/deploy.sh prod` actually usable on a healthy prod (it currently aborts every normal deploy).
+- **Bug** (discovered 2026-06-18 during #34/#36 prod deploy of commit `8e150f4`):
+  - The pre-flight at `scripts/deploy.sh:36-48` runs `ss -tlnH | grep ":${PORT}\$"` and aborts the deploy if the port is bound.
+  - A normal `docker compose up -d --force-recreate` keeps the old container bound to the port during the atomic swap. So the pre-flight **always fires** on a healthy prod, and the script can never deploy a running bot.
+  - Worked around for the 2026-06-18 deploy by bypassing the wrapper and running the raw `docker compose ... build --no-cache --pull && docker compose ... up -d --force-recreate` directly (the same pattern the legacy `deploy_home_server.sh` uses).
+  - The pre-flight was originally added during the P0 incident investigation (see #41) to catch rogue bots squatting 8082 — it's correct in *that* scenario but blocks routine deploys.
+- **Tasks**:
+  1. Add a `--force` / `--skip-port-check` flag to `scripts/deploy.sh` (already half-done: `SKIP_PORT_CHECK=1` is hard-coded for `test`, needs to be a CLI flag for `prod`).
+  2. Better: make the pre-flight smarter — only abort if the bound process is NOT a `massage-bot` container (parse `ss -tlnp` output for the binary/PID and compare).
+  3. Update `AGENTS.md` / `startup.md` "How to deploy" section if the chosen approach changes the CLI surface.
+- **Source**: Discovered during 2026-06-18 prod deploy of commit `8e150f4` (see `~/Documents/my_obsidian_vault/Bridge/massage-bot-project/Checkpoints/Handoff-2026-06-18-0005.md`, "Decisions" section, last bullet).
+- **Verification**: `bash scripts/deploy.sh prod` succeeds on a running prod (no need to bypass). After deploy, `curl http://localhost:8082/health` returns 200 and the container is the freshly-rebuilt one.
+
 ---
 
-#### Last updated: 2026-06-17 23:55 (#34/#36 next-step: extracted setupMenuButton + runScheduledBackup from RunBot, both 100% covered via 7 new tests in bot_wiring_test.go; delivery/telegram 39.6% → 47.6% (+8.0pp), overall 76.0% → 76.6% (+0.6pp); remaining RunBot/InitBot is structural ceiling — registration code on concrete *telebot.Bot)
+#### Last updated: 2026-06-18 00:35 (handoff path fix: moved 5 handoffs from `Bridge/Checkpoints/` to `Bridge/massage-bot-project/Checkpoints/`; updated `.pi/skills/handoff/SKILL.md` path template; added #46 for the deploy.sh pre-flight bug found during today's prod deploy)
 

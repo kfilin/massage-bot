@@ -42,7 +42,7 @@ Edit `BACKLOG.md`:
 
 Create a timestamped handoff note in the Obsidian vault:
 
-**Path**: `~/Documents/my_obsidian_vault/Bridge/Checkpoints/Handoff-YYYY-MM-DD-HHmm.md`
+**Path**: `~/Documents/my_obsidian_vault/Bridge/massage-bot-project/Checkpoints/Handoff-YYYY-MM-DD-HHmm.md`
 
 **Template**:
 ```markdown
@@ -81,7 +81,7 @@ Before closing out, confirm:
 ```
 ✓ startup.md status section updated
 ✓ BACKLOG.md updated
-✓ Handoff note written to Bridge/Checkpoints/
+✓ Handoff note written to Bridge/massage-bot-project/Checkpoints/
 ✓ Any modified config files saved
 ```
 
