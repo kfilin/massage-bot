@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kfilin/massage-bot/internal/config"
 	"github.com/kfilin/massage-bot/internal/delivery/telegram/handlers"
 	"github.com/kfilin/massage-bot/internal/domain"
 	"github.com/kfilin/massage-bot/internal/logging"
@@ -102,34 +103,16 @@ func RunBot(
 		}
 	}
 
-	// Ensure Admin ID is in the allowed list for notifications
-	// Use a map to deduplicate IDs ensuring no double notifications
-	adminMap := make(map[string]bool)
-	if adminTelegramID != "" {
-		adminMap[adminTelegramID] = true
-	}
-	for _, id := range allowedTelegramIDs {
-		if id != "" {
-			adminMap[id] = true
-		}
-	}
-	for _, id := range therapistIDs {
-		if id != "" {
-			adminMap[id] = true
-		}
-	}
-
-	finalAdminIDs := make([]string, 0, len(adminMap))
-	for id := range adminMap {
-		finalAdminIDs = append(finalAdminIDs, id)
-	}
+	// Ensure Admin ID is in the allowed list for notifications.
+	// config.ResolveAdminIDs deduplicates the three sources (primary, allowed, therapist).
+	finalAdminIDs := config.ResolveAdminIDs(adminTelegramID, allowedTelegramIDs, therapistIDs)
 
 	botPresenter := presentation.NewBotPresenter()
 	bookingHandler := handlers.NewBookingHandler(appointmentService, sessionStorage, finalAdminIDs, therapistIDs, trans, repo, botPresenter, webAppURL, webAppSecret)
 
 	// Initialize and start Reminder Service
 	reminderService := reminder.NewService(appointmentService, repo, b, finalAdminIDs, botPresenter)
-	reminderService.Start(context.Background())
+	reminderService.Start(ctx)
 
 	// Start Daily Backup Worker (Sent to Primary Admin)
 	if adminTelegramID != "" {
