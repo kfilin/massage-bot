@@ -8,7 +8,7 @@ This is not optional. It is not skippable when the task "seems simple". It is no
 
 ### Startup Procedure
 
-1. **Execute `.agent/skills/startup.md`** (or `.pi/skills/startup/SKILL.md` in pi-native mode): Read and fully internalize it. Then:
+1. **Execute `.pi/skills/startup/SKILL.md`**: Read and fully internalize it. Then:
    - Run the Graphify queries: `graph_stats()`, `god_nodes(top_n=10)`, `query_graph("What are the main components and how do they interact?", depth=2)`
    - Absorb the project context, infrastructure map, ops patterns, and current priorities in that file
    - Do NOT print raw query output to the user
@@ -73,7 +73,7 @@ If you find yourself struggling with a task, document it and discuss with the us
 ---
 
 ## ⚙️ Operational Routines
-- **Mandatory Session Handoff**: At the end of every active development session, or when wrapping up, you MUST execute the handoff routine (`.agent/skills/handoff.md` or `.pi/skills/handoff/SKILL.md`). This includes updating the repository architecture diagrams, regenerating code graphs using AST code-graph tools (if available), and executing a DOX documentation pass to update technical guides to fully document whatever features and commands were implemented.
+- **Mandatory Session Handoff**: At the end of every active development session, or when wrapping up, you MUST execute the handoff routine (`.pi/skills/handoff/SKILL.md`). This includes updating the repository architecture diagrams, regenerating code graphs using AST code-graph tools (if available), and executing a DOX documentation pass to update technical guides to fully document whatever features and commands were implemented.
 - **Mandatory Semantic Search**: Before implementing any new helper function, utility, state transition, or model configuration, you MUST run a semantic search (if available) with a clear explanation of your intent to prevent duplicating helper functions or creating divergent design patterns.
 - **Concept Proposals for New Code**: When you create or refactor a core utility, pattern, or skill, propose a new concept card (or update an existing one) using the `propose_concept` tool (if available).
 
@@ -169,6 +169,6 @@ When the user requests a durable behavior change, record it here or in the relev
 - [docs](docs) - API specifications and developer onboarding SOPs.
 - [internal](internal) - Core domain logic, ports, adapters, and services.
 - [scripts](scripts) - Backup, metric compilation, and deployment helper scripts.
-- [.agent](.agent) - Harness session storage, Project Hub, and project-specific skills (legacy Antigravity-era layout; still in sync with `.pi/`).
+- [.agent](.agent) - Harness session storage, Project Hub, and project config (HARNESS_GUIDE.md, project-config.env, Project-Hub.md). Skills live in `.pi/skills/`.
 - [.pi](.pi) - Pi-native harness: project-local skills (Agent Skills standard) and settings (preferred for new work).
 - [global-skills](global-skills) - Project-agnostic engineering methodologies library.
