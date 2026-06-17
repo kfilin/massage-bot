@@ -23,12 +23,21 @@ type mockBotAPI struct {
 	mu sync.Mutex
 
 	sentMessages []sentRecord
+	rawCalls     []rawCall
 
 	// Optional behaviour overrides
 	sendErr  error
 	fileRead io.ReadCloser
 	fileErr  error
 	copyErr  error
+	rawErr   error
+}
+
+// rawCall records one invocation of mockBotAPI.Raw so wiring tests can
+// assert on the Telegram method name and the payload structure.
+type rawCall struct {
+	method  string
+	payload interface{}
 }
 
 type sentRecord struct {
@@ -72,7 +81,13 @@ func (m *mockBotAPI) File(_ *telebot.File) (io.ReadCloser, error) {
 	return io.NopCloser(strings.NewReader("")), nil
 }
 
-func (m *mockBotAPI) Raw(_ string, _ interface{}) ([]byte, error) {
+func (m *mockBotAPI) Raw(method string, payload interface{}) ([]byte, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.rawErr != nil {
+		return nil, m.rawErr
+	}
+	m.rawCalls = append(m.rawCalls, rawCall{method: method, payload: payload})
 	return nil, nil
 }
 

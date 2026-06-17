@@ -68,6 +68,71 @@ func InitBot(token string) (*telebot.Bot, error) {
 	return nil, err
 }
 
+// setupMenuButton configures the chat menu button for the bot via the
+// Telegram Bot API. When webAppURL is empty, this is a no-op (the
+// feature is disabled). On success, it logs an info line. On failure
+// it logs a warning and returns the underlying error so the caller
+// (typically RunBot) can decide how to react.
+//
+// Extracted from RunBot so it can be unit-tested with a mock BotAPI
+// (see bot_wiring_test.go). The real *telebot.Bot satisfies BotAPI.
+func setupMenuButton(b ports.BotAPI, webAppURL string) error {
+	if webAppURL == "" {
+		return nil
+	}
+	// Use raw API call to avoid nil pointer issues with SetMenuButton
+	params := map[string]interface{}{
+		"menu_button": map[string]interface{}{
+			"type": "web_app",
+			"text": "Открыть карту",
+			"web_app": map[string]string{
+				"url": webAppURL,
+			},
+		},
+	}
+	if _, err := b.Raw("setChatMenuButton", params); err != nil {
+		logging.Warnf("Failed to set menu button: %v", err)
+		return err
+	}
+	logging.Info("Menu button configured successfully")
+	return nil
+}
+
+// runScheduledBackup performs one cycle of the daily backup job:
+//  1. ask the repository to create a ZIP of patient data
+//  2. send that ZIP to the primary admin as a Telegram Document
+//  3. remove the local temp file to save server disk
+//
+// Any failure (CreateBackup error, invalid admin ID, Send failure) is
+// logged and returned to the caller. The function is safe to call
+// even if the temp file was never created (os.Remove is a no-op on
+// missing files). Extracted from RunBot for testability.
+func runScheduledBackup(repo ports.Repository, b ports.BotAPI, adminTelegramID string) error {
+	logging.Infof("[BackupWorker] Starting scheduled daily backup for Admin %s...", adminTelegramID)
+	zipPath, err := repo.CreateBackup()
+	if err != nil {
+		logging.Errorf("[BackupWorker] FAILED to create scheduled backup: %v", err)
+		return err
+	}
+	defer os.Remove(zipPath)
+
+	adminIntID, err := strconv.ParseInt(adminTelegramID, 10, 64)
+	if err != nil {
+		logging.Errorf("[BackupWorker] Invalid admin ID %q: %v", adminTelegramID, err)
+		return err
+	}
+	doc := &telebot.Document{
+		File:     telebot.FromDisk(zipPath),
+		FileName: filepath.Base(zipPath),
+		Caption:  fmt.Sprintf("💾 Ежедневная копия данных (%s)\n\n<i>Примечание: Локальный файл удален для экономии места.</i>", time.Now().Format("02.01.2006")),
+	}
+	if _, err := b.Send(&telebot.User{ID: adminIntID}, doc, telebot.ModeHTML); err != nil {
+		logging.Errorf("[BackupWorker] FAILED to send scheduled backup: %v", err)
+		return err
+	}
+	return nil
+}
+
 // RunBot starts the main event loop of the Telegram bot.
 func RunBot(
 	ctx context.Context,
@@ -82,25 +147,9 @@ func RunBot(
 	webAppSecret string,
 	therapistIDs []string,
 ) {
-	// Set menu button for quick TWA access
-	if webAppURL != "" {
-		// Use raw API call to avoid nil pointer issues with SetMenuButton
-		params := map[string]interface{}{
-			"menu_button": map[string]interface{}{
-				"type": "web_app",
-				"text": "Открыть карту",
-				"web_app": map[string]string{
-					"url": webAppURL,
-				},
-			},
-		}
-
-		if _, err := b.Raw("setChatMenuButton", params); err != nil {
-			logging.Warnf("Failed to set menu button: %v", err)
-		} else {
-			logging.Info("Menu button configured successfully")
-		}
-	}
+	// Set menu button for quick TWA access. The raw API call is wrapped
+	// by setupMenuButton so this behaviour is unit-testable.
+	_ = setupMenuButton(b, webAppURL)
 
 	// Ensure Admin ID is in the allowed list for notifications.
 	// config.ResolveAdminIDs deduplicates the three sources (primary, allowed, therapist).
@@ -113,7 +162,8 @@ func RunBot(
 	reminderService := reminder.NewService(appointmentService, repo, b, finalAdminIDs, botPresenter)
 	reminderService.Start(ctx)
 
-	// Start Daily Backup Worker (Sent to Primary Admin)
+	// Start Daily Backup Worker (Sent to Primary Admin). The inner
+	// work is delegated to runScheduledBackup so it is testable.
 	if adminTelegramID != "" {
 		go func() {
 			// Wait 5 minutes after startup to avoid congestion
@@ -122,27 +172,7 @@ func RunBot(
 			defer ticker.Stop()
 
 			for range ticker.C {
-				logging.Infof("[BackupWorker] Starting scheduled daily backup for Admin %s...", adminTelegramID)
-				zipPath, err := repo.CreateBackup()
-				if err != nil {
-					logging.Errorf("[BackupWorker] FAILED to create scheduled backup: %v", err)
-					continue
-				}
-
-				adminIntID, err := strconv.ParseInt(adminTelegramID, 10, 64)
-				if err == nil {
-					doc := &telebot.Document{
-						File:     telebot.FromDisk(zipPath),
-						FileName: filepath.Base(zipPath),
-						Caption:  fmt.Sprintf("💾 Ежедневная копия данных (%s)\n\n<i>Примечание: Локальный файл удален для экономии места.</i>", time.Now().Format("02.01.2006")),
-					}
-					_, err = b.Send(&telebot.User{ID: adminIntID}, doc, telebot.ModeHTML)
-					if err != nil {
-						logging.Errorf("[BackupWorker] FAILED to send scheduled backup: %v", err)
-					}
-				}
-				// Cleanup temporary zip to save server disk space
-				os.Remove(zipPath)
+				_ = runScheduledBackup(repo, b, adminTelegramID)
 			}
 		}()
 	}

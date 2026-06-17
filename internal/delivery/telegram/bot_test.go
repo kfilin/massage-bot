@@ -159,6 +159,7 @@ type mockRepository struct {
 	getPatientFunc     func(telegramID string) (domain.Patient, error)
 	searchPatientsFunc func(query string) ([]domain.Patient, error)
 	saveMediaFunc      func(media domain.PatientMedia) error
+	createBackupFunc   func() (string, error)
 
 	getPatientMediaFunc func(patientID string) ([]domain.PatientMedia, error)
 	getMediaByIDFunc    func(mediaID string) (*domain.PatientMedia, error)
@@ -239,6 +240,9 @@ func (m *mockRepository) GenerateAdminSearchPage() string {
 }
 
 func (m *mockRepository) CreateBackup() (string, error) {
+	if m.createBackupFunc != nil {
+		return m.createBackupFunc()
+	}
 	return "/tmp/backup.zip", nil
 }
 

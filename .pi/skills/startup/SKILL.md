@@ -71,30 +71,30 @@ A professional clinical ecosystem for massage therapists: interactive booking, a
                     └─────────────────────────────────────────────────┘
 ```
 
-## 📋 Status & Priorities (Updated 2026-06-17 23:25)
+## 📋 Status & Priorities (Updated 2026-06-17 23:55)
 
 > Updated by `/handoff` at end of each session. Read this BEFORE Step 2 context below — it tells the next agent what just happened and what to focus on.
 
-### 🟢 Recently Completed (last session: P0 prod incident)
-- **#41 incident 2 resolved** — prod crash loop root cause: orphaned `vera-bot_bot-db-net` Docker network from a prior `vera-bot` test project held stale veth endpoints. Fixed with `docker compose down && docker network prune -f && docker compose up -d` (4 stale networks pruned). Prod back at `200`, bot authenticated, Reminder Service started.
-- **`chmod 600 /opt/vera-bot/.env`** — was `0644` (group-readable credentials) → now `0600`.
-- **Removed stale `docker-compose.override.yml`** from `/opt/vera-bot/` (167 bytes, 2026-01-20, referenced dead registry image, was a no-op).
-- **BACKLOG.md** updated: #41 split into 2 incidents, #44/#45 resolved bullets removed, new dated session entry `2026-06-17 23:25`. Commit `ee2b14a` on master. Pushed to GitHub + GitLab, mirrored to server.
-- **Server was 13 commits behind master** — `git pull --ff-only` on `/opt/vera-bot` synced it. Found new `internal/ports/botapi.go` (BotAPI refactor — #34/#36).
+### 🟢 Recently Completed (last session: BotAPI wiring tests)
+- **#34/#36 next-step shipped**: Extracted two testable seams from `RunBot` (`setupMenuButton`, `runScheduledBackup`), both consume `ports.BotAPI` and are now 100% covered via 7 new tests in `internal/delivery/telegram/bot_wiring_test.go`. Mocks: `mockBotAPI` extended with `rawCalls`/`rawErr`; `mockRepository` extended with `createBackupFunc`. No regressions — all 15 packages pass.
+- **Coverage gains**: `delivery/telegram` 39.6% → **47.6%** (+8.0pp); overall **76.0% → 76.6%** (+0.6pp). Gap to #36 80% target: 3.4pp (down from 4.0pp).
+- **BACKLOG.md** updated: #34 + #36 status blocks, "Last updated" line to 2026-06-17 23:55. New next-target #4 added: `*telebot.Bot` → `ports.BotAPI` compile-time satisfaction test (would catch silent interface drift).
 
 ### 🟡 Active Focus
-- **#36 Test Coverage → 80%** (currently 76.1%, gap 3.9pp). The newly-pulled `internal/ports/botapi.go` should unblock the `delivery/telegram` wiring coverage (the big one, +45pp potential). Next concrete step: extend tests to cover the bot-wiring code paths that consume `BotAPI`.
-- **#34 Phase 4: Integration Testing with Testcontainers** — IN PROGRESS. Storage at 68.7%. Routing extracted and 100% covered. `cmd/bot` glue code is a low-ROI 6.6% ceiling.
+- **#36 Test Coverage → 80%** (currently **76.6%**, gap 3.4pp). Remaining structural ceiling: `RunBot`/`InitBot` are 0% — the uncovered code is handler/middleware *registration* (b.Handle, b.Use, b.Start, b.Stop) which lives on the concrete `*telebot.Bot`, not on `BotAPI`. Cannot be tested through the abstraction. Other next-targets in BACKLOG: `cmd/bot` (6.6%, low ROI), `delivery/web` StartServer, `BotAPI` satisfaction test.
+- **#34 Phase 4: Integration Testing with Testcontainers** — IN PROGRESS. Storage at 86.0% (unit) / 91.7% (integration). Routing 100%. `RunBot`/`InitBot` confirmed as structural ceiling for the telegram package.
 
 ### 🔴 Blockers / Known Issues
 - **None active.** Server prod is healthy.
 - **Server `AGENTS.md` is 1550 bytes stale** (still references skills that don't exist locally — `database-expert`, `devops-harness`, etc.) — see #45. Low priority.
 - **Server `/opt/vera-bot` lacks `git pull` in deploy** — was 13 commits behind. Add a `git pull --ff-only` step to `scripts/deploy.sh` so deploys stay in sync. (Follow-up to do, not blocking.)
+- **Dev-machine `go test ./...` perm denied** on `postgres_data/` (UID 70 owns the dir). Workaround: `go test ./cmd/... ./internal/...` (same pattern as `.gitlab-ci.yml`). #44.
 
 ### 🟣 Decisions Worth Remembering
 - **`No .env file found` log line is a benign false positive** — godotenv looks for a literal `.env` file in binary CWD, but env vars ARE loaded via compose's `env_file:` directive. Do not chase this.
 - **`nc -zv` from busybox is misleading** — returns 0 even when actual TCP connection times out. Use `nc -w 5` (with timeout) for real connectivity tests.
 - **Bridge drop with 0 packets in DOCKER-FORWARD = veth endpoint problem.** The fix is `docker network prune -f` after compose down, not just `docker compose down`.
+- **BotAPI refactor hits a structural ceiling on RunBot/InitBot** (2026-06-17): registration methods (`b.Use`, `b.Handle`, `b.Start`, `b.Stop`) live on the concrete `*telebot.Bot` and are intentionally not on the `ports.BotAPI` interface (which is for *outbound* API calls only). Extracting more of `RunBot` would require either (a) making the interface fatter, or (b) wrapping `*telebot.Bot` in an adapter that exposes registration methods. Both are large surface-area changes for diminishing coverage returns. Don't chase the +45pp projection.
 
 ### Source Layout (77 Go files, 11 internal packages)
 

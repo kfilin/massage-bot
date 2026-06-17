@@ -278,6 +278,7 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
   - **Telegram coverage: 4.4% → 21.2%** (2026-06-17). Routing logic itself is ~100% covered (32 new tests).
   - Dead file `internal/delivery/telegram/bot.go.bak` (17KB stale Feb-04 backup) removed.
 - **Remaining**: `delivery/telegram` wiring (`RunBot`, `InitBot`) still untestable without mocking `*telebot.Bot`; structural ceiling for this package ~25%. `cmd/bot` (6.6%) is mostly glue/wiring — low ROI.
+- **Update 2026-06-17 (next session)**: Two testable seams extracted from `RunBot` (`setupMenuButton`, `runScheduledBackup`); both consume `ports.BotAPI` and are now 100% covered via `bot_wiring_test.go` (7 new tests). The remaining `RunBot`/`InitBot` code is registration (b.Handle, b.Use, b.Start, b.Stop) which stays on the concrete `*telebot.Bot` and is structurally untestable through the BotAPI interface. Package coverage 39.6% → 47.6% (+8.0pp). Overall: 76.0% → 76.6% (+0.6pp). `RunBot` itself still 0%.
 ### 35. [TODO] WebApp Handler Refactoring
 - **Status**: Backlog
 - **Priority**: Medium
@@ -302,11 +303,12 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
   - delivery/telegram: 19 sub-cases for 3 session helpers.
   - reminder: 1 Start coverage test.
   - services/appointment: 5 metrics collector tests.
-- **Next targets** (for 80%): Close the 5.2pp gap by addressing structural ceilings:
-  1. **`delivery/telegram` wiring (24.6% → ~70%)**: requires `BotAPI` interface refactor — see #34 next-action.
+- **Next targets** (for 80%): Close the 3.4pp gap (was 5.2pp):
+  1. ~~`delivery/telegram` wiring (24.6% → ~70%)~~: partially done (47.6% reached; +70% unreachable without `*telebot.Bot` mocking).
   2. **`cmd/bot` (6.6% → ~40%)**: low ROI glue code, but adds ~3pp overall.
   3. **`delivery/web` StartServer (0% → ~50%)**: requires extracting the HTTP-server bootstrap from `StartServer` into a testable function.
-- **Structural ceilings**: `delivery/telegram` (RunBot/InitBot need `*telebot.Bot` mocking), googlecalendar OAuth (NewGoogleCalendarClient needs real Google creds).
+  4. **`BotAPI` interface satisfaction test** (`internal/ports/botapi.go`): add a static assertion that `*telebot.Bot` actually implements `ports.BotAPI`. Catches the case where the interface drifts and the real bot silently stops satisfying it (compile-time today, but easy to miss for downstream consumers).
+- **Structural ceilings**: `delivery/telegram` (RunBot/InitBot need `*telebot.Bot` mocking; only registration-side code remains uncovered), googlecalendar OAuth (NewGoogleCalendarClient needs real Google creds).
 - **Tests added across all sessions**: ~140 new test functions.
 
 ### 37. [TODO] Grafana Dashboard Sync
@@ -467,5 +469,5 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
 
 ---
 
-#### Last updated: 2026-06-17 23:25 (P0 incident 2 resolved: orphaned Docker network; #41 updated with both incidents; .env 0600; override removed; #44/#45 drift items partially resolved)
+#### Last updated: 2026-06-17 23:55 (#34/#36 next-step: extracted setupMenuButton + runScheduledBackup from RunBot, both 100% covered via 7 new tests in bot_wiring_test.go; delivery/telegram 39.6% → 47.6% (+8.0pp), overall 76.0% → 76.6% (+0.6pp); remaining RunBot/InitBot is structural ceiling — registration code on concrete *telebot.Bot)
 
