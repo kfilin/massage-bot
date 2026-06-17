@@ -11,7 +11,7 @@ variables:
 # =====================
 run-tests:
   stage: test
-  image: golang:1.23
+  image: golang:1.25.3-alpine
   script:
     - go vet ./...
     - go test -v ./...
