@@ -41,17 +41,35 @@ func (s *Service) Start(ctx context.Context) {
 	ticker := time.NewTicker(10 * time.Minute)
 	logging.Infof("Reminder Service started.")
 
+	s.RunLoopForTest(ctx, ticker.C, ticker.Stop)
+}
+
+// RunLoopForTest is the inner goroutine extracted from Start so it can be
+// driven by a manual channel in tests. Production code calls Start; tests
+// call RunLoopForTest directly with their own ticks and stop callback.
+//
+// It returns a done channel that is closed once the inner goroutine exits
+// (after defer stop() runs). Callers should wait on this to know the loop
+// has actually terminated — RunLoopForTest itself returns immediately.
+//
+// Defer order matters: close(done) must be registered BEFORE stop() so that
+// stop() runs first (defers are LIFO). Otherwise callers receiving from
+// `done` would observe a stop callback that hasn't actually fired yet.
+func (s *Service) RunLoopForTest(ctx context.Context, ticks <-chan time.Time, stop func()) <-chan struct{} {
+	done := make(chan struct{})
 	go func() {
+		defer close(done)
+		defer stop()
 		for {
 			select {
-			case <-ticker.C:
+			case <-ticks:
 				s.ScanAndSendReminders(ctx)
 			case <-ctx.Done():
-				ticker.Stop()
 				return
 			}
 		}
 	}()
+	return done
 }
 
 func (s *Service) ScanAndSendReminders(ctx context.Context) {

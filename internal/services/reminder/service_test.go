@@ -295,3 +295,63 @@ func TestSendReminder_BotSendError_DoesNotPanic(t *testing.T) {
 	// Should not panic even if bot.Send fails
 	svc.ScanAndSendReminders(context.Background())
 }
+
+// --- runLoop tests (exercises Start() loop logic without real time.Ticker) ---
+
+func TestRunLoop_FiresOnTickAndStopsOnContextDone(t *testing.T) {
+	bot := &mockBotSender{}
+	repo := newMockReminderRepo()
+	svc := NewService(&mockApptService{}, repo, bot, nil, presentation.NewBotPresenter())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	ticks := make(chan time.Time)
+	stopCalled := false
+	stop := func() { stopCalled = true }
+
+	done := svc.RunLoopForTest(ctx, ticks, stop)
+
+	// Send one tick — should trigger ScanAndSendReminders (no appts, no-op).
+	ticks <- time.Now()
+
+	// Cancel context — loop should exit and call stop().
+	cancel()
+
+	select {
+	case <-done:
+		// loop exited
+	case <-time.After(time.Second):
+		t.Fatal("RunLoopForTest did not exit within 1s after context cancel")
+	}
+
+	if !stopCalled {
+		t.Error("expected stop() to be called when context is cancelled")
+	}
+}
+
+func TestRunLoop_MultipleTicksAreProcessed(t *testing.T) {
+	bot := &mockBotSender{}
+	svc := NewService(&mockApptService{}, newMockReminderRepo(), bot, nil, presentation.NewBotPresenter())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	ticks := make(chan time.Time, 3)
+	stop := func() {}
+
+	done := svc.RunLoopForTest(ctx, ticks, stop)
+
+	// Fire three ticks (no appointments → no sends, just loop iterations).
+	ticks <- time.Now()
+	ticks <- time.Now()
+	ticks <- time.Now()
+
+	// Give the goroutine time to drain all three buffered ticks.
+	time.Sleep(50 * time.Millisecond)
+
+	cancel()
+
+	select {
+	case <-done:
+		// loop exited cleanly — all ticks were consumed
+	case <-time.After(time.Second):
+		t.Fatal("RunLoopForTest did not exit within 1s after context cancel")
+	}
+}

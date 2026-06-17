@@ -256,11 +256,16 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
 
 ### 34. [IN PROGRESS] Phase 4: Integration Testing with Testcontainers
 
-- **Status**: In Progress (2026-06-14)
+- **Status**: In Progress (2026-06-17) — routing layer extracted & tested; storage stable at 68.7%
 - **Priority**: Medium
 - **Goal**: Maximize project test coverage (aiming for >80% total) by implementing integration tests for the `internal/storage` (Postgres) and `internal/delivery/telegram` (bot routing) layers.
-- **Progress**: testcontainers-go installed. 16 integration tests added for `internal/storage` covering all CRUD operations, session storage, and appointment metadata. Storage coverage: 32% → 54%.
-- **Remaining**: `internal/delivery/telegram` bot routing tests (needs Telegram API mock).
+- **Progress**:
+  - testcontainers-go installed. 16 integration tests for `internal/storage` covering all CRUD operations, session storage, and appointment metadata.
+  - Storage coverage: 32% → **68.7%** (2026-06-17).
+  - **Telegram routing extracted** (2026-06-17): pure-function refactor — `RouteCallback(data)` and `RouteTextMessage(text, SessionView)` extracted into `internal/delivery/telegram/routing.go`; side-effecting helpers (`handleAdminReply`, `forwardPatientMessageToAdmins`) extracted into `text_flow.go`. `bot.go` OnCallback/OnText handlers now delegate routing decisions to these functions (behavior-preserving).
+  - **Telegram coverage: 4.4% → 21.2%** (2026-06-17). Routing logic itself is ~100% covered (32 new tests).
+  - Dead file `internal/delivery/telegram/bot.go.bak` (17KB stale Feb-04 backup) removed.
+- **Remaining**: `delivery/telegram` wiring (`RunBot`, `InitBot`) still untestable without mocking `*telebot.Bot`; structural ceiling for this package ~25%. `cmd/bot` (6.6%) is mostly glue/wiring — low ROI.
 ### 35. [TODO] WebApp Handler Refactoring
 - **Status**: Backlog
 - **Priority**: Medium
@@ -268,10 +273,10 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
 - **Rationale**: Currently, handlers are mixed with application entry logic. Moving them to `internal/` ensures better architecture alignment and follows the "package by feature/layer" pattern used in the rest of the project.
 
 ### 36. [IN PROGRESS] Test Coverage Hardening (80%+)
-- **Status**: In Progress — paused by user (2026-06-14)
+- **Status**: In Progress — resumed 2026-06-17
 - **Priority**: High
 - **Goal**: Increase repository test coverage from ~42% to 80%+.
-- **Progress (after Sprint 5)**: Overall ~42% → ~70%+. Key gains: storage 32→68.7%, handlers 40→78.1%, cmd/bot 27→66.1%, googlecalendar 53→69.7%, transcription 23→88.2%, services/appointment 86→92.5%.
+- **Progress (after Sprint 5 + 2026-06-17)**: Overall ~42% → ~70%+. Key gains: storage 32→68.7%, handlers 40→78.1%, cmd/bot 27→66.1%, googlecalendar 53→69.7%, transcription 23→88.2%, services/appointment 86→92.5%.
 - **Per-function wins**: NewTranscribeHandler 73→100%, NewUpdatePatientHandler 73.8→100%, tokenFromFile 33.3→100%, backoff 83.3→100%, NewWebAppHandler 57.3→87.9%.
 - **Next targets**: `reminder` (81.5%), `domain` (91.7%), `logging` (91.2%), `services/appointment` (92.5%). Structural ceilings: `delivery/telegram` (4.2%), googlecalendar OAuth (getToken/saveToken 0%).
 - **Tests added across sessions**: ~121 new test functions.
@@ -446,5 +451,5 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
 
 ---
 
-#### Last updated: 2026-06-17 (post-P2s; #41 + #44 partial complete)
+#### Last updated: 2026-06-17 (post-P2s; #41 + #44 partial complete; #34 routing extracted + tested; reminder 81.5→91.4%)
 
