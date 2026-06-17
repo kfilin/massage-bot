@@ -1,5 +1,13 @@
 # Project Backlog
 
+## 🟢 Session 2026-06-17 23:25 — P0: Production Crash Loop Resolved (Orphaned Docker Network)
+
+- [x] Diagnosed prod crash loop via `nc -w 3` + `ping` from app container → 100% packet loss on `massage-bot-internal` bridge in **both directions** (app↔db), even with correct ARP, correct routes, fresh network, and post-`systemctl restart docker`. Bridge had `fdb_n_learned 2` while caddy-test-net had 44, indicating veth endpoints from a prior `vera-bot` project were still attached to a phantom `vera-bot_bot-db-net` network.
+- [x] Fixed with `docker compose down && docker network prune -f && docker compose up -d`. **4 stale networks** pruned (`vera-bot_bot-db-net`, `openclaw_default`, `diun_default`, `massage-bot-test_bot-db-net`). Prod back online — `/health` returns 200, bot authenticated as `@vera_massage_bot`, Reminder Service started.
+- [x] Closed out deferred items from prior #41: `chmod 600 /opt/vera-bot/.env` (was 0644) and removed stale `docker-compose.override.yml` (167 bytes from 2026-01-20, referenced dead `registry.gitlab.com/kfilin/massage-bot:latest` image, service name `massage-bot` didn't match main `app` service — was a no-op override).
+- [x] Updated #41, #44, #45 with new root cause + removed resolved bullets. Forensic snapshots saved at `/tmp/vera-prod-pre-fix.{log,json}` and `/tmp/vera-net-pre-fix.json` for the record.
+- **Note**: `No .env file found` log line is a false positive — godotenv looks for a literal `.env` file in the binary's CWD, but env vars ARE loaded via compose's `env_file:` directive. The line appears even when env is correctly loaded. Do not chase this; it is benign noise.
+
 ## 🟢 Session 2026-06-17 13:55 — Startup: replace project-agnostic with project-specific
 
 - [x] Replaced `.pi/skills/startup/SKILL.md` project-agnostic skeleton (hydrated on 2026-06-17 morning) with project-specific lean version (241 lines). Now bakes in: architecture (Hexagonal/Clean, Go binary, telebot, PostgreSQL, Google Calendar, Groq Whisper, WebDAV), source layout (77 Go files, 11 internal packages), deploy targets (local docker, test :8086, prod :8082), and top 6 gotchas (PII Shield, No Production Commits, pre-commit audit, credentials.json, coverage.out, `.agent_legacy*` cleanup). **Pending**: remove `.agent_legacy*` dirs in a dedicated cleanup session.
@@ -329,34 +337,20 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
 
 > **Trigger**: User session review of `what_to_fix.md` + server inspection revealed a stack of long-standing hygiene issues that all need to be resolved together. Not blocking P0 fix in #41 but should be sequenced after it.
 
-### 41. [DONE] Production Bot Offline — Fix Container Collision + Missing .env
-- **Status**: Completed (2026-06-17) — prod bot back online, port 8082 bound, LOG_LEVEL=INFO, auth_date check deployed.
-- **Resolution**: Root cause was a zombie `massage-bot` container stuck in `Created` state from a prior failed `docker compose up`, holding the port 8082 Docker-internal allocation even though the port appeared free in `ss` (the allocation is in Docker's network, not the host's listen list). `docker rm -f massage-bot` + `docker compose up -d app` brought it back. The original P0 path-collison narrative (gateway-2 holding 8082) was outdated — gateway-2 had moved to 8088. The .env / TG_BOT_TOKEN issue from the earlier `vera-bot-massage-bot-1` failure (Apr 2026 gitlab image) was resolved by the time the new `massage-bot` image ran (env_file directive honoured). `LOG_LEVEL=DEBUG → INFO` applied via `docker compose up -d` (restart doesn't re-read `env_file`). Removed `HEALTH_PORT=8081` dead override line from `/opt/vera-bot/.env`. Removed the old `vera-bot-massage-bot-1` Exited container. **Remaining from this issue's secondary items**: `chmod 600 /opt/vera-bot/.env` (still 0644) and the `docker-compose.override.yml` on the server (see #44/#45).
-- **Commits**: `08a50a9` (auth_date), `fe16a0e` (webapp move), `7975878` (booking split), `e66ef8a` (memory limit), `119bc85`/`d7ed7ba`/`b6a9fdb`/`8c99feb` (P2s).
-- **Status**: Backlog (P0 — production down)
+### 41. [DONE] Production Bot Offline — Two Stacked Incidents
+- **Status**: Completed (2026-06-17, two separate incidents)
 - **Priority**: P0
-- **Goal**: Restore the vera-bot service. Two stacked issues confirmed by server inspection:
-  1. `vera-bot-massage-bot-1` exited with code 1 at `2026-06-16T20:45:36Z`. **Actual root cause** (not port collision): `No .env file found or error loading .env file` → `Environment variable TG_BOT_TOKEN is not set` (fatal). `/opt/vera-bot/.env` exists with the token — `docker compose up` either ran from wrong CWD or `env_file` directive wasn't honored. A second `massage-bot` container exists in `Created` status with zero logs (from `deploy.sh`'s `docker run` path).
-  2. Port 8082 is held by `gateway-2` (29h uptime, `0.0.0.0:8082->8080/tcp`). Compose's default `HOST_WEBAPP_PORT:-8082` will continue to collide even after #1 is fixed.
-- **Secondary issues to fix in the same change window**:
-  - `docker-compose.override.yml` redefines the service as `massage-bot`, conflicting with the `app` service in the base compose — caused the dual-container mess.
-  - `deploy.sh` has no `cd $APP_DIR` and uses `-p 8080:8080 -p 8081:8081` (wrong ports). Replace with `deploy_home_server.sh` semantics or remove.
-  - `chmod 600 /opt/vera-bot/.env` — currently `0644` (group-readable credentials in production, also confirmed in `what_to_fix.md` #4.1).
-- **Proposed fix sequence** (NOT to execute without explicit user approval):
-  ```bash
-  ssh server "cd /opt/vera-bot && \
-    docker compose down && \
-    docker rm -f massage-bot 2>/dev/null || true && \
-    chmod 600 .env && \
-    rm docker-compose.override.yml && \
-    sed -i 's/HOST_WEBAPP_PORT:-8082/HOST_WEBAPP_PORT:-8086/' .env && \
-    docker compose pull && \
-    docker compose up -d && \
-    sleep 15 && \
-    curl -s http://localhost:8086/health"
-  ```
-- **Verification**: `docker ps | grep massage-bot` shows Up, `/health` returns 200, smoke-test booking flow on staging first, then repeat on prod.
-- **Source**: User report (2026-06-16) + `ssh server` inspection + `what_to_fix.md` cross-reference.
+- **Incident 1 (morning)**: Zombie `massage-bot` container in `Created` state from a prior failed `docker compose up` was holding the port 8082 Docker-internal allocation. Resolved with `docker rm -f massage-bot` + `docker compose up -d app`. The earlier "env_file not honored" narrative from the Apr 2026 `vera-bot-massage-bot-1` failure was already resolved by the time the new `massage-bot` image ran. Also: `LOG_LEVEL=DEBUG → INFO`, removed dead `HEALTH_PORT=8081` line from `.env`, removed old Exited container.
+- **Incident 2 (evening, 19:35–23:25)**: Bot in crash loop with `dial tcp 172.19.0.2:5432: i/o timeout` from app to db on the `massage-bot-internal` bridge. **Root cause**: orphaned `vera-bot_bot-db-net` Docker network from a prior `vera-bot` project (test environment) was holding stale veth endpoints, conflicting with the new `massage-bot-internal` bridge. Bridge had `fdb_n_learned 2` (the two endpoints registered but not learnable as reachable) and 0 packets traversed `DOCKER-FORWARD` for `br-302b26045b3e`. `docker compose down` alone did not help (the DB container had "Up 3 hours" because it survived a `systemctl restart docker` while running). `systemctl restart docker` + `docker compose up -d` did not help either (containers just reattached to existing namespace). **Fix that worked**: `docker compose down && docker network prune -f && docker compose up -d`. Pruned 4 stale networks (`vera-bot_bot-db-net`, `openclaw_default`, `diun_default`, `massage-bot-test_bot-db-net`). Prod `/health` 200, bot authenticated, no more crash loop.
+- **Deferred cleanups also closed in incident 2**:
+  - `chmod 600 /opt/vera-bot/.env` (was 0644 — group-readable credentials) ✓
+  - Removed stale `docker-compose.override.yml` (167 bytes from 2026-01-20, referenced dead `registry.gitlab.com/kfilin/massage-bot:latest`, service name `massage-bot` didn't match main `app` service — was a no-op) ✓
+- **Investigation notes for future reference**:
+  - `No .env file found or error loading .env file: open .env` is a **benign false positive** in logs — godotenv looks for a literal `.env` file in the binary's CWD, but env vars ARE loaded via compose's `env_file:` directive (confirmed by `docker exec printenv DB_HOST` returning `db`). Do not chase.
+  - `nc -zv` from busybox is misleading — returns 0 even when actual TCP connection times out. Use `nc -w 5` (with timeout) for real connectivity test.
+  - Bridge drop with 0 packets in DOCKER-FORWARD = veth endpoint problem. The fix is `docker network prune -f` after compose down, not just `docker compose down`.
+- **Commits**: `08a50a9` (auth_date), `fe16a0e` (webapp move), `7975878` (booking split), `e66ef8a` (memory limit), `119bc85`/`d7ed7ba`/`b6a9fdb`/`8c99feb` (P2s). Incident 2 fix was a server-side operational change; no code commit needed (docker-compose.yml was already correct).
+- **Forensic snapshots**: `/tmp/vera-prod-pre-fix.log` (1345 lines), `/tmp/vera-prod-pre-fix.json`, `/tmp/vera-net-pre-fix.json` on the server, retained for the record.
 
 ### 42. [DONE] Audit and Slim `.agent/` Folder — Migrate to Agentic OS v2 Template
 - **Status**: Completed (2026-06-17)
@@ -443,7 +437,7 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
 - ✅ **GitLab CI manual prod gate audit** (2026-06-17): Gate is functionally correct (`when: manual` + `needs: ["run-tests"]` + branch restriction). Migrated deprecated `only:` to modern `rules:` syntax. Added `environment:` blocks for both deploy jobs (enables GitLab deployment board + rollback UI).
 - ✅ **`go test ./...` permission fix** (2026-06-17): `.gitlab-ci.yml` test job changed from `go test ./...` to `go test ./cmd/... ./internal/...`. The old pattern failed on this dev machine with `open postgres_data: permission denied` (UID 70 postgres owns the volume); would have failed in CI too on any runner with similar permission layout. Also applies to `go vet` calls.
 - ✅ **Testcontainers as direct dep** (2026-06-17): `go.mod` now has `github.com/testcontainers/testcontainers-go` and `modules/postgres` as direct requires (were `// indirect` because the import is gated by `//go:build integration`).
-- 🔁 `docker-compose.override.yml` on server (167 bytes) — diff vs repo not yet inspected; presumed server-side drift. **Moved to #45 (Git Sync Hygiene) for follow-up.**
+- ✅ **`docker-compose.override.yml` removed** (2026-06-17): 167-byte stale override from 2026-01-20 was deleted from `/opt/vera-bot/` during the #41 incident-2 fix. Was a no-op (service name `massage-bot` didn't match main `app` service) and referenced the dead `registry.gitlab.com/kfilin/massage-bot:latest` image. No replacement needed — the base `docker-compose.yml` is the source of truth.
 - **Tasks**:
   1. Pin all images to specific versions (e.g., `golang:1.25-alpine`, `docker:27-dind`, `alpine:3.20`).
   2. Add port-collision pre-flight check to deploy scripts.
@@ -457,11 +451,11 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
 - **Status**: Backlog
 - **Priority**: Medium
 - **Goal**: Make local and server git states consistent and easily reconcilable. Reduce manual drift between `~/Documents/massage-bot/` (or `/home/Projects/massage-bot/` after #43) and `/opt/vera-bot/`.
-- **Known drift** (from server inspection):
+- **Known drift** (from server inspection, **partially resolved 2026-06-17**):
   - Server `AGENTS.md` is 1550 bytes, references skills that don't exist in current `.agent/skills/` (`database-expert`, `devops-harness`, `ai-integration-expert`, `twa-aesthetics`). Stale — was probably from an older bootstrap.
-  - `docker-compose.override.yml` exists on server (167 bytes) but NOT in local repo — implies uncommitted server-side drift, or it was deleted locally.
+  - ~~`docker-compose.override.yml` exists on server (167 bytes) but NOT in local repo~~ — **RESOLVED**: file removed during #41 incident-2 fix.
   - `deploy.sh` on server is dated `дек 26 19:48` (Dec 26, 2025) — much older than other files dated May 2026.
-  - `.env` on server is dated `апр 24 08:40` (Apr 24, 2026) — credentials haven't been rotated since April, despite being `0644`.
+  - `.env` on server is dated `апр 24 08:40` (Apr 24, 2026) — credentials haven't been rotated since April, but perms are now 0600 (was 0644) as of 2026-06-17.
   - `.env.example` on server is dated `мая 13 14:36` (May 13, 2026) — newer than `.env`, suggesting `.env.example` was updated after `.env` was last touched.
 - **Tasks**:
   1. `ssh server "cd /opt/vera-bot && git status && git log --oneline -5"` to see server's actual state.
@@ -473,5 +467,5 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
 
 ---
 
-#### Last updated: 2026-06-17 19:10 (caveat-fix pass complete: sendTelegramMessage 100%, Start done channel, BotAPI refactor → 76.1% overall; #34 ceiling partially broken; #36 at 76.1%, 3.9pp short of 80%)
+#### Last updated: 2026-06-17 23:25 (P0 incident 2 resolved: orphaned Docker network; #41 updated with both incidents; .env 0600; override removed; #44/#45 drift items partially resolved)
 
