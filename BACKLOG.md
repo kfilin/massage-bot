@@ -103,11 +103,15 @@
 - **Status**: Completed (2026-02-06).
 - **Resolution**: Added icons and descriptive text for empty sections (Notes, History, Docs) to improve UX for new patients.
 
-### 21. [TODO] History List Pagination
+### 21. [DONE] History List Pagination
 
-- **Priority**: Medium
-- If patient has 50+ visits, page gets very long
-- **Idea**: "Show more" button or virtual scrolling
+- **Status**: ✅ DONE 2026-06-18
+- **Resolution** (commit `f33ebb9`): server-side pagination (default limit 30, max 100) plus an AJAX "Show more" flow.
+- **Approach**: `?limit=N&offset=M` query params on the card endpoint. Handler reads them, slices the in-memory `appts` list (the full list is still loaded for `TotalVisits` / `FirstVisit` / `LastVisit` stats). `?partial=history` returns just the visit cards + a possible "Show more" button (rendered by the new `RenderHistoryFragment` presenter + `{{define "history_fragment"}}` block in `card.html`). The `loadMoreHistory` function in `app.js` fetches the partial URL (preserving auth params), parses the response, and appends to the history list — no scroll-jump, no full page reload.
+- **DB primitive**: new `ports.Repository.GetAppointmentHistoryPaginated(id, limit, offset) ([]Appointment, hasMore, error)`. The hasMore signal is computed via the limit+1 trick (no separate `COUNT(*)` query). Tested with 4 sqlmock tests (ExactPage, HasMore, Offset, DBError). Not called from the handler in this commit (the handler slices the already-loaded list), but available as a primitive for any future caller.
+- **Tests added**: 4 storage + 5 web handler + 1 presenter = 10 new tests. All 15 packages green. JS syntax validated with `node -c`.
+- **Verification**: `bash scripts/deploy.sh prod` would redeploy; the change is doc-only safe to skip — but the next routine deploy will pick it up.
+- **Not addressed**: virtual scrolling was an alternative in the original BACKLOG; chose the simpler "Show more" approach because the therapist's real upper bound is ~100 visits (1-2 per week over 1-2 years), so even a "Show more" once or twice covers the full history. Virtual scrolling would add JS complexity for no practical gain.
 
 ### 22. [TODO] Visual Hierarchy Enhancement
 
@@ -485,5 +489,5 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
 
 ---
 
-#### Last updated: 2026-06-18 01:25 (#45 done — server synced to 5c920a4, 2 stale files removed, "Server Read-Only Convention" added to AGENTS.md guardrails)
+#### Last updated: 2026-06-18 01:50 (#21 done — paginated history with AJAX show-more; commit f33ebb9; 10 new tests; storage/presentation/web all green)
 
