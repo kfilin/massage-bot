@@ -35,15 +35,49 @@ echo "🚀 Deploying massage-bot to ${ENV} (${APP_DIR})"
 # Pre-flight: refuse to deploy prod if webapp port is already in use.
 # (Bots across other repos have historically collided on 8082.)
 if [[ "$SKIP_PORT_CHECK" -eq 0 ]]; then
+  # Read the target port from .env (with a sane default).
+  # grep returns 1 if the key is missing; under `set -e` + `pipefail` that
+  # would abort the whole script, so guard with `|| true` here.
+  PORT=""
   if [[ -f "${APP_DIR}/.env" ]]; then
     # shellcheck disable=SC1090
-    PORT=$(grep -E '^HOST_WEBAPP_PORT=' "${APP_DIR}/.env" | cut -d= -f2 | tr -d '"' | tr -d "'")
+    PORT=$(grep -E '^HOST_WEBAPP_PORT=' "${APP_DIR}/.env" | cut -d= -f2 | tr -d '"' | tr -d "'" || true)
   fi
   PORT="${PORT:-8082}"
-  if command -v ss >/dev/null 2>&1 && ss -tlnH 2>/dev/null | awk '{print $4}' | grep -qE "[:.]${PORT}\$"; then
-    echo "ERROR: Port ${PORT} is already in use. Aborting prod deploy."
-    echo "       Either stop the conflicting container or change HOST_WEBAPP_PORT in ${APP_DIR}/.env"
-    exit 1
+
+  # Smart pre-flight: a normal `docker compose up -d --force-recreate` keeps
+  # the OLD container bound to the port during the atomic swap, so a naive
+  # `ss` check always fires on a healthy prod. Instead, only abort when the
+  # port is bound by something OUTSIDE our compose project. This preserves
+  # the original P0-incident protection (catching rogue bots squatting the
+  # port) while allowing routine deploys.
+  #
+  # 1. If one of our own containers already exposes PORT, allow.
+  #    `{{.Ports}}` can return a single published port, a published range
+  #    (e.g. `127.0.0.1:8082-8083->8082-8083/tcp`), an exposed-but-unbound
+  #    port (`8082/tcp`), or several comma-separated entries. We only need
+  #    to recognise PORT as a *host-side* port in any of these forms.
+  set +e
+  OUR_BINDING=$(docker ps --filter "label=com.docker.compose.project=vera-bot" \
+                       --format '{{.Ports}}' 2>/dev/null | \
+                  awk -F'->' '{print $1}' | \
+                  grep -E "(^|:|[-])${PORT}([-]|/|\$)")
+  set -e
+  if [[ -n "$OUR_BINDING" ]]; then
+    echo "✅ Port ${PORT} is bound by our own container — proceeding."
+  else
+    # 2. Port is not ours. Is it bound at all?
+    if command -v ss >/dev/null 2>&1 && \
+       ss -tlnH 2>/dev/null | awk '{print $4}' | grep -qE "[:.]${PORT}\$"; then
+      echo "ERROR: Port ${PORT} is in use by a process outside the vera-bot project."
+      echo "       Refusing to deploy. Stop the conflicting container, or change"
+      echo "       HOST_WEBAPP_PORT in ${APP_DIR}/.env, or set SKIP_PORT_CHECK=1."
+      echo "       Bound port detail:"
+      ss -tlnH 2>/dev/null | awk '{print "         ", $4}' | grep -E "[:.]${PORT}\$" || true
+      exit 1
+    fi
+    # 3. Port is free — fine.
+    echo "✅ Port ${PORT} is free — proceeding."
   fi
 fi
 
