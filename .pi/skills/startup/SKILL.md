@@ -1,171 +1,206 @@
 ---
 name: startup
-description: Project-agnostic session-start skill for the Agentic OS. Injects a thin orientation skeleton in <5K tokens, then asks the project to provide its own context (AGENTS.md, README, docs/, source layout). Use this as the base skill in any project the OS hydrates.
+description: Mandatory context injection for the massage-bot project. Lean version with project-specific architecture, source layout, services, and gotchas. Run BEFORE any user task.
 category: System
 priority: 0
 ---
 
-# Skill: Session Startup — Project-Agnostic Skeleton
+# Skill: Session Startup — Massage Bot
 
 ## Objective
 
-Orient the agent in any project the Agentic OS hydrates. This skill provides the **skeleton** — the steps every session must take, the output format, and the constraints. The **content** (architecture, services, gotchas, paths) is **discovered at runtime** from the project itself, not hardcoded here. That keeps this file small and reusable.
-
-**The cardinal rule:** never edit this file to add project-specific knowledge. Put that in the project's `AGENTS.md`, `README.md`, or `.agent/project-config.env`. The OS will read those in Step 2 below.
-
----
+Load the complete project context for **massage-bot** so you can work effectively from the first message. This replaces cold-start guessing with deep awareness of the codebase, infrastructure, and conventions. The project is a clinical appointment system for massage therapists — read `AGENTS.md` carefully, especially the PII Shield and "No Production Commits" rules, before touching patient data or `/opt/` paths.
 
 ## Mandatory: Execute on Session Start
 
 > [!IMPORTANT]
-> **This routine applies to ALL agents in this workspace — including IDE agents, CLI agents, and the OS's own subagents.**
+> **This routine applies to ALL agents in this workspace — including IDE agents (Antigravity, Goose, Claude Code) and the pi agent itself.**
 > If you are an agent that joined mid-session and has not run this routine yet: **stop what you are doing and run it now.** Do not answer the user's request first.
 
 **You MUST execute these steps automatically at the start of every conversation, BEFORE responding to any user task.**
 
 ### Step 1 — Graph Awareness (Codebase Understanding)
 
-If a code-graph MCP server is available (`graphify`, `repomix`, `code-graph`, etc.), run three queries silently. Do not print raw output:
+If the `graphify` MCP server is available, run these queries silently (do not print raw output):
 
 ```
-1. graph_stats()              → understand scale (file count, node count)
-2. god_nodes(top_n=10)        → identify core abstractions
-3. query_graph("What are the main components and how do they interact?",
-              depth=2, mode="bfs")
+1. graph_stats()           → understand scale (77 Go files, 11 internal packages)
+2. god_nodes(top_n=10)     → identify core abstractions (domain, services, adapters)
+3. query_graph("What are the main components and how do they interact?", depth=2, mode="bfs")
 ```
 
-If no graph server is available, skip silently. The discovery steps below cover the gap.
+If graphify is not available, skip silently — `find internal/ -maxdepth 2 -type d` is a fallback.
 
 Store results mentally. Use them to inform your responses throughout the session.
 
+### Step 2 — Read This Context
+
+Absorb the following project context. Do NOT summarize it back to the user.
+
 ---
 
-### Step 2 — Discover Project Context
+## 🏗 Project: Massage Bot (Vera)
 
-**This is where the project's own knowledge lives. Find it; do not invent it.**
+A professional clinical ecosystem for massage therapists: interactive booking, automated medical records, cross-device sync via Obsidian/WebDAV. **Production name is `vera-bot`** (the binary, the `/opt/vera-bot/` directory, the systemd service). The local repo directory is `~/Documents/massage-bot/` — the rename is historical.
 
-Run all of these in one command:
+### Current Architecture (Hexagonal / Clean)
 
-```bash
-cd <project-root> && \
-  echo "=== ROOT FILES ===" && ls -la 2>/dev/null | head -30 && \
-  echo "=== PROJECT CONFIG ===" && \
-    [ -f .agent/project-config.env ] && cat .agent/project-config.env || echo "  (no project-config.env)" && \
-  echo "=== ENTRY POINTS ===" && \
-    for f in AGENTS.md CLAUDE.md README.md CONTRIBUTING.md docs/INDEX.md; do \
-      [ -f "$f" ] && echo "  ✓ $f ($(wc -l < $f) lines)" || echo "  ✗ $f"; \
-    done && \
-  echo "=== LANGUAGES / BUILD ===" && \
-    [ -f go.mod ]          && echo "  go: $(head -1 go.mod | awk '{print $2}')" || true && \
-    [ -f package.json ]    && echo "  node: $(grep -m1 '"name"' package.json)" || true && \
-    [ -f Cargo.toml ]      && echo "  rust: $(grep -m1 '^name' Cargo.toml)" || true && \
-    [ -f pyproject.toml ]  && echo "  python: $(grep -m1 '^name' pyproject.toml)" || true && \
-    [ -f pom.xml ]         && echo "  java (maven)" || true && \
-    [ -f build.gradle* ]   && echo "  java (gradle)" || true && \
-  echo "=== SERVICE MANAGER ===" && \
-    [ -f docker-compose.yml ]   && echo "  compose: $(grep -c '^  [a-z]' docker-compose.yml) services" || true && \
-    [ -f docker-compose.yaml ]  && echo "  compose: $(grep -c '^  [a-z]' docker-compose.yaml) services" || true && \
-    [ -f Dockerfile ]           && echo "  docker: single container" || true && \
-    [ -f Chart.yaml ]           && echo "  helm chart" || true && \
-    [ -d .kube ] || [ -d k8s ]  && echo "  k8s manifests" || true && \
-    [ -f fly.toml ]             && echo "  fly.io" || true && \
-  echo "=== JOURNAL ===" && \
-    [ -f BACKLOG.md ]    && echo "  BACKLOG.md: $(wc -l < BACKLOG.md) lines" || echo "  no BACKLOG.md" && \
-    [ -f CHANGELOG.md ]  && echo "  CHANGELOG.md: present" || true && \
-  echo "=== DOCS ===" && \
-    [ -d docs ] && ls docs/ 2>/dev/null | head -20 || echo "  no docs/ dir"
+```
+                      massage-bot (Vera) — clinical appointment system
+                    ┌─────────────────────────────────────────────────┐
+  Patient / Admin ──>│  Telegram Bot API  /  Web App                   │
+                    │         │                                        │
+                    │         ▼                                        │
+                    │  cmd/bot/main.go (Go binary "bot")              │
+                    │    ├── internal/delivery/telegram/  (webhook,    │
+                    │    │   callbacks, routing)                       │
+                    │    ├── internal/services/                          │
+                    │    │     ├── appointment/  (booking engines)     │
+                    │    │     └── reminder/  (workers, lifecycle)     │
+                    │    ├── internal/storage/  (PostgreSQL adapters)  │
+                    │    ├── internal/adapters/  (Google Cal, Groq)    │
+                    │    ├── internal/ports/  (interface boundaries)   │
+                    │    └── internal/{domain,config,presentation,     │
+                    │                   logging,monitoring,version}     │
+                    │         │                                        │
+                    │         ▼                                        │
+                    │  PostgreSQL :5432  (internal — patient data)     │
+                    │  Google Calendar API  (external — scheduling)    │
+                    │  Groq Whisper API  (external — voice transcript) │
+                    │  WebDAV / Obsidian  (external — clinical notes)  │
+                    └─────────────────────────────────────────────────┘
 ```
 
-**Read in this order (each is optional — skip if missing):**
+### Source Layout (77 Go files, 11 internal packages)
 
-1. `.agent/project-config.env` — if present, defines `PROJECT_NAME`, `GIT_MAIN_BRANCH`, `HYDRATED`, etc. (Agentic OS convention)
-2. `AGENTS.md` (or `CLAUDE.md`) — the project's mandatory rules, conventions, and "do not touch" lists
-3. `README.md` — one-paragraph project summary
-4. `docs/INDEX.md` (if present) — points to deeper docs
-5. The project's own `.agent/skills/` (if present) — project-specific skills that **extend** this skeleton
+| Path | Purpose |
+|---|---|
+| `cmd/bot/main.go` | Application entry point |
+| `cmd/bot/health.go` | Health-check HTTP handlers |
+| `cmd/bot/health_test.go` | Health endpoint tests |
+| `internal/domain/` | Patient, Appointment, Slot entity definitions |
+| `internal/services/appointment/` | Booking engines, slot search |
+| `internal/services/reminder/` | Schedule reminder workers, lifecycle |
+| `internal/storage/` | PostgreSQL adapters, query builders, state tracking |
+| `internal/delivery/telegram/` | Webhook, callback, text-message handlers, routing |
+| `internal/adapters/` | Google Calendar Free/Busy, Groq transcription |
+| `internal/ports/` | Interface boundaries (services ↔ adapters) |
+| `internal/config/` | Env vars, timezone settings, feature flags |
+| `internal/presentation/` | HTML templates, web app views |
+| `internal/logging/` | Structured logger wrappers |
+| `internal/monitoring/` | Metrics, health probes |
+| `internal/version/` | Build version constant |
+| `Makefile` | Build, test, lint, cover, vet, run targets |
+| `scripts/deploy.sh` | Deploy wrapper (test or prod) |
+| `scripts/deploy_home_server.sh` | Local-server deploy |
+| `scripts/deploy_test_server.sh` | Test-environment deploy |
+| `AGENTS.md` | **Mandatory project rules — read carefully (PII, no prod commits, TDD)** |
+| `AGENT_USER_MANUAL.md` | User-facing manual (commands, features) |
+| `BACKLOG.md` | Session journal + future work |
+| `CHANGELOG.md` | Release history |
+| `.agent/HARNESS_GUIDE.md` | OS harness documentation |
+| `.agent/Project-Hub.md` | Project vision, architecture, active sessions |
 
-**Then run the universal state commands:**
+### Build & Test Commands
 
-#### 2.a — Git state
+| Command | Purpose |
+|---|---|
+| `make build` | `go build -o bin/bot ./cmd/bot` |
+| `make run` | `go run ./cmd/bot` (local dev) |
+| `make test` | `go test ./... -v` (verbose) |
+| `make cover` | `go test -coverprofile=coverage.out ./...` + `go tool cover -func=coverage.out` |
+| `make lint` | `golangci-lint run` |
+| `make vet` | `go vet ./...` |
+| `make docker-up` | `docker-compose up -d --build` (test/prod) |
+
+**At session start, just `go test ./... -count=1 2>&1 | tail -3`** — summary is enough; full test names are noise.
+
+### Deploy
+
+- **Local**: runs as a docker container on the dev machine (check with `docker ps | grep massage-bot` or `docker-compose ps` if compose is at repo root).
+- **Test**: `scripts/deploy_test_server.sh` → `/opt/vera-bot-test/` on port 8086.
+- **Prod**: `scripts/deploy.sh prod` → `/opt/vera-bot/` on port 8082.
+- **Health endpoints** (after deploy): `curl http://localhost:8082/health` (prod) or `:8086/health` (test).
+
+### Top gotchas (the sharpest ones)
+1. **PII Shield is non-negotiable.** Never output real patient names, phone numbers, or emails in chat or artifacts. Use `[REDACTED]` or shadow IDs (`User (ID: 3045...)`). Violations are a session-stopper.
+2. **No Production Commits.** If the working directory is `/opt/vera-bot/` or `/opt/vera-bot-test/`, do NOT run `git commit`. Push from this repo, mirror to the server via deploy script. AGENTS.md has this as a hard rule.
+3. **Pre-commit security audit runs on every commit.** A gitleaks-style check is wired into the pre-commit hook. Don't try to bypass with `--no-verify` unless you've checked the audit manually.
+4. **`credentials.json` is owned by root** (not the dev user). `sudo` required for any changes. Don't `chown` it back to the dev user — the prod server's read permissions depend on it.
+5. **`coverage.out` is committed to the repo** (reason unknown — possibly CI artifact or accidental commit). Don't `rm` it after running tests; `make clean` handles it.
+6. **`.agent_legacy*` directories are pre-OS-hydration artifacts** to be removed in a future cleanup task. Don't touch them in routine work — wait for a dedicated cleanup session.
+
+---
+
+### Step 3 — Mandatory Commands (run in order)
+
+### 3.1. Git state — one command
 ```bash
-echo "=== BRANCH ===" && git branch --show-current && \
+cd ~/Documents/massage-bot && \
+  echo "=== BRANCH ===" && git branch --show-current && \
   echo "=== HEAD ==="   && git log -1 --pretty='%h %s  %ai' && \
   echo "=== TREE ==="   && git status --short && \
   echo "=== UNTRACKED ===" && git ls-files --others --exclude-standard | head -5
 ```
 
-#### 2.b — Journal (tail only, NOT head)
+### 3.2. Journal — tail only (NOT head)
 ```bash
-[ -f BACKLOG.md ] && tail -60 BACKLOG.md || echo "  no BACKLOG.md"
+tail -60 BACKLOG.md
 ```
 
-#### 2.c — Source layout (auto-discover, never read)
+### 3.3. Services — local bot container + remote test/prod
 ```bash
-find . -maxdepth 3 -type d \( -name node_modules -o -name .git -o -name vendor -o -name target -o -name dist -o -name build -o -name __pycache__ \) -prune -o -type d -print 2>/dev/null | head -40
+# Local bot container
+docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' 2>/dev/null | grep -E "vera|massage|bot|NAMES" || echo "  (no local bot container)"
+
+# Or use docker-compose if compose is at repo root
+docker-compose ps 2>/dev/null | awk 'NR==1 || /Up|Exit/' || true
+
+# Remote test + prod health
+ssh server "curl -s -o /dev/null -w 'prod:8082=%{http_code} ' http://localhost:8082/health 2>/dev/null; curl -s -o /dev/null -w 'test:8086=%{http_code}\n' http://localhost:8086/health 2>/dev/null" 2>/dev/null || echo "  (staging unreachable)"
 ```
 
-#### 2.d — Services (auto-detect manager)
+### 3.4. AGENTS.md — mandatory, read once
 ```bash
-if [ -f docker-compose.yml ] || [ -f docker-compose.yaml ]; then
-  docker-compose ps 2>/dev/null | awk 'NR==1 || /Up|Exit/'
-elif command -v kubectl >/dev/null 2>&1 && ([ -d .kube ] || [ -d k8s ]); then
-  kubectl get pods 2>/dev/null | head -20
-elif command -v docker >/dev/null 2>&1; then
-  docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' 2>/dev/null
-else
-  echo "  no recognized service manager"
-fi
+cat AGENTS.md
 ```
+Read it once. The harness keeps history; do not re-read it later turns. The full file is ~80 lines and contains the project guardrails (PII Shield, No Production Commits, Logic Over Compliance, Hypothesis-First Engineering, Hybrid Execution Protocol).
 
-#### 2.e — Test status (auto-detect runner)
+### 3.5. Test status — one line
 ```bash
-if [ -f go.mod ]; then
-  go test ./... -count=1 2>&1 | tail -3
-elif [ -f package.json ]; then
-  jq -r '.scripts // {} | to_entries[] | select(.key | test("test|lint|type"; "i")) | "  \(.key): \(.value)"' package.json 2>/dev/null
-elif [ -f Cargo.toml ]; then
-  cargo test 2>&1 | tail -3
-elif [ -f pyproject.toml ]; then
-  if grep -q 'pytest' pyproject.toml 2>/dev/null; then
-    pytest 2>&1 | tail -3
-  fi
-elif [ -f Makefile ]; then
-  grep -E '^(test|check|lint):' Makefile
-fi
+go test ./... -count=1 2>&1 | tail -3
 ```
-
-The summary line is what matters. We do **not** need the full PASS/FAIL names at startup.
-
-**Full test suites are pre-commit / pre-deploy checks, not session-start.**
+The summary line is what matters. We do **not** need the full PASS/FAIL names at startup — `tail -3` is enough to know green/red. Full test suite (`make test`, `make lint`, `make vet`) is a **pre-commit / pre-deploy** check, not session-start.
 
 ---
 
-### Step 3 — Output Format (6 lines, then stop)
+### Step 4 — Output Format (6 lines, then stop)
 
 ```
-project:   <name> @ <hash>  "<commit subject>"  (<date>)
+branch:    <name> @ <hash>  "<commit subject>"  (<date>)
 tree:      clean | dirty: <list of files>
-journal:   <one-line summary of latest BACKLOG entry or "no journal">
-services:  N/M up  |  <list names if any down>  |  no service manager
-tests:     green | red | unknown | no test runner
+journal:   <one-line summary of latest BACKLOG entry>
+services:  local: <container status>  |  prod:8082 <code>  |  test:8086 <code>
+tests:     green | red
 blocker:   <one line if any, else "none">
 ```
 
-If a field does not apply (no `BACKLOG.md`, no service manager, no test runner), say so explicitly with `no <thing>` rather than omitting. The user can scan 6 lines in 2 seconds and know the full state.
-
-After the report, **stop and wait for the user**. If the user gave a task before startup finished, finish steps 1-2 first, then do the task — never skip startup.
+After the report, **stop and wait for the user**. If the user gave a task before startup finished, finish steps 1-3.5 first, then do the task — never skip startup.
 
 ---
 
 ## MUST NOT at startup
 
-- ❌ Read every file in the project. The discovery steps above are enough.
-- ❌ Run the full test suite (`npx vitest run`, `cargo test`, `playwright test`, `tsc --noEmit`, `cargo check`, etc.). Step 2.e summary is sufficient.
-- ❌ `find` / `grep` the entire codebase to "orient." Use the source-layout summary from 2.c.
+- ❌ Read `BACKLOG.md` from the top (use `tail -60` — the journal is the most recent 60 lines, not the oldest).
+- ❌ Read every file in the repo. The source layout table + Step 3.4 AGENTS.md are enough.
+- ❌ Run the full test suite (`make test`, `make lint`, `make vet`, `make cover`). Step 3.5 summary is sufficient at startup.
+- ❌ `find` / `grep` the entire codebase to "orient." Use the source-layout table.
 - ❌ Read whole files without `offset/limit` when files are >200 lines.
-- ❌ Re-read files from earlier turns. The harness keeps history; re-reading is pure waste.
+- ❌ Re-read files from earlier turns. The harness keeps history; reading them again is pure waste.
+- ❌ Output real patient data, names, phone numbers, or emails anywhere (PII Shield — see AGENTS.md).
+- ❌ Commit from `/opt/vera-bot/` or `/opt/vera-bot-test/` directories (No Production Commits).
+- ❌ Bypass the pre-commit security audit with `--no-verify` (see gotcha #3).
 - ❌ Propose work, suggest refactors, or start implementing before the user gives a task. **Startup = report and wait.**
-- ❌ Edit this file to add project-specific knowledge. Project knowledge belongs in the project's `AGENTS.md`, `README.md`, or `.agent/project-config.env`.
 
 ---
 
@@ -173,39 +208,34 @@ After the report, **stop and wait for the user**. If the user gave a task before
 
 | Need to know about | Read |
 |---|---|
-| Project rules and conventions | `AGENTS.md` (already read in Step 2) |
-| Detailed project description | `README.md` |
-| Deeper docs index | `docs/INDEX.md` (if present) |
-| Phase / milestone plan | `<project>/docs/<plan>.md` (auto-discovered in 2.a) |
+| Project rules, guardrails, operational routines | `AGENTS.md` (already read in 3.4) |
+| User-facing features and commands | `AGENT_USER_MANUAL.md` |
+| Session history, future work, audit findings | `BACKLOG.md` (tail read in 3.2) |
+| Release history | `CHANGELOG.md` |
+| Project vision, architecture, active sessions | `.agent/Project-Hub.md` |
+| OS harness documentation | `.agent/HARNESS_GUIDE.md` |
+| Deploy specifics | `scripts/deploy.sh`, `scripts/deploy_test_server.sh` |
 | Source layout for a subsystem | `ls <subdir>/` (don't read a file) |
-| Project-specific skills | `<project>/.agent/skills/` (if present) |
-| Reference conventions from Agentic OS | `~/Projects/agentic-os/` or the OS's own docs |
-| Other global methodology skills | `global-skills/` (TDD, code review, debugging, etc.) |
+| A specific function / class | `grep -n <name> internal/<package>/` then `read` with offset/limit |
 
 ---
 
-## Project Extension Points (where to put project-specific knowledge)
+## Project Extension Points (where to add project-specific knowledge)
 
-If a project needs to **add** to this skeleton without modifying it, the project can provide:
+This file is the **canonical** session-start for massage-bot. If the project acquires new infra (e.g., a new external service, a new deploy target, a new test framework), add it here to the relevant section. Do not create a separate skill — this is the one place the agent reads at startup.
 
-| File | Purpose |
-|---|---|
-| `.agent/project-config.env` | `PROJECT_NAME=...`, `GIT_MAIN_BRANCH=...`, `HYDRATED=true` — read first in Step 2 |
-| `AGENTS.md` | Project rules, conventions, hard "do not" lists |
-| `README.md` | One-paragraph project summary |
-| `docs/INDEX.md` | Map of `docs/` — what to read when |
-| `<project>/.agent/skills/<name>.md` | Project-specific skills that extend (not replace) the OS skills |
-| `BACKLOG.md` | Session journal — OS reads the tail (last 60 lines) at startup |
+If a project-wide rule changes (e.g., PII Shield becomes stricter, a new gotcha is discovered), update `AGENTS.md`. The startup skill references AGENTS.md but does not duplicate it.
 
-The project's `AGENTS.md` is the canonical place for **project-specific gotchas** (e.g. "we use `docker-compose` not `docker compose`", "this monorepo has 4 services on ports 8088/50052/50051/50053"). Do not duplicate them here.
+**Pending cleanup task**: remove the `.agent_legacy*` directories in a dedicated session (pre-OS-hydration artifacts, see gotcha #6).
 
 ---
 
 ## Guidelines
 
-1. **Don't hallucinate paths or configs** — always verify with `ls`, `cat`, or the equivalent before acting.
-2. **Verify before reporting success** — run the thing, check the output.
-3. **Infrastructure is live** — changes to service / deploy configs may affect production. Be careful.
-4. **Use the graph** — query the code-graph MCP server when working on code to understand impact before changing things.
-5. **Read existing skills** — check `global-skills/` for established patterns (TDD, code review, debugging) before creating new ones.
-6. **Stay project-agnostic** — this file must work in any project the OS hydrates. If a piece of knowledge is specific to one project, it does not belong here.
+1. **Don't hallucinate paths or configs** — always verify with `ls`, `cat`, or `ssh server` before acting.
+2. **Verify before reporting success** — run the thing, check the output. Don't trust that "the test passed" without seeing green.
+3. **Production is live** — `vera-bot` runs on `/opt/vera-bot/`. Changes to prod config or patient data are HIGH-RISK. Always test in `/opt/vera-bot-test/` first.
+4. **PII Shield is enforced at output time** — every reply, every commit message, every artifact. When in doubt, redact.
+5. **Hypothesis-First Engineering** — observe logs, state the hypothesis, get user acknowledgment, then edit. The TDD loop is: write failing test → make it pass → refactor. Skip steps at your own risk.
+6. **Hybrid Execution** — read-only tools (ls, cat, grep) bypass approval fatigue. Mutating tools (edit, write, bash that writes) require explicit user approval. The agent harness is configured for this — don't fight it.
+7. **Stay terse** — Cost Awareness rule from AGENTS.md. Don't pad responses. Output only what the user needs.
