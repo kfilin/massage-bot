@@ -2,6 +2,23 @@
 
 All notable changes to the **Massage Bot** project will be documented in this file.
 
+## [Phase 42: CI/CD Image Pinning & Backup Verification] - 2026-06-17
+
+### Changed
+- **`.gitlab-ci.yml`**: Pinned all base images to specific versions: `docker:latest` → `docker:27-cli`, `docker:dind` → `docker:27-dind`, `alpine:latest` → `alpine:3.21` (×2). Migrated deprecated `only:` syntax to modern `rules:` for both deploy jobs. Added `environment:` blocks (test, production) for GitLab deployment board UI. Kept `when: manual` + `needs: ["run-tests"]` for prod gate (functionally correct).
+- **`Dockerfile`**: Runtime stage base image pinned from `alpine:latest` to `alpine:3.21`. Builder stage already pinned via `golang:1.25-alpine`.
+- **`deploy/docker-compose.dev.yml`**: Pinned `caddy:latest` to `caddy:2.8-alpine`.
+
+### Added
+- **`scripts/verify_backup.sh`**: Backup restoration verification script. Validates ZIP integrity (`unzip -t`), checks for required entries (`blacklist.txt`, `patients/`, `token.json`), extracts to temp dir and spot-checks a `patient.json` parses. Explicit exit codes: 0=pass, 1=arg/missing, 2=corrupt, 3=missing entries, 4=invalid JSON. Tested against synthetic good/bad/corrupt backups.
+
+### Verified
+- All base images now have specific version tags (no `:latest` for upstream images); the only remaining `massage-bot:latest` is the local build output tag.
+- `go test -short ./...` clean across all packages.
+- YAML syntax valid for `.gitlab-ci.yml` and all compose files.
+
+Refs BACKLOG #44 (CI/CD Pipeline Audit — 5 of 6 tasks done; remaining: `docker-compose.override.yml` server drift inspection).
+
 ## [Phase 41: Telegram Routing Extraction & Reminder Lifecycle] - 2026-06-17
 
 ### Added

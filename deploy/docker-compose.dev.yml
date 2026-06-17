@@ -42,7 +42,7 @@ services:
       - dev-net
 
   caddy-dev:
-    image: caddy:latest
+    image: caddy:2.8-alpine
     container_name: caddy-dev
     ports:
       - "8443:443"

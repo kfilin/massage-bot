@@ -418,10 +418,10 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
 - ✅ Go version mismatch: `.gitlab-ci.yml` test stage now `image: golang:1.25.3-alpine` (commit `ef5e173`).
 - ✅ `deploy.sh`: New in-repo wrapper at `scripts/deploy.sh` (commit `ea1377a`) — `test|prod` arg, port-collision pre-flight, docker compose under the hood. Old per-env scripts (`deploy_home_server.sh`, `deploy_test_server.sh`) kept for now to avoid breaking GitLab CI which still calls them.
 - ✅ `docker-compose.yml` resource limits: `memory: 512M` added (commit `e66ef8a`).
-- ❌ `docker:latest`/`alpine:latest` unpinned — not yet done.
-- ❌ Backup-restore verification — not yet done.
+- ✅ **Image pinning** (2026-06-17): `alpine:latest` → `alpine:3.21` (CI runtime + Dockerfile); `docker:latest` → `docker:27-cli`; `docker:dind` → `docker:27-dind`; `caddy:latest` → `caddy:2.8-alpine` (dev compose). All base images now pinned to specific versions.
+- ✅ **Backup-restore verification** (2026-06-17): New `scripts/verify_backup.sh` with explicit exit codes (0/1/2/3/4) for happy path, missing arg, corrupt ZIP, missing entries, and invalid JSON. Tested against synthetic good/bad/corrupt backups.
+- ✅ **GitLab CI manual prod gate audit** (2026-06-17): Gate is functionally correct (`when: manual` + `needs: ["run-tests"]` + branch restriction). Migrated deprecated `only:` to modern `rules:` syntax. Added `environment:` blocks for both deploy jobs (enables GitLab deployment board + rollback UI).
 - ❌ `docker-compose.override.yml` on server (167 bytes) — diff vs repo not yet inspected; presumed server-side drift.
-- ❌ GitLab CI manual prod gate — not yet audited.
 - **Tasks**:
   1. Pin all images to specific versions (e.g., `golang:1.25-alpine`, `docker:27-dind`, `alpine:3.20`).
   2. Add port-collision pre-flight check to deploy scripts.
@@ -451,5 +451,5 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
 
 ---
 
-#### Last updated: 2026-06-17 (post-P2s; #41 + #44 partial complete; #34 routing extracted + tested; reminder 81.5→91.4%)
+#### Last updated: 2026-06-17 (post-P2s; #41 + #44 mostly complete (image pinning, backup verify, manual gate audit done); #34 routing extracted + tested; reminder 81.5→91.4%)
 

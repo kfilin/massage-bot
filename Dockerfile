@@ -19,7 +19,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags='-w -s' -o massage-bot ./cmd/bot/
 
 # Stage 2: Runtime
-FROM alpine:latest
+FROM alpine:3.21
 
 # Install runtime dependencies
 RUN apk --no-cache add ca-certificates tzdata postgresql-client zip
