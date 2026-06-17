@@ -467,23 +467,20 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
   5. Update `startup.md` reference paths once #43 is done.
 - **Verification**: `git status` clean on both sides; deploy succeeds without manual intervention; no `docker-compose.override.yml`-style files reappear.
 
-### 46. [TODO] Fix `scripts/deploy.sh` port-collision pre-flight (broken for normal deploys)
-- **Status**: Backlog
-- **Priority**: Low (deploy works around it; cosmetic/UX issue)
-- **Goal**: Make `scripts/deploy.sh prod` actually usable on a healthy prod (it currently aborts every normal deploy).
-- **Bug** (discovered 2026-06-18 during #34/#36 prod deploy of commit `8e150f4`):
-  - The pre-flight at `scripts/deploy.sh:36-48` runs `ss -tlnH | grep ":${PORT}\$"` and aborts the deploy if the port is bound.
-  - A normal `docker compose up -d --force-recreate` keeps the old container bound to the port during the atomic swap. So the pre-flight **always fires** on a healthy prod, and the script can never deploy a running bot.
-  - Worked around for the 2026-06-18 deploy by bypassing the wrapper and running the raw `docker compose ... build --no-cache --pull && docker compose ... up -d --force-recreate` directly (the same pattern the legacy `deploy_home_server.sh` uses).
-  - The pre-flight was originally added during the P0 incident investigation (see #41) to catch rogue bots squatting 8082 — it's correct in *that* scenario but blocks routine deploys.
-- **Tasks**:
-  1. Add a `--force` / `--skip-port-check` flag to `scripts/deploy.sh` (already half-done: `SKIP_PORT_CHECK=1` is hard-coded for `test`, needs to be a CLI flag for `prod`).
-  2. Better: make the pre-flight smarter — only abort if the bound process is NOT a `massage-bot` container (parse `ss -tlnp` output for the binary/PID and compare).
-  3. Update `AGENTS.md` / `startup.md` "How to deploy" section if the chosen approach changes the CLI surface.
+### 46. [DONE] Fix `scripts/deploy.sh` port-collision pre-flight (broken for normal deploys)
+- **Status**: ✅ DONE 2026-06-18
+- **Resolution** (commit `2e007da`): replaced the naive `ss` check with a **smart pre-flight** that only aborts when the port is bound by something OUTSIDE the `vera-bot` compose project. Verified live on the server against three states: our container bound to 8082 (proceeds), free port (proceeds), simulated rogue binding on 9999 (aborts with diagnostic info).
+- **Approach chosen**: option 2 (smarter check) rather than option 1 (`--force` flag). The `ss -tlnp` PID-parsing approach in the original BACKLOG text is not viable on the server (cross-namespace, no `CAP_NET_ADMIN`), so we identify "our" binding via the `com.docker.compose.project=vera-bot` docker label — reliable on both local and server.
+- **Bonus fix**: guarded the `.env` `HOST_WEBAPP_PORT=` read with `|| true` — under `set -euo pipefail`, grep returning 1 on a missing key would have aborted the script silently.
+- **Mirrored** to `/opt/vera-bot/scripts/deploy.sh`. Prod health 200 after push.
+- **Tasks** (all DONE):
+  1. ~~Add a `--force` / `--skip-port-check` flag~~ — superseded by smarter check.
+  2. ✅ Make the pre-flight smarter — only abort if the bound process is NOT in our compose project.
+  3. ✅ Tested live (3 scenarios, all pass).
+  4. ✅ Pushed to GitHub + GitLab, mirrored to server, prod health 200.
 - **Source**: Discovered during 2026-06-18 prod deploy of commit `8e150f4` (see `~/Documents/my_obsidian_vault/Bridge/massage-bot-project/Checkpoints/Handoff-2026-06-18-0005.md`, "Decisions" section, last bullet).
-- **Verification**: `bash scripts/deploy.sh prod` succeeds on a running prod (no need to bypass). After deploy, `curl http://localhost:8082/health` returns 200 and the container is the freshly-rebuilt one.
 
 ---
 
-#### Last updated: 2026-06-18 00:35 (handoff path fix: moved 5 handoffs from `Bridge/Checkpoints/` to `Bridge/massage-bot-project/Checkpoints/`; updated `.pi/skills/handoff/SKILL.md` path template; added #46 for the deploy.sh pre-flight bug found during today's prod deploy)
+#### Last updated: 2026-06-18 01:10 (#46 done — smart pre-flight via docker compose labels; commit 2e007da)
 
