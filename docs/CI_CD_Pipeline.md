@@ -3,95 +3,100 @@ description: The Twin-Environment Release Cycle
 ---
 # 🚀 CI/CD Pipeline & Deployment Guide
 
-This document describes the automated deployment pipeline and the workflows to move code from local development to **Production**.
+This document describes the pipeline that moves code from development to production.
 
 ## 🔄 Deployment Overview
 
-The project uses a **Git-Ops** workflow:
+```
+Local PC ──push──> GitHub ──mirror──> GitLab CI ──deploy──> Production
+                                               └──deploy──> Test
+```
 
 1. **Code Source**: GitHub (`kfilin/massage-bot`)
-2. **Deployment Engine**: GitLab CI/CD (triggered via Mirroring)
-3. **Target**: Home Server (`/opt/vera-bot`)
+2. **Deployment Engine**: GitLab CI/CD (triggered via GitHub Actions mirror)
+3. **Target**: Home Server (test: `/opt/vera-bot-test/`, prod: `/opt/vera-bot/`)
 
 ---
 
 ## 🔄 The "Twin" Concept
 
-* **Local PC**: The *Editor*. Where code is written. (Needs to stay synced with GitHub).
-* **Test Container (`massage-bot-test`)**: The *Lab*. Where code is run and verified against real-world networking (Caddy/TWA).
-* **Production (`massage-bot`)**: The *Clinic*. Where the proven code serves real patients.
+- **Local PC** — The editor where code is written.
+- **Test Container (`massage-bot-test`)** — Lab environment. Test against real networking (Caddy/TWA).
+- **Production (`massage-bot`)** — The clinic where proven code serves patients.
 
 ---
 
 ## 1. 🛠️ Develop (Local)
 
-1. **Sync First**: Always ensure your local code is up to date before starting.
+```bash
+# Stay up to date
+git pull origin master
 
-    ```bash
-    git pull origin master
-    ```
+# Edit, test, commit
+go test ./cmd/... ./internal/...
+git add .
+git commit -m "feat: my new feature"
 
-2. **Edit & Commit**: Make your changes locally.
+# Push to GitHub (source of truth)
+git push origin master
+```
 
-    ```bash
-    git add .
-    git commit -m "feat: my new feature"
-    ```
-
-3. **Push to Source of Truth**:
-
-    ```bash
-    git push origin master
-    ```
+> [!NOTE]
+> Use `go test ./cmd/... ./internal/...` instead of `go test ./...` to avoid `postgres_data` permission errors.
 
 ## 2. 🧪 Verify (Staging)
 
-Deployed to `vera-bot-test.kfilin.icu`.
+Deploy to test environment for real-world verification:
 
-1. **Trigger Deployment**:
-    Run the script from your local machine. It connects to the server and pulls `origin/master`.
+```bash
+./scripts/deploy.sh test
+```
 
-    ```bash
-    ./scripts/deploy_test_server.sh
-    ```
-
-2. **Test**: Open the Test TWA or interact with the Test Bot.
-3. **Debug**: If it fails, fix locally, commit, push, and re-deploy.
+The deploy script:
+1. Runs port-collision pre-flight (skipped for test — allowed to share ports with prod).
+2. SSHes to the server, pulls `origin/master`, rebuilds images, restarts.
+3. Test environment at `vera-bot-test.kfilin.icu` (port 8086).
 
 ## 3. 🚢 Promote (Production)
 
-Deployed to `vera-bot.kfilin.icu`.
+### A. GitLab CI (Automatic)
 
-Once the feature is verified on Test, propagate it to Production.
-
-### A. The "GitLab Trigger" (Automatic)
-
-Since GitLab controls the Production Pipeline, it must receive the new code.
-**We have a GitHub Action (`.github/workflows/mirror.yml`) that automatically mirrors `master` to GitLab.**
-
-1. Push to GitHub:
-
-   ```bash
-   git push origin master
-   ```
-
-2. **Wait**: The GitHub Action will detect the push, sync to GitLab, and trigger the GitLab CI/CD pipeline.
-   * **Result**: Builds Docker image -> Pushes to Registry -> Auto-deploys to Prod.
-
-### B. Manual Override (Emergency)
-
-If GitLab is down or slow, you can manually deploy `origin/master` to Prod.
+Push to GitHub → GitHub Action mirrors to GitLab → GitLab CI builds image, pushes to registry, deploys to prod.
 
 ```bash
-./scripts/deploy_home_server.sh
+git push origin master
 ```
+
+### B. Manual Deploy (Emergency / Direct)
+
+```bash
+./scripts/deploy.sh prod
+```
+
+> [!WARNING]
+> The prod deploy does `git reset --hard origin/master` on the server. Any uncommitted or unpushed changes on the server are destroyed.
 
 ---
 
 ## 🛑 Critical Rules
 
-1. **Immutable Server**: NEVER edit files inside `/opt/vera-bot` or `/opt/vera-bot-test` directly.
-    * *Why?* The deployment scripts run `git reset --hard`. Your changes will be deleted.
-2. **Test First**: Always verify on `vera-bot-test` before pushing to `gitlab`.
+1. **Immutable Server**: NEVER edit files directly inside `/opt/vera-bot/` or `/opt/vera-bot-test/`. Deploy scripts run `git reset --hard`. Your changes vanish.
+2. **Allowed server-local state**: Only `data/`, `credentials.json`, `.env`, `.env.test`. Everything else flows through `scripts/deploy.sh`.
+3. **Test First**: Always verify on test before promoting to production.
+4. **Doc-only changes** (AGENTS.md, BACKLOG.md, CHANGELOG.md, etc.) can be synced with `ssh server "cd /opt/vera-bot && git pull --ff-only"` — never `scp` a tracked file directly.
 
-*Verified for v5.6.3 (Stable)*
+---
+
+## 📊 CI Pipeline Details (`.gitlab-ci.yml`)
+
+| Stage | Image | Description |
+|-------|-------|-------------|
+| `test` | `golang:1.25.3-alpine` | Runs `go test ./cmd/... ./internal/...`, `go vet`, `golangci-lint` |
+| `build` | `docker:27-cli` (Docker-in-Docker) | Builds production image, tags as `registry.gitlab.com/kfilin/massage-bot` |
+| `deploy-test` | `alpine:3.21` | SSH to server, pull image, deploy test compose |
+| `deploy-prod` | `alpine:3.21` (manual gate) | SSH to server, pull image, deploy prod compose |
+
+All base images are pinned to specific versions (no `:latest`).
+
+---
+*Last updated: 2026-06-18.*

@@ -1,7 +1,7 @@
-# 💆 Vera Massage Bot (Technical Excellence v5.7.0)
+# 💆 Vera Massage Bot
 
 ![Go Version](https://img.shields.io/badge/Go-1.25.3-00ADD8?style=flat&logo=go)
-![Test Coverage](https://img.shields.io/badge/coverage-42.0%25-green)
+![Test Coverage](https://img.shields.io/badge/coverage-80.0%25-brightgreen)
 ![Docker](https://img.shields.io/badge/Docker-Enabled-blue?logo=docker)
 ![License](https://img.shields.io/badge/License-Private-red)
 
@@ -9,7 +9,7 @@
 
 **Version**: v5.7.0 (Stable)
 **Status**: Active Production
-**Latest Feature**: Telegram Web App (TWA) & Voice Intelligence
+**Latest Features**: Integration Testing (Testcontainers), Telegram Web App (TWA), Voice Intelligence
 
 A professional Telegram-based ecosystem for clinical massage practice. Developed for the Vera studio in Fethiye, this bot combines interactive scheduling with a robust medical recording system and seamless cross-device synchronization via **WebDAV**.
 
@@ -23,13 +23,15 @@ The definitive scheduling engine powered by the official **Google Calendar Free/
 
 - **100% Accuracy**: Respects "Out of Office", manual blocks, and external calendar overlays.
 - **Just-in-Time Verification**: Eliminates race conditions by re-verifying availability at the exact moment of confirmation.
+- **Interactive Confirmations**: 72h/24h reminders with patient confirmations reduce no-shows.
 
 ### 💾 Automated Backups 2.0 (v5.0)
 
 Disaster recovery that runs itself:
 
 - **Comprehensive Archival**: Daily ZIP backups containing the full PostgreSQL database (`pg_dump`) and patient Markdown files (`data/patients/`).
-- **Telegram Delivery**: Encrypted archives are delivered directly to the Admin every 24 hours.
+- **Telegram Delivery**: Encrypted archives delivered directly to the Admin every 24 hours.
+- **Backup Verification**: `scripts/verify_backup.sh` validates ZIP integrity, required entries, and JSON parsing with explicit exit codes.
 - **Self-Healing Storage**: Local temporary archives are purged after delivery to prevent disk bloat.
 
 ### 🩺 Clinical Storage 2.0
@@ -44,24 +46,25 @@ A structured **Markdown-mirrored** architecture for patient records:
 
 - **72h/24h Interactive Flow**: Ticker-based worker requests patient confirmation.
 - **Loop-Closed Messaging**: Admins can reply to patient inquiries directly via the bot using the `✍️ Ответить` interface.
-- **72h Cancellation Rule**: Enforced notice period for self-service cancellations to reduce administrative burden.
+- **72h Cancellation Rule**: Enforced notice period for self-service cancellations.
 
 ### 📱 Telegram Web App (TWA)
 
 A full-featured Mini App integrated directly into Telegram:
 
 - **For Patients**:
-  - **Booking Wizard**: Visual calendar, service selection, and slot picker.
-  - **Medical Card**: View visit history, upcoming appointments, and personal data.
-  - **Fast Action**: "Book Now" buttons and "Next Appointment" countdowns.
+  - **Medical Card**: View visit history, upcoming appointments, patient data, clinical notes.
+  - **PDF Export**: Generate a professional clinical summary document.
 - **For Admins**:
   - **Patient Search**: Live search across the entire database.
   - **Manual Booking**: "Create Appointment" flow to book on behalf of patients.
   - **Full History**: Access to all patient notes, files, and visit logs.
+  - **Draft Approval**: Review and approve/discard transcribed voice notes before they're added to the clinical card.
 
 ### 🎙️ Voice Intelligence (Groq/Whisper)
 
 - **Transcription**: All voice messages from patients are automatically transcribed using **Groq's Whisper API**.
+- **Draft-First Pipeline**: Transcriptions saved as "pending" drafts — reviewed and approved by the therapist via TWA before being added to the medical card.
 - **Context**: Transcriptions are saved to the patient's medical card (Postgres + Markdown) and forwarded to the therapist.
 - **Filtering**: Intelligent filtering removes "hallucinations" (e.g., "Silence", "Thank you") from empty voice notes.
 
@@ -70,12 +73,15 @@ A full-featured Mini App integrated directly into Telegram:
 - **Gitleaks Protection**: Integrated pre-commit hooks to prevent accidental leakage of API keys or bot tokens.
 - **Environment Isolation**: Strict separation between `.env`, `.env.test`, and production secrets.
 - **PII Shielding**: Medical records are stored in a dedicated `data/` volume with restricted filesystem access.
+- **HMAC-SHA256 Signing**: All sensitive TWA routes protected by cryptographic signatures.
+- **Twin-Environment Deploy**: Test and production run side-by-side for safe rollout.
 
 ### 🛠️ System Resilience
 
-- **Health Monitoring**: Dedicated `/health` endpoint and Prometheus metrics for real-time stability tracking.
+- **Health Monitoring**: Dedicated `/health`, `/ready`, `/live` endpoints and Prometheus metrics for real-time stability tracking.
 - **Auto-Recovery**: Built-in 5-attempt retry loop for PostgreSQL connectivity and self-healing TWA authentication.
 - **Graceful Shutdown**: Orchestrated termination of goroutines to ensure data integrity during updates.
+- **Port-Collision Pre-Flight**: Deploy script checks for port conflicts before starting.
 
 ---
 
@@ -87,25 +93,25 @@ The project follows a **Hexagonal / Clean Architecture** pattern, prioritizing s
 graph TD
     User((Patient/Admin)) <--> TG[Telegram Bot API]
     TG <--> App[Massage Bot Core]
-    
+
     subgraph "Internal Services"
         App <--> Booking[Booking Engine]
         App <--> Trans[Whisper Transcription]
         App <--> Remind[Reminder Service]
     end
-    
+
     subgraph "External Adapters"
         Booking <--> Google[(Google Calendar)]
         Trans <--> Groq[Groq AI]
     end
-    
+
     subgraph "Persistence & Sync"
         App <--> DB[(PostgreSQL 15)]
         App <--> MD[Markdown Records]
         MD <--> WebDAV[WebDAV Server]
         WebDAV <--> Obsidian[[Obsidian Mobile]]
     end
-    
+
     subgraph "Observability"
         App --> Prom[Prometheus]
         Prom --> Graf[Grafana]
@@ -113,29 +119,40 @@ graph TD
 ```
 
 - **Backend**: Go 1.25.3 (Standard Library HTTP + Telebot v3)
-- **Database**: PostgreSQL 15+ (Transactional integrity)
+- **Database**: PostgreSQL 15+ (Transactional integrity) with testcontainers integration tests
 - **Frontend**: Telegram Web App (Vanilla JS + CSS, zero-dependency)
-- **Sync**: WebDAV Server for Obsidian mobility.
-- **Monitoring**: Prometheus/Grafana stack on port 8083. [View API Docs](docs/API.md).
-- **Deployment**: "Twin Strategy" (Staging & Production) using Docker Compose.
+- **Sync**: WebDAV Server for Obsidian mobility
+- **Monitoring**: Prometheus/Grafana stack on port 8083. [View API Docs](docs/API.md) and [Metrics Reference](metrics.md)
+- **Deployment**: "Twin Strategy" (Staging & Production) using Docker Compose with `scripts/deploy.sh`
 
 ---
 
 ## 📂 Project Structure
 
-- `cmd/bot`: Application entry point, Health server, and **Web App routing**.
-- `internal/domain`: Core entities (Patient, Appointment, Slot).
-- `internal/services`: Domain logic (Booking engine, Reminders, Transcription).
-- `internal/storage`: Persistence layer (PostgreSQL, Sessions, and **HTML Templates**).
-- `internal/delivery/telegram`: Telegram bot handlers and middleware.
-- `internal/adapters`: Third-party integrations (Google Calendar, Groq).
-- `internal/ports`: Interface definitions for architectural boundaries.
-- `internal/config`: Environment-based configuration management.
-- `internal/monitoring`: Prometheus metrics and performance collectors.
+```
+cmd/bot/              # Application entry point, health server, web app routing
+internal/
+  domain/             # Core entities (Patient, Appointment, Slot)
+  services/
+    appointment/      # Booking engine (slot search, conflict detection)
+    reminder/         # Schedule reminder workers, lifecycle
+  storage/            # Persistence layer (PostgreSQL, sessions, file mirroring)
+  delivery/
+    telegram/         # Bot handlers, routing, middleware, keyboards
+    web/              # TWA HTTP handlers (medical card, search, draft, cancel)
+  adapters/           # Third-party integrations (Google Calendar Free/Busy, Groq Whisper)
+  ports/              # Interface definitions for architectural boundaries
+  presentation/       # HTML templates, Telegram message formatting
+  config/             # Environment-based configuration management
+  logging/            # Structured logger wrappers
+  monitoring/         # Prometheus metrics and performance collectors
+deploy/               # Docker Compose, Caddyfile, Grafana dashboard, K8s manifests
+scripts/              # Deployment, backup, metric compilation scripts
+```
 
 ---
 
-## �🚀 Quick Start (Production)
+## 🚀 Quick Start (Production)
 
 ### 1. Requirements
 
@@ -145,69 +162,77 @@ graph TD
 
 ### 2. Environment Setup
 
-Create a `.env` file from `.env.example`.
+Copy `.env.example` to `.env` and fill in real values.
 
 ### 3. Deploy
 
 ```bash
-# Production Deployment (Manual)
-./scripts/deploy_home_server.sh
+# Production Deployment
+./scripts/deploy.sh prod
 
 # Test Environment Deployment
-./scripts/deploy_test_server.sh
+./scripts/deploy.sh test
 ```
 
 ---
 
-### Development & Testing
-
-Run the full test suite locally:
+## 🧪 Development & Testing
 
 ```bash
-# Run all tests
+# Run all tests (excluding integration tests)
 make test
-# OR
-go test ./...
-```
 
-To check for linting errors and code quality:
+# Run tests including integration (requires Docker)
+INTEGRATION_TESTS=1 go test -tags=integration ./internal/storage
 
-```bash
-golangci-lint run
-```
+# Coverage check
+make cover
 
-To build the bot binary:
+# Lint
+make lint
 
-```bash
+# Build
 make build
-# OR
-go build -o bin/bot ./cmd/bot
 ```
+
+Test coverage target: **80%+** ✅ (currently 80.0%). Integration tests via testcontainers cover PostgreSQL CRUD, session storage, and appointment metadata.
+
+| Package | Test Strategy |
+|---------|--------------|
+| `internal/storage` | Unit tests + testcontainers integration |
+| `internal/services/` | Unit tests (mocked storage) |
+| `internal/delivery/telegram` | Unit tests (mocked bot + repository) |
+| `internal/delivery/web` | `httptest` server tests |
+| `internal/presentation` | Unit tests (template rendering) |
 
 ---
 
 ## ⚙️ Configuration
 
-The bot is configured entirely via environment variables.
+The bot is configured entirely via environment variables (see `.env.example` for defaults).
 
-| Variable | Description | Required | Reference |
-| :--- | :--- | :--- | :--- |
-| `TG_BOT_TOKEN` | Telegram Bot API Token | Yes | [BotFather](https://t.me/BotFather) |
-| `TG_ADMIN_ID` | Telegram ID of the primary admin | Yes | [userinfobot](https://t.me/userinfobot) |
-| `ALLOWED_TELEGRAM_IDS` | Comma-separated list of allowed user IDs | Yes | Users allowed to book |
-| `GOOGLE_CREDENTIALS_JSON` | Content of Google Service Account JSON | Yes* | *Either this or PATH required |
-| `GOOGLE_CREDENTIALS_PATH` | Path to Google Service Account JSON | Yes* | *Either this or JSON required |
-| `GOOGLE_CALENDAR_ID` | Calendar ID to manage (usually email) | No | Defaults to `primary` |
-| `GROQ_API_KEY` | API Key for Voice Transcription | No | [Groq Console](https://console.groq.com) |
-| `TG_THERAPIST_ID` | Comma-separated list for Therapist notifications | No | Defaults to Admin ID |
-| `WEBAPP_URL` | Public URL for the Mini App | No | e.g. `https://vera.massage/app` |
-| `WEBAPP_SECRET` | Secret key for Web App JWT signature | No | Required if Web App used |
-| `WEBAPP_PORT` | Port for the Web App server | No | Defaults to `8080` |
-| `WORKDAY_START_HOUR` | Start of working day (0-23) | No | Defaults to 8 |
-| `WORKDAY_END_HOUR` | End of working day (0-23) | No | Defaults to 20 |
-| `APPT_TIMEZONE` | Timezone for scheduling | No | Defaults to `Europe/Istanbul` |
-| `APPT_SLOT_DURATION` | Duration of one slot | No | Defaults to `1h` |
-| `APPT_CACHE_TTL` | Cache TTL for free/busy | No | Defaults to `5m` |
+| Variable | Description | Required |
+| :--- | :--- | :--- |
+| `TG_BOT_TOKEN` | Telegram Bot API Token | Yes |
+| `TG_ADMIN_ID` | Telegram ID of the primary admin | Yes |
+| `ALLOWED_TELEGRAM_IDS` | Comma-separated list of allowed user IDs | Yes |
+| `GOOGLE_CREDENTIALS_JSON` | Content of Google Service Account JSON | Yes* |
+| `GOOGLE_CREDENTIALS_PATH` | Path to Google Service Account JSON | Yes* |
+| `GOOGLE_CALENDAR_ID` | Calendar ID to manage (default: `primary`) | No |
+| `GROQ_API_KEY` | API Key for Voice Transcription | No |
+| `TG_THERAPIST_ID` | Comma-separated therapist IDs (defaults to Admin) | No |
+| `WEBAPP_URL` | Public URL for the Mini App | No |
+| `WEBAPP_SECRET` | Secret key for Web App HMAC signature | No |
+| `WEBAPP_PORT` | Port for the Web App server (default: `8080`) | No |
+| `WORKDAY_START_HOUR` | Start of working day 0-23 (default: 8) | No |
+| `WORKDAY_END_HOUR` | End of working day 0-23 (default: 20) | No |
+| `APPT_TIMEZONE` | Timezone (default: `Europe/Istanbul`) | No |
+| `APPT_SLOT_DURATION` | Slot duration (default: `1h`) | No |
+| `APPT_CACHE_TTL` | Free/busy cache TTL (default: `5m`) | No |
+| `DB_NAME` | PostgreSQL database name | No |
+| `DB_USER` | PostgreSQL user | No |
+| `DB_PASSWORD` | PostgreSQL password | Yes |
+| `BOT_USERNAME` | Bot username for search page links | No |
 
 ---
-*Created by Kirill Filin with Gemini Assistance. Gold Standard Checkpoint: v5.7.0 Stable (2026-04-20).*
+*Created by Kirill Filin. Current stable release: v5.7.0.*

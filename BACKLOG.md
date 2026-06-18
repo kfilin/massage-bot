@@ -162,10 +162,10 @@
 - **Risk**: MCP injects schemas into context on every step — monitor token consumption. If overhead is too high, consider a CLI-based alternative.
 - **Source**: Article comparison (Level 5), backlog since v5.7.0.
 
-### 30. [TODO] Knowledge Item (KI) for Clinical Patterns
+### 30. [DEFERRED] Knowledge Item (KI) for Clinical Patterns
 
-- **Status**: Backlog
-- **Priority**: Medium (daily time savings potential)
+- **Status**: Deferred — implementation pushed significantly later
+- **Priority**: Low (no earlier than next major feature cycle)
 - **Goal**: Build a "Shared Clinical Brain" — structured massage therapy protocols usable by both the Agent (for context) and the TWA (for quick-entry templates).
 - **Detail**: See [clinical-patterns-ki.md](file:///home/kirillfilin/Documents/massage-bot/.agent/backlog/clinical-patterns-ki.md) for the original specification.
 
@@ -270,19 +270,20 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
 - **Success Criteria**: A new project can be bootstrapped to Level 4-5 of the agentic engineering ladder within 30 minutes using the template.
 - **Source**: Article comparison + cross-model review, March 2026.
 
-### 34. [IN PROGRESS] Phase 4: Integration Testing with Testcontainers
+### 34. [DONE] Phase 4: Integration Testing with Testcontainers
 
-- **Status**: In Progress (2026-06-17) — routing layer extracted & tested; storage stable at 68.7%
+- **Status**: ✅ DONE 2026-06-18
 - **Priority**: Medium
 - **Goal**: Maximize project test coverage (aiming for >80% total) by implementing integration tests for the `internal/storage` (Postgres) and `internal/delivery/telegram` (bot routing) layers.
+- **Resolution**: Called done at **80.0% overall coverage** (target met). The remaining uncovered code (entry point `main()` at 0%, `RunBot`/`InitBot` wiring at 0%) operates on concrete `*telebot.Bot` — these are thin registration/glue layers that only change during major refactors and provide diminishing returns for testing effort.
 - **Progress**:
   - testcontainers-go installed. 16 integration tests for `internal/storage` covering all CRUD operations, session storage, and appointment metadata.
-  - Storage coverage: 32% → **68.7%** (2026-06-17).
-  - **Telegram routing extracted** (2026-06-17): pure-function refactor — `RouteCallback(data)` and `RouteTextMessage(text, SessionView)` extracted into `internal/delivery/telegram/routing.go`; side-effecting helpers (`handleAdminReply`, `forwardPatientMessageToAdmins`) extracted into `text_flow.go`. `bot.go` OnCallback/OnText handlers now delegate routing decisions to these functions (behavior-preserving).
-  - **Telegram coverage: 4.4% → 21.2%** (2026-06-17). Routing logic itself is ~100% covered (32 new tests).
+  - Storage coverage: 32% → **68.7%** (2026-06-17), later to 86% unit / 92% integration via #36 hardening.
+  - **Telegram routing extracted** (2026-06-17): pure-function refactor — `RouteCallback(data)` and `RouteTextMessage(text, SessionView)` extracted into `internal/delivery/telegram/routing.go`; side-effecting helpers extracted into `text_flow.go`.
+  - **Telegram coverage: 4.4% → 47.6%** (2026-06-17). Routing logic ~100% covered (32 tests).
+  - Two testable seams extracted from `RunBot` (`setupMenuButton`, `runScheduledBackup`) — both 100% covered via `bot_wiring_test.go`.
   - Dead file `internal/delivery/telegram/bot.go.bak` (17KB stale Feb-04 backup) removed.
-- **Remaining**: `delivery/telegram` wiring (`RunBot`, `InitBot`) still untestable without mocking `*telebot.Bot`; structural ceiling for this package ~25%. `cmd/bot` (6.6%) is mostly glue/wiring — low ROI.
-- **Update 2026-06-17 (next session)**: Two testable seams extracted from `RunBot` (`setupMenuButton`, `runScheduledBackup`); both consume `ports.BotAPI` and are now 100% covered via `bot_wiring_test.go` (7 new tests). The remaining `RunBot`/`InitBot` code is registration (b.Handle, b.Use, b.Start, b.Stop) which stays on the concrete `*telebot.Bot` and is structurally untestable through the BotAPI interface. Package coverage 39.6% → 47.6% (+8.0pp). Overall: 76.0% → 76.6% (+0.6pp). `RunBot` itself still 0%.
+- **Structural ceiling accepted**: `main()` 0%, `RunBot` 0%, `InitBot` 0% — all are thin wiring on concrete `*telebot.Bot`, inherently untestable without an interface refactor that doesn't justify its effort.
 ### 35. [DONE] WebApp Handler Refactoring
 - **Status**: ✅ DONE
 - **Resolution**: Handlers already reside in `internal/delivery/web/webapp_handler.go` and `server.go`. `cmd/bot/main.go` calls `web.StartServer()`; no handlers exist in `cmd/bot/`. Architecture is clean.

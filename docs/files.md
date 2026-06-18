@@ -1,100 +1,125 @@
-# 📂 Project File Structure Explained
-
-This document provides a detailed overview of every file and directory in the **Vera Massage Bot** project.
+# 📂 Project File Structure
 
 ---
 
-## 🤖 Agent Context & AI Collaboration (`.agent/`)
+## 📁 Root
+
+| Entry | Purpose |
+| :--- | :--- |
+| `cmd/bot/` | Application entry point, health server, web app routing |
+| `internal/` | Core domain logic, services, storage, delivery, adapters |
+| `deploy/` | Docker Compose, Caddyfiles, K8s manifests, Grafana dashboard |
+| `scripts/` | Deployment, backup, and metric scripts |
+| `docs/` | Technical and user documentation |
+| `data/` | Clinical records (`.md` files), backups, patient folders |
+| `.pi/skills/` | AI agent skills (startup, handoff, hydrate-harness) |
+| `global-skills/` | Project-agnostic methodology library (TDD, debugging, etc.) |
+
+### Config & Build
 
 | File | Purpose |
 | :--- | :--- |
-| `.agent/Project-Hub.md` | **The Source of Truth**. High-level project vision, tech stack, and milestone tracking. |
-| `.agent/Collaboration-Blueprint.md` | **The Operating System**. Defines how AI and Humans work together (The "Gold Standard"). |
-| `.agent/last_session_YYYY-MM-DD.md` | **Continuity Bridge**. Technical summary of the previous development session. |
-| `.agent/handoff_YYYY-MM-DD.md` | **Instruction Set**. Specific goals and high-priority tasks for the current session. |
-| `.agent/backlog.md` | **Future Roadmap**. Ideas, refinements, and technical debt to be addressed. |
-| `.agent/Scripts-Inventory.md` | **Toolbox**. Detailed documentation of all scripts in `scripts/`. |
-| `.agent/sop/` | **Standard Ops**. AI-specific Standard Operating Procedures (e.g., `/checkpoint`). |
+| `go.mod` / `go.sum` | Go module dependencies |
+| `Makefile` | Build, test, lint, coverage shortcuts |
+| `Dockerfile` | Container build instructions |
+| `docker-compose.yml` | Main orchestration (production) |
+| `.env.example` | Environment variable template |
+| `.gitlab-ci.yml` | GitLab CI/CD pipeline |
 
 ---
 
-## ⚙️ CI/CD & Automation (`.github/`)
+## 💻 Source Code (`internal/`)
 
-| Folder / File | Purpose |
+| Package | Purpose |
 | :--- | :--- |
-| `.github/workflows/ci.yml` | **Main Pipeline**. Tests, builds, and linting on every push. |
-| `.github/workflows/mirror.yml` | **Sync**. Automatically mirrors `master` branch to GitLab for production deployment. |
+| `internal/domain/` | Core entities: Patient, Appointment, Slot |
+| `internal/services/appointment/` | Booking engine: slot search, conflict detection |
+| `internal/services/reminder/` | Reminder worker: 72h/24h ticker lifecycle |
+| `internal/storage/` | PostgreSQL repository, session storage, file mirroring, migration |
+| `internal/delivery/telegram/` | Bot handlers, callback routing, middleware, keyboards |
+| `internal/delivery/web/` | TWA HTTP handlers: medical card, search, drafts, cancel, transcribe |
+| `internal/adapters/googlecalendar/` | Google Calendar Free/Busy API adapter |
+| `internal/adapters/groq/` | Groq Whisper transcription adapter |
+| `internal/ports/` | Interface boundaries (BotAPI, Repository, AppointmentService) |
+| `internal/presentation/` | HTML templates (TWA), Telegram message formatters |
+| `internal/config/` | Environment variable parsing and configuration |
+| `internal/logging/` | Structured logger (zerolog-style) |
+| `internal/monitoring/` | Prometheus metrics collectors |
+| `internal/version/` | Build version constant |
 
 ---
 
-## 🏗️ Core Infrastructure & Docker
+## 🚀 Deploy & Infrastructure (`deploy/`)
+
+| File / Directory | Purpose |
+| :--- | :--- |
+| `docker-compose.yml` | Main production orchestration |
+| `deploy/docker-compose.prod.yml` | Production-specific overrides (ports, env) |
+| `deploy/docker-compose.dev.yml` | Development overrides (Caddy) |
+| `deploy/Caddyfile` | Production reverse proxy config (HTTPS) |
+| `deploy/Caddyfile.test` | Test environment proxy |
+| `deploy/Caddyfile.dev` | Local development proxy |
+| `deploy/k8s/` | Kubernetes manifests (deployment, service, configmap, secrets) |
+| `deploy/monitoring/grafana_dashboard.json` | Grafana dashboard export |
+| `deploy/monitoring/prometheus_job.yml` | Prometheus scrape config snippet |
+
+---
+
+## 🔧 Scripts (`scripts/`)
 
 | File | Purpose |
 | :--- | :--- |
-| `docker-compose.yml` | **Master Controller**. The primary orchestration file for production. |
-| `Dockerfile` | **Blueprint**. Instructions to build the bot's container image. |
-| `deploy/docker-compose.prod.yml` | Production-specific Docker overrides. |
-| `deploy/docker-compose.test-override.yml` | **Test Env**. Overrides for isolated test environment (Ports/Net). |
-| `deploy/docker-compose.example.yml` | Template for environment-specific orchestration. |
-
----
-
-## 🛡️ Reverse Proxy & Deployments
-
-| Folder / File | Purpose |
-| :--- | :--- |
-| `deploy/Caddyfile` | **Proxy Config**. Handles HTTPS and routes traffic to the bot. |
-| `deploy/k8s/` | **Kubernetes**. Production manifests (Deployment, Secrets, ConfigMap). |
-| `deploy/Caddyfile.example` | Template for host-level Caddy configuration. |
-| `scripts/` | **Automation Scripts**. Deployment, backups, and maintenance scripts. |
-
----
-
-## 💻 Source Code (Go)
-
-| Folder / File | Purpose |
-| :--- | :--- |
-| `cmd/bot/main.go` | **Entry Point**. Initializes the bot and health servers. |
-| `internal/` | **The Brain**. Domain logic, database repository, and service layer. |
-| `go.mod` / `go.sum` | **Dependencies**. External Go libraries. |
-| `Makefile` | **Shortcuts**. Automation for build/test/metrics tasks. |
+| `scripts/deploy.sh` | **Primary deploy wrapper**: port-collision pre-flight, compose-based deploy for test/prod |
+| `scripts/deploy_home_server.sh` | Legacy deploy (kept for GitLab CI compatibility) |
+| `scripts/deploy_test_server.sh` | Legacy test deploy (kept for GitLab CI compatibility) |
+| `scripts/verify_backup.sh` | Backup integrity verification (ZIP, entries, JSON) |
+| `scripts/report_metrics.sh` | Structured console metrics view |
 
 ---
 
 ## 📜 Documentation
 
-| Folder / File | Purpose |
-| :--- | :--- |
-| `README.md` | **Home Page**. Quick-start and general overview. |
-| `CHANGELOG.md` | **Version History**. Chronological log of all notable changes. |
-| `docs/DEVELOPER.md` | **Technical Guide**. Security and architecture details. |
-| `docs/USER_GUIDE.md` | **Patient Guide (EN)**. Instructions for bot users in English. |
-| `docs/USER_GUIDE_RU.md` | **Patient Guide (RU)**. Detailed Russian manual (Master version). |
-| `docs/VERA_GUIDE_RU.md` | **Therapist Guide**. Record management instructions. |
-| `docs/metrics_setup.md` | **Monitoring Setup**. Guide for setting up Prometheus/Grafana. |
-| `metrics.md` | **Monitoring Reference**. List of instrumented Prometheus metrics. |
-| `docs/ProdArchitecture.md` | **Gap Analysis**. Comparison of current Home Lab setup vs. Enterprise Best Practices. |
+| File | Audience | Purpose |
+| :--- | :--- | :--- |
+| `README.md` | Everyone | Project overview, features, quick start |
+| `AGENTS.md` | AI agents | Project rules, guardrails, DOX framework |
+| `AGENT_USER_MANUAL.md` | Developers | Agent collaboration conventions |
+| `USER_GUIDE.md` | Patients | Booking, cancel, medical card (EN) |
+| `USER_GUIDE_RU.md` | Patients | Booking, cancel, medical card (RU) |
+| `DEVELOPER.md` | Developers | Architecture, testing, deployment |
+| `CHANGELOG.md` | Everyone | Release history |
+| `BACKLOG.md` | AI agents | Active tasks, bugs, session journal |
+| `docs/API.md` | Developers | HTTP endpoints, Prometheus metrics |
+| `docs/VERA_GUIDE_RU.md` | Therapist | Clinical workflow, admin commands (RU) |
+| `docs/CI_CD_Pipeline.md` | Developers | Deployment pipeline, twin strategy |
+| `docs/metrics_setup.md` | Developers | Prometheus/Grafana integration guide |
+| `docs/ProdArchitecture.md` | Developers | Current vs Enterprise architecture gap analysis |
+| `docs/backlog_design.md` | Developers | UI/UX design ideas (future consideration) |
+| `metrics.md` | Developers | Full Prometheus metrics reference |
+| `data/README.md` | Developers | Patient data directory structure |
 
 ---
 
 ## 📦 Data & Storage
 
-| Folder | Purpose |
+| Directory | Purpose |
 | :--- | :--- |
-| `data/patients/` | **Clinical Records**. Secure Markdown storage for patient cards. |
-| `data/backups/` | **ZIP Archives**. Staging area for automated Telegram backups. |
-| `logs/access.log` | **Audit Trail**. Traffic and application logs. |
+| `data/patients/` | Mirrored clinical Markdown files (one folder per patient) |
+| `data/backups/` | ZIP archives staging area for Telegram delivery |
+| `logs/` | Application access logs |
 
 ---
 
-## 🗄️ Archive (`ARCHIVE/`)
+## 🗄️ Archive
 
-| Folder | Purpose |
+| Directory | Contents |
 | :--- | :--- |
-| `ARCHIVE/HANDOFF/` | Historical `handoff_*.md` files. |
-| `ARCHIVE/LAST_SESSION/` | Historical `last_session_*.md` files. |
-| `ARCHIVE/Refactoring/` | Obsolete refactoring documentation library. |
+| `ARCHIVE/HANDOFF/` | Historical session handoffs |
+| `ARCHIVE/LAST_SESSION/` | Historical last-session notes |
+| `ARCHIVE/Refactoring/` | Obsolete refactoring documentation |
+| `ARCHIVE/CHANGELOGS/` | Legacy changelogs |
+| `AGENTIC_OS_TEMPLATE/` | Agentic OS template files (reference only) |
 
 ---
 
-### Last updated: 2026-02-08 (v5.6.3 Stable Release)
+*Last updated: 2026-06-18.*
