@@ -11,6 +11,7 @@
 //   clean-calendar  Delete events from the current Google Calendar (interactive or --force)
 //   auth            Generate OAuth URL to get a token for a Google account
 //   migrate         Migrate appointments from vfilinav@ to veramassagist@
+//   link-patients   Assign TGIDs to patients by linking event names to Telegram IDs
 package main
 
 import (
@@ -22,6 +23,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -47,7 +50,11 @@ func main() {
 		fmt.Println("  list-events           List all events in the current Google Calendar")
 		fmt.Println("  clean-calendar        Delete events from the current calendar (interactive)")
 		fmt.Println("  auth                  Generate OAuth URL to get a token for a Google account")
-		fmt.Println("  migrate [token_file]  Migrate appointments from vfilinav@gmail.com")
+		fmt.Println("  migrate [token_file] [since_date]  Migrate appointments from vfilinav@gmail.com")
+	fmt.Println("")
+	fmt.Println("  Optional:")
+	fmt.Println("    since_date  ISO date (2006-01-02) to resume from. Default: 2024-01-01")
+	fmt.Println("  link-patients        Assign TGIDs to patients by linking event names to Telegram IDs")
 		fmt.Println("")
 		fmt.Println("Environment:")
 		fmt.Println("  Loads .env from project root (DATABASE_URL or DB_* vars)")
@@ -71,10 +78,16 @@ func main() {
 		doAuth()
 	case "migrate":
 		migrateFromFile := ""
+		sinceDate := ""
 		if len(os.Args) > 2 {
 			migrateFromFile = os.Args[2]
 		}
-		doMigrate(migrateFromFile)
+		if len(os.Args) > 3 {
+			sinceDate = os.Args[3]
+		}
+		doMigrate(migrateFromFile, sinceDate)
+	case "link-patients":
+		linkPatients()
 	default:
 		log.Fatalf("Unknown command: %s", cmd)
 	}
@@ -433,7 +446,7 @@ func listenForAuthCode() string {
 
 // ─── Migration ───────────────────────────────────────────────────────────────
 
-func doMigrate(tokenFile string) {
+func doMigrate(tokenFile string, sinceDate string) {
 	fmt.Println("\n=== Phase 3+4: Appointments Migration ===")
 	fmt.Println("This command migrates appointments from vfilinav@gmail.com to the project.")
 	fmt.Println()
@@ -515,31 +528,60 @@ func doMigrate(tokenFile string) {
 		}
 	}
 
-	// Read events from vfilinav
+	// Parse `--since` date if provided
 	timeMin := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	if sinceDate != "" {
+		parsed, err := time.Parse("2006-01-02", sinceDate)
+		if err != nil {
+			log.Fatalf("Invalid --since date: %q. Use ISO format (2006-01-02).", sinceDate)
+		}
+		timeMin = parsed
+		fmt.Printf("\n  Resuming from: %s\n", timeMin.Format("2006-01-02"))
+	}
 	timeMax := time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC)
 
-	events, err := vfSvc.Events.List(vfCalendarID).
-		ShowDeleted(false).
-		SingleEvents(true).
-		MaxResults(500).
-		TimeMin(timeMin.Format(time.RFC3339)).
-		TimeMax(timeMax.Format(time.RFC3339)).
-		OrderBy("startTime").
-		Do()
-	if err != nil {
-		log.Fatalf("Failed to read events from vfilinav's calendar: %v", err)
+	// Read events from vfilinav (with pagination)
+	allEvents := make([]*calendar.Event, 0)
+	nextToken := ""
+	page := 0
+
+	for {
+		page++
+		call := vfSvc.Events.List(vfCalendarID).
+			ShowDeleted(false).
+			SingleEvents(true).
+			MaxResults(500).
+			TimeMin(timeMin.Format(time.RFC3339)).
+			TimeMax(timeMax.Format(time.RFC3339)).
+			OrderBy("startTime")
+		if nextToken != "" {
+			call = call.PageToken(nextToken)
+		}
+
+		events, err := call.Do()
+		if err != nil {
+			log.Fatalf("Failed to read events from vfilinav's calendar (page %d): %v", page, err)
+		}
+
+		allEvents = append(allEvents, events.Items...)
+		nextToken = events.NextPageToken
+
+		log.Printf("  Page %d: %d events loaded (total: %d so far)", page, len(events.Items), len(allEvents))
+		if nextToken == "" {
+			break
+		}
+		time.Sleep(200 * time.Millisecond) // rate limit
 	}
 
-	fmt.Printf("\nFound %d events in vfilinav's calendar.\n", len(events.Items))
-	if len(events.Items) == 0 {
+	fmt.Printf("\nFound %d events in vfilinav's calendar.\n", len(allEvents))
+	if len(allEvents) == 0 {
 		fmt.Println("Nothing to migrate.")
 		return
 	}
 
 	// Show events for review
 	fmt.Println("\nEvents to migrate:")
-	for i, e := range events.Items {
+	for i, e := range allEvents {
 		start := "all-day"
 		if e.Start.DateTime != "" {
 			t, _ := time.Parse(time.RFC3339, e.Start.DateTime)
@@ -547,7 +589,7 @@ func doMigrate(tokenFile string) {
 		} else if e.Start.Date != "" {
 			start = e.Start.Date
 		}
-		fmt.Printf("  [%2d] %s | %s\n", i+1, start, ellipsis(e.Summary, 50))
+		fmt.Printf("  [%3d] %s | %s\n", i+1, start, ellipsis(e.Summary, 50))
 	}
 	fmt.Println()
 
@@ -563,7 +605,7 @@ func doMigrate(tokenFile string) {
 	migrated := 0
 	skipped := 0
 
-	for _, e := range events.Items {
+	for _, e := range allEvents {
 		// Check if event already exists (by summary + start time)
 		startStr := ""
 		if e.Start.DateTime != "" {
@@ -633,7 +675,248 @@ func doMigrate(tokenFile string) {
 	fmt.Println("  3. Redeploy the bot")
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Link Patients ───────────────────────────────────────────────────────────
+
+// PatientGroup holds a unique customer name and the events associated with it.
+type PatientGroup struct {
+	Name      string
+	Count     int
+	FirstDate string
+	Events    []*calendar.Event
+}
+
+func linkPatients() {
+	fmt.Println("\n=== Link Patients: Assign TGIDs to Calendar Events ===")
+	fmt.Println("This command scans all events in the project calendar, groups them by")
+	fmt.Println("customer name, and lets you assign a Telegram ID (TGID) per name.")
+	fmt.Println("All events for that name will be updated with TGID:XXXX\n prefix.")
+	fmt.Println()
+
+	svc, calendarID := makeCalendarClient()
+	getCalendarInfo(svc, calendarID)
+
+	// Read ALL events with pagination
+	allEvents := make([]*calendar.Event, 0)
+	nextToken := ""
+	page := 0
+
+	for {
+		page++
+		call := svc.Events.List(calendarID).
+			ShowDeleted(false).
+			SingleEvents(true).
+			MaxResults(500).
+			TimeMin(time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC).Format(time.RFC3339)).
+			OrderBy("startTime")
+		if nextToken != "" {
+			call = call.PageToken(nextToken)
+		}
+
+		events, err := call.Do()
+		if err != nil {
+			log.Fatalf("Failed to read events from project calendar (page %d): %v", page, err)
+		}
+
+		allEvents = append(allEvents, events.Items...)
+		nextToken = events.NextPageToken
+
+		log.Printf("  Page %d: %d events loaded (total: %d so far)", page, len(events.Items), len(allEvents))
+		if nextToken == "" {
+			break
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	fmt.Printf("\nFound %d total events in the calendar.\n", len(allEvents))
+
+	// Group by customer name
+	groups := make(map[string]*PatientGroup)
+	for _, e := range allEvents {
+		// Skip transparent/free events
+		if e.Transparency == "transparent" {
+			continue
+		}
+		// Extract customer name from Summary
+		parts := strings.SplitN(e.Summary, " - ", 2)
+		customerName := ""
+		if len(parts) >= 2 {
+			customerName = strings.TrimSpace(parts[1])
+		} else {
+			customerName = strings.TrimSpace(e.Summary)
+		}
+
+		// Skip empty, personal events (flights, birthdays)
+		if customerName == "" || customerName == e.Summary {
+			continue
+		}
+
+		// Skip events that already have TGID
+		if e.Description != "" && strings.HasPrefix(e.Description, "TGID:") {
+			continue
+		}
+
+		if _, ok := groups[customerName]; !ok {
+			groups[customerName] = &PatientGroup{
+				Name:   customerName,
+				Events: make([]*calendar.Event, 0),
+			}
+		}
+		groups[customerName].Count++
+		groups[customerName].Events = append(groups[customerName].Events, e)
+
+		// Track first date
+		startStr := ""
+		if e.Start.DateTime != "" {
+			t, _ := time.Parse(time.RFC3339, e.Start.DateTime)
+			startStr = t.Format("2006-01-02")
+		} else if e.Start.Date != "" {
+			startStr = e.Start.Date
+		}
+		if groups[customerName].FirstDate == "" || startStr < groups[customerName].FirstDate {
+			groups[customerName].FirstDate = startStr
+		}
+	}
+
+	// Convert to sorted slice (by count, descending)
+	type nameEntry struct {
+		name  string
+		group *PatientGroup
+	}
+	entries := make([]nameEntry, 0, len(groups))
+	for name, g := range groups {
+		entries = append(entries, nameEntry{name, g})
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].group.Count != entries[j].group.Count {
+			return entries[i].group.Count > entries[j].group.Count
+		}
+		return entries[i].name < entries[j].name
+	})
+
+	fmt.Printf("\n=== Unique patients found (%d names, %s events without TGID) ===\n\n", len(entries), func() string {
+		total := 0
+		for _, e := range entries {
+			total += e.group.Count
+		}
+		return fmt.Sprintf("%d", total)
+	}())
+
+	for i, entry := range entries {
+		g := entry.group
+		fmt.Printf("  [%3d] %s — %d visit(s), first: %s\n", i+1, g.Name, g.Count, g.FirstDate)
+	}
+
+	fmt.Println()
+	if !confirm("Do you want to start linking patients?") {
+		fmt.Println("Cancelled.")
+		return
+	}
+
+	// Connect to DB
+	db := connectDB()
+	defer db.Close()
+
+	linked := 0
+	skipped := 0
+
+	for i, entry := range entries {
+		g := entry.group
+		fmt.Printf("\n--- [%d/%d] %s (%d visits) ---\n", i+1, len(entries), g.Name, g.Count)
+
+		// Check if TGID already exists for this name in DB
+		var existingTGID string
+		db.Get(&existingTGID, "SELECT telegram_id FROM patients WHERE name = $1", g.Name)
+		if existingTGID != "" {
+			fmt.Printf("  Already linked to TGID: %s\n", existingTGID)
+			if confirm("Update all events with this TGID?") {
+				patientID := existingTGID
+				for _, e := range g.Events {
+					newDesc := fmt.Sprintf("TGID:%s\n%s", patientID, e.Description)
+					patch := &calendar.Event{Description: newDesc}
+					_, err := svc.Events.Patch(calendarID, e.Id, patch).Do()
+					if err != nil {
+						log.Printf("  ⚠ Failed to update event %s: %v", e.Id, err)
+						skipped++
+					} else {
+						fmt.Printf("  ✅ Updated: %s\n", e.Summary)
+						linked++
+					}
+					time.Sleep(100 * time.Millisecond)
+				}
+			} else {
+				skipped += len(g.Events)
+			}
+			continue
+		}
+
+		fmt.Print("  Enter TGID (or press Enter to skip): ")
+		tgid, _ := reader.ReadString('\n')
+		tgid = strings.TrimSpace(tgid)
+
+		if tgid == "" {
+			fmt.Printf("  Skipped %s.\n", g.Name)
+			skipped += len(g.Events)
+			continue
+		}
+
+		// Validate: must be numeric Telegram ID
+		if _, err := strconv.ParseInt(tgid, 10, 64); err != nil {
+			fmt.Printf("  ⚠ Invalid TGID %q — must be a numeric Telegram user ID. Skipping.\n", tgid)
+			skipped += len(g.Events)
+			continue
+		}
+
+		// Optional: correct the name
+		correctedName := g.Name
+		fmt.Printf("  Current name: %s\n", correctedName)
+		fmt.Print("  Correct name (or press Enter to keep): ")
+		newName, _ := reader.ReadString('\n')
+		newName = strings.TrimSpace(newName)
+		if newName != "" {
+			correctedName = newName
+		}
+
+		// Update ALL events for this patient with TGID
+		for _, e := range g.Events {
+			newDesc := fmt.Sprintf("TGID:%s\n%s", tgid, e.Description)
+			patch := &calendar.Event{Description: newDesc}
+			_, err := svc.Events.Patch(calendarID, e.Id, patch).Do()
+			if err != nil {
+				log.Printf("  ⚠ Failed to update event %s: %v", e.Id, err)
+				skipped++
+				continue
+			}
+			fmt.Printf("  ✅ Updated: %s (TGID:%s)\n", e.Summary, tgid)
+			linked++
+			time.Sleep(100 * time.Millisecond)
+		}
+
+		// Save patient to DB
+		firstVisit := ""
+		if g.FirstDate != "" {
+			firstVisit = g.FirstDate
+		}
+		_, err := db.Exec(`
+			INSERT INTO patients (telegram_id, name, first_visit, last_visit, total_visits)
+			VALUES ($1, $2, $3, $3, $4)
+			ON CONFLICT (telegram_id) DO UPDATE
+			SET name = EXCLUDED.name,
+			    total_visits = EXCLUDED.total_visits`,
+			tgid, correctedName, firstVisit, g.Count)
+		if err != nil {
+			log.Printf("  ⚠ Failed to save patient %s to DB: %v", correctedName, err)
+		} else {
+			fmt.Printf("  📋 Saved patient: %s (TGID:%s, %d visits)\n", correctedName, tgid, g.Count)
+		}
+	}
+
+	fmt.Printf("\n✅ Done! %d events linked, %d skipped.\n", linked, skipped)
+	fmt.Println()
+	fmt.Println("Next steps:")
+	fmt.Println("  1. Verify the links in the bot (/start → Мед-карта)")
+	fmt.Println("  2. syncPatientStats will recalculate the correct visit count")
+}
+
 
 func getEnv(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {

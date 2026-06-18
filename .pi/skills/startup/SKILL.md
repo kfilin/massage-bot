@@ -75,26 +75,36 @@ A professional clinical ecosystem for massage therapists: interactive booking, a
                     └─────────────────────────────────────────────────┘
 ```
 
-## 📋 Status & Priorities (Updated 2026-06-18 20:45)
+## 📋 Status & Priorities (Updated 2026-06-19 01:08)
 
 > Updated by `/handoff` at end of each session. Read this BEFORE Step 2 context below — it tells the next agent what just happened and what to focus on.
 
-### 🟢 Recently Completed (this session: #47)
+### 🟢 Recently Completed (this session: #49)
+- **#49 DONE**: **Google Calendar migration completed — 1385 events + patient linking tool**.
+  - **Pagination + `--since`**: `doMigrate` now paginates through all events (previously capped at 500).
+  - **Second batch migrated**: 885 more events from vfilinav (2025-10-03 → 2026-06-19). Total: 1385.
+  - **`link-patients` command**: New `assign-tgids` style tool in `scripts/data_migration.go` that groups events by customer name and batch-updates descriptions with TGIDs.
+- **#48 DONE**: **Pre-release cleanup & documentation refresh**.
+  - **Documentation pass**: Updated README, USER_GUIDE, DEVELOPER, CHANGELOG, AGENT_USER_MANUAL, docs/files.md, docs/CI_CD_Pipeline.md, docs/API.md, docs/VERA_GUIDE_RU.md, docs/metrics_setup.md, docs/ProdArchitecture.md, deploy/monitoring/README, data/README, metrics.md, docs/backlog_design.md — coverage badge 80%, all version bumps, deprecated refs removed.
+  - **Archived**: walkthrough.md → ARCHIVE/WALKTHROUGH/, what_to_fix.md → ARCHIVE/REVIEWS/ (all P0s resolved).
+  - **DB wiped**: TRUNCATE all tables (patients, appointments, metadata, media, analytics, sessions, blacklist). Clean slate.
+  - **Calendar cleaned**: Deleted 16 mock events from veramassagist calendar.
+  - **Data migration**: Migrated 500 events from vfilinav@gmail.com to project calendar via scripts/data_migration.go.
+  - **OAuth token generated** for vfilinav@gmail.com (saved locally).
+  - **BACKLOG**: #34 marked DONE, #30 marked DEFERRED.
 - **#47 DONE**: **Graphify enforced as mandatory startup step**.
-  - Removed "skip silently" fallback from startup SKILL.md Step 1 — graphify MUST run every session.
-  - Added **Graphify Mandatory (No Skip)** guardrail to AGENTS.md.
-  - Hardened AGENTS.md Step 1 language: "MANDATORY, no skip" + "install if missing, rebuild if stale."
-  - Ran graphify queries on existing graph: 905 nodes, 2,938 edges, 26 communities — full architecture map available.
 - **#36 DONE**: **Test Coverage Hardened to 80.0%** (exact: 2390/2989 stmts).
 - **#25 (Print CSS)** user confirmed done at session
 
 ### 🟡 Active Focus
-- **#34 Integration Testing** — Storage stable (86% unit / 91.7% integration); telegram wiring has structural ceiling (~25%).
-- **#30 Clinical Patterns KI Phase 1** — TWA-side template picker (no AI dependency needed).
-- **#22, #23, #26** — Design/collaboration tasks (user said: "we'll do design tasks in collaboration in next chat").
+- **📍 Link patients**: Run `go run scripts/data_migration.go link-patients` — assign TGIDs to ~85 unique patient names (1385 events). User needs to grab TGIDs from Vera first.
+- **🚧 Prod deploy blocked**: `SKIP_PORT_CHECK=1 ./scripts/deploy.sh prod` needed — local massage-bot container holds port 8082.
+- **GOOGLE_CALENDAR_ID** currently points to group calendar (correct for now — events are there).
+- **#30 Clinical Patterns KI** — deferred to later cycle.
 
 ### 🔴 Blockers / Known Issues
-- **None active.** Server prod healthy.
+- **Patient linking pending**: User has to collect TGIDs from Vera, then run `link-patients`. Patient names may have misspellings to correct manually.
+- **Prod deploy blocked** — port 8082 collision with local massage-bot. Run `SKIP_PORT_CHECK=1 ./scripts/deploy.sh prod` from server-side or stop local container.
 - **Dev-machine `go test ./...` perm denied** on `postgres_data/` (UID 70 owns the dir). Workaround: `go test ./cmd/... ./internal/...`.
 
 ### Source Layout (77 Go files, 11 internal packages)

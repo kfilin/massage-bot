@@ -1,5 +1,24 @@
 # Project Backlog
 
+## 🟢 Session 2026-06-19 01:08 — Google Calendar migration: second batch + patient linking tool
+
+- [x] **Migration pagination**: Added pagination + `--since` flag to `doMigrate` so it reads ALL vfilinav events beyond 500.
+- [x] **Second batch migrated**: 885 events from 2025-10-03 → 2026-06-19 copied to project calendar (1385 total now).
+- [x] **`link-patients` command built**: `scripts/data_migration.go` — scans all events, groups by name, lets you assign TGIDs per patient, batch-updates descriptions with `TGID:XXX\n`, imports to DB.
+
+## 🟢 Session 2026-06-18 23:57 — Pre-release cleanup, documentation refresh, data migration
+
+- [x] **Documentation pass**: Updated README (coverage 80%, deploy scripts, structure), USER_GUIDE/EN/RU, DEVELOPER (Go version, test strategy, admin commands), CHANGELOG (Phases 44-47), AGENT_USER_MANUAL (rewritten for real project), docs/files.md (full rewrite), docs/CI_CD_Pipeline.md, docs/API.md (TWA endpoints), docs/VERA_GUIDE_RU.md, docs/metrics_setup.md, docs/ProdArchitecture.md, data/README.md, metrics.md, docs/backlog_design.md
+- [x] **Archived stale files**: walkthrough.md → ARCHIVE/WALKTHROUGH/, what_to_fix.md → ARCHIVE/REVIEWS/
+- [x] **DB wiped clean**: TRUNCATE all tables (patients, appointments, metadata, media, analytics, sessions, blacklist). Clean slate.
+- [x] **Calendar cleaned**: 16 mock events deleted from veramassagist calendar.
+- [x] **Migration script built**: `scripts/data_migration.go` with 5 subcommands (clean-db, list-events, clean-calendar, auth, migrate).
+- [x] **Data migrated**: 500 events from vfilinav@gmail.com → project calendar via OAuth. Token generated and saved locally.
+- [x] **#34 marked DONE** (called at 80.0% — structural ceiling accepted).
+- [x] **#30 marked DEFERRED** (user said "significantly later").
+- **Pending**: Prod deploy blocked by port 8082 collision. Run `SKIP_PORT_CHECK=1 ./scripts/deploy.sh prod`.
+- **Pending**: Calendar events need verification after deploy.
+
 ## 🟢 Session 2026-06-17 23:25 — P0: Production Crash Loop Resolved (Orphaned Docker Network)
 
 - [x] Diagnosed prod crash loop via `nc -w 3` + `ping` from app container → 100% packet loss on `massage-bot-internal` bridge in **both directions** (app↔db), even with correct ARP, correct routes, fresh network, and post-`systemctl restart docker`. Bridge had `fdb_n_learned 2` while caddy-test-net had 44, indicating veth endpoints from a prior `vera-bot` project were still attached to a phantom `vera-bot_bot-db-net` network.
