@@ -9,7 +9,8 @@ This is not optional. It is not skippable when the task "seems simple". It is no
 ### Startup Procedure
 
 1. **Execute `.pi/skills/startup/SKILL.md`**: Read and fully internalize it. Then:
-   - Run the Graphify queries: `graph_stats()`, `god_nodes(top_n=10)`, `query_graph("What are the main components and how do they interact?", depth=2)`
+   - **Run the Graphify queries — MANDATORY, no skip**: `graph_stats()`, `god_nodes(top_n=10)`, `query_graph("What are the main components and how do they interact?", depth=2)`
+   - If graphify is missing → install it. If the graph is stale → rebuild it (`graphify extract .`).
    - Absorb the project context, infrastructure map, ops patterns, and current priorities in that file
    - Do NOT print raw query output to the user
 2. **Align with `BACKLOG.md`**: Identify current high-priority tasks.
@@ -28,6 +29,7 @@ This is not optional. It is not skippable when the task "seems simple". It is no
 - **PII Shield (Privacy First)**: Never output real user data, names, phone numbers, or emails in chat or artifacts. Use `[REDACTED]` or shadow IDs (e.g., `User (ID: 3045...)`).
 - **No Production Commits**: If the working directory suggests a live server or production environment (e.g., absolute paths like `/opt/`), do NOT run `git commit`. Instruct the user to push changes to Git/GitHub and mirror to the server for deployment.
 - **Server Read-Only Convention**: `/opt/vera-bot/` is read-only except for `data/`, `credentials.json`, `.env`, `.env.test` (gitignored, server-local state). **Code, config, and scripts** flow exclusively through `scripts/deploy.sh prod` (which does `git reset --hard origin/master` then rebuilds and recreates). **Doc-only changes** (AGENTS.md, BACKLOG.md, CHANGELOG.md, etc.) can be synced with `ssh server "cd /opt/vera-bot && git pull --ff-only"` — never `scp` a tracked file directly, never `ssh server "vi ..."` to edit tracked code, never `git commit` on the server. Direct `scp` of a tracked file leaves the server's working tree ahead of (or diverged from) its git HEAD, which breaks the deploy script's reset-hard safety net.
+- **Graphify Mandatory (No Skip)**: Graphify graph queries (`graph_stats`, `god_nodes`, `query_graph`) MUST be executed every session during startup. Not optional, not conditional on availability. If graphify is missing, install it. If the graph is stale, rebuild it. There is no fallback — `find` is not a substitute. Every agent in this project must have graph awareness before touching any code.
 - **Constraints, Not Checklists**: Keep rules as meta-constraints rather than verbose checklists. No single rules block should exceed 15 items to prevent instructions overload.
 
 ---

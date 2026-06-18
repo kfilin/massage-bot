@@ -467,6 +467,18 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
   5. ✅ Convention documented in `AGENTS.md` Guardrails.
   6. ✅ `startup.md` path updates deferred — depends on #43 (project dir rename), still open.
 
+### 47. [DONE] Enforce Graphify as Mandatory Startup Step
+- **Status**: ✅ DONE 2026-06-18
+- **Resolution**: Removed "skip silently" fallback from `.pi/skills/startup/SKILL.md` Step 1. Added **Graphify Mandatory (No Skip)** guardrail to `AGENTS.md`. Hardened AGENTS.md startup procedure language to "MANDATORY, no skip — install if missing, rebuild if stale."
+- **Files changed**:
+  - `AGENTS.md` — added guardrail + hardened Step 1 language
+  - `.pi/skills/startup/SKILL.md` — Step 1 rewritten (no fallback), status section updated
+- **Tasks** (all DONE):
+  1. ✅ Updated startup SKILL.md Step 1 — graphify MUST run, no fallback.
+  2. ✅ Added "Graphify Mandatory" guardrail to AGENTS.md.
+  3. ✅ Ran graphify queries: 905 nodes, 2,938 edges, 26 communities.
+  4. ✅ Pushed to GitHub + GitLab.
+
 ### 46. [DONE] Fix `scripts/deploy.sh` port-collision pre-flight (broken for normal deploys)
 - **Status**: ✅ DONE 2026-06-18
 - **Resolution** (commit `2e007da`): replaced the naive `ss` check with a **smart pre-flight** that only aborts when the port is bound by something OUTSIDE the `vera-bot` compose project. Verified live on the server against three states: our container bound to 8082 (proceeds), free port (proceeds), simulated rogue binding on 9999 (aborts with diagnostic info).
@@ -482,5 +494,5 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
 
 ---
 
-#### Last updated: 2026-06-18 20:20 (#36 done — Test Coverage 80.0%; 16 new test functions; 4 new test files; refactored mux extraction)
+#### Last updated: 2026-06-18 20:45 (#47 done — Graphify mandatory; push to GitHub + GitLab)
 

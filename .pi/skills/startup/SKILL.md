@@ -19,9 +19,11 @@ Load the complete project context for **massage-bot** so you can work effectivel
 
 **You MUST execute these steps automatically at the start of every conversation, BEFORE responding to any user task.**
 
-### Step 1 — Graph Awareness (Codebase Understanding)
+### Step 1 — Graph Awareness (Codebase Understanding) — MANDATORY
 
-If the `graphify` MCP server is available, run these queries silently (do not print raw output):
+**Graphify MUST run every session. No exceptions. No fallback. Period.**
+
+Run these three queries via the graphify MCP server or `graphify query` CLI. Do not print raw output:
 
 ```
 1. graph_stats()           → understand scale (77 Go files, 11 internal packages)
@@ -29,7 +31,9 @@ If the `graphify` MCP server is available, run these queries silently (do not pr
 3. query_graph("What are the main components and how do they interact?", depth=2, mode="bfs")
 ```
 
-If graphify is not available, skip silently — `find internal/ -maxdepth 2 -type d` is a fallback.
+If graphify is not installed, install it (`pip install graphifyy` or `graphify install`).
+If graphs are stale or missing, regenerate them (`graphify extract .`).
+There is no fallback — every session must start with live graph awareness.
 
 Store results mentally. Use them to inform your responses throughout the session.
 
@@ -71,20 +75,18 @@ A professional clinical ecosystem for massage therapists: interactive booking, a
                     └─────────────────────────────────────────────────┘
 ```
 
-## 📋 Status & Priorities (Updated 2026-06-18 20:20)
+## 📋 Status & Priorities (Updated 2026-06-18 20:45)
 
 > Updated by `/handoff` at end of each session. Read this BEFORE Step 2 context below — it tells the next agent what just happened and what to focus on.
 
-### 🟢 Recently Completed (this session: #36)
-- **#36 DONE**: **Test Coverage Hardened to 80.0%** (exact: 2390/2989 stmts). Started from 76.8%, closed 3.2pp gap in one session.
-  - **Refactored** `createWebAppMux()` from `StartServer` and `createHealthMux()` from `startHealthServer` — route setup now testable via httptest without real server.
-  - **`delivery/web`: 79.3% → 88.5%** — 3 server tests (routes, static, WebDAV disabled) + 10 WebDAV subtests (status page, redirect, auth, CORS, wrong password, nonexistent dir, file path, Obsidian client PROPFIND) + 1 lifecycle test.
-  - **`cmd/bot`: 6.6% → 16.1%** — `createHealthMux` at 100%, `startHealthServer` at 80% (lifecycle test).
-  - **`internal/ports`**: BotAPI compile-time interface assertion added.
-  - **`NewCancelHandler` now at 100%** — added cancel service error branch.
-  - **Total: 16 new test functions across 4 test files.** All 16 packages pass (`go test ./cmd/... ./internal/...`).
-  - Remaining uncovered blocks are all hard-to-trigger error-only branches (ListenAndServe failure, Shutdown error, template parse fail, goroutine code).
-- **#25 (Print CSS)** user confirmed done at session start.
+### 🟢 Recently Completed (this session: #47)
+- **#47 DONE**: **Graphify enforced as mandatory startup step**.
+  - Removed "skip silently" fallback from startup SKILL.md Step 1 — graphify MUST run every session.
+  - Added **Graphify Mandatory (No Skip)** guardrail to AGENTS.md.
+  - Hardened AGENTS.md Step 1 language: "MANDATORY, no skip" + "install if missing, rebuild if stale."
+  - Ran graphify queries on existing graph: 905 nodes, 2,938 edges, 26 communities — full architecture map available.
+- **#36 DONE**: **Test Coverage Hardened to 80.0%** (exact: 2390/2989 stmts).
+- **#25 (Print CSS)** user confirmed done at session
 
 ### 🟡 Active Focus
 - **#34 Integration Testing** — Storage stable (86% unit / 91.7% integration); telegram wiring has structural ceiling (~25%).
