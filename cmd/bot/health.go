@@ -27,7 +27,10 @@ func liveHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, `{"status": "live", "service": "massage-bot"}`)
 }
 
-func startHealthServer(ctx context.Context) {
+// createHealthMux builds the HTTP mux with all health-check routes registered.
+// Extracted from startHealthServer so tests can verify route registration
+// without starting a real HTTP server.
+func createHealthMux() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", healthHandler)
 	mux.HandleFunc("/ready", readyHandler)
@@ -37,6 +40,11 @@ func startHealthServer(ctx context.Context) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(w, `{"service": "massage-bot", "endpoints": ["/health", "/ready", "/live"]}`)
 	})
+	return mux
+}
+
+func startHealthServer(ctx context.Context) {
+	mux := createHealthMux()
 
 	// Get port from environment or use default
 	port := os.Getenv("HEALTH_PORT")

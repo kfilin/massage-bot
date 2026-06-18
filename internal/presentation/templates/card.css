@@ -2,6 +2,63 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap');
 
+/* Print Optimization - Vera Massage Clinic */
+@media print {
+    /* Reset base styles */
+    body {
+        background: white !important;
+        color: black !important;
+        padding: 0 !important;
+        font-size: 12pt !important;
+    }
+
+    /* Hide non-essential elements */
+    .segmented-control,
+    .action-buttons,
+    footer {
+        display: none !important;
+    }
+
+    /* Optimize cards for print */
+    .card {
+        box-shadow: none !important;
+        border: 1px solid #ddd !important;
+        page-break-inside: avoid;
+        margin: 0 0 1cm 0 !important;
+    }
+
+    /* Improve text contrast */
+    .text-primary,
+    .text-secondary {
+        color: black !important;
+    }
+
+    /* Remove decorative elements */
+    .card:active {
+        transform: none !important;
+    }
+
+    /* Force full width */
+    .container {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    /* Add print-specific headers/footers */
+    @page {
+        size: auto;
+        margin: 1cm;
+        @top-center {
+            content: "Vera Massage Clinic";
+            font-size: 10pt;
+        }
+        @bottom-right {
+            content: "Printed: " counter(page);
+            font-size: 8pt;
+        }
+    }
+}
+
 :root {
     --bg-page: #F0F4F0; /* Pale Sage Green */
     --bg-card: #FFFFFF;

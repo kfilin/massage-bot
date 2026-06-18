@@ -16,12 +16,10 @@ import (
 	"golang.org/x/net/webdav"
 )
 
-// StartServer launches the HTTP server for the WebApp on the given port.
-// It registers all webapp routes (patient card, search, draft, cancel,
-// update, transcribe, media, WebDAV) and blocks until ctx is cancelled.
-func StartServer(
-	ctx context.Context,
-	port string,
+// createWebAppMux builds the HTTP mux with all web app route handlers registered.
+// Extracted from StartServer so tests can verify route registration without
+// starting a real HTTP server.
+func createWebAppMux(
 	secret string,
 	botToken string,
 	adminIDs []string,
@@ -30,11 +28,7 @@ func StartServer(
 	transcriptionService ports.TranscriptionService,
 	dataDir string,
 	botUsername string,
-) {
-	if port == "" {
-		port = "8082"
-	}
-
+) *http.ServeMux {
 	if dataDir == "" {
 		dataDir = "data"
 	}
@@ -156,6 +150,30 @@ func StartServer(
 	} else {
 		log.Println("Warning: WEBDAV_USER or WEBDAV_PASSWORD not set. WebDAV disabled.")
 	}
+
+	return mux
+}
+
+// StartServer launches the HTTP server for the WebApp on the given port.
+// It registers all webapp routes (patient card, search, draft, cancel,
+// update, transcribe, media, WebDAV) and blocks until ctx is cancelled.
+func StartServer(
+	ctx context.Context,
+	port string,
+	secret string,
+	botToken string,
+	adminIDs []string,
+	repo ports.Repository,
+	apptService ports.AppointmentService,
+	transcriptionService ports.TranscriptionService,
+	dataDir string,
+	botUsername string,
+) {
+	if port == "" {
+		port = "8082"
+	}
+
+	mux := createWebAppMux(secret, botToken, adminIDs, repo, apptService, transcriptionService, dataDir, botUsername)
 
 	logging.Infof("Starting Web App server on :%s", port)
 	server := &http.Server{

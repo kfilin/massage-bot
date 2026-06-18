@@ -108,6 +108,7 @@ func (m *mockRepo) GetMediaByID(mediaID string) (*domain.PatientMedia, error) {
 type mockApptService struct {
 	ports.AppointmentService
 	appointments map[string]domain.Appointment
+	cancelError  error // if set, CancelAppointment returns this error
 }
 
 func (m *mockApptService) GetCustomerHistory(ctx context.Context, id string) ([]domain.Appointment, error) {
@@ -122,6 +123,9 @@ func (m *mockApptService) FindByID(ctx context.Context, id string) (*domain.Appo
 }
 
 func (m *mockApptService) CancelAppointment(ctx context.Context, id string) error {
+	if m.cancelError != nil {
+		return m.cancelError
+	}
 	if _, ok := m.appointments[id]; ok {
 		delete(m.appointments, id)
 		return nil
@@ -591,6 +595,38 @@ func TestHandleCancel(t *testing.T) {
 	handler.ServeHTTP(rrAdmin, reqAdmin)
 	if rrAdmin.Code != http.StatusOK {
 		t.Errorf("Expected 200 for admin cancel, got %d", rrAdmin.Code)
+	}
+}
+
+func TestHandleCancel_ServiceError(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	userID := "300"
+
+	service := &mockApptService{
+		appointments: map[string]domain.Appointment{
+			"appt_1": {
+				ID:           "appt_1",
+				CustomerTgID: userID,
+				StartTime:    time.Now().Add(100 * time.Hour),
+				Service:      domain.Service{Name: "Massage"},
+			},
+		},
+		cancelError: fmt.Errorf("service unavailable"),
+	}
+
+	presenter := presentation.NewBotPresenter()
+	handler := NewCancelHandler(service, botToken, []string{}, presenter)
+
+	initData := makeInitData(userID, "User", botToken)
+	body := map[string]string{"initData": initData, "apptId": "appt_1"}
+	jsonBody, _ := json.Marshal(body)
+
+	req, _ := http.NewRequest("POST", "/cancel", bytes.NewBuffer(jsonBody))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("Expected 500 for cancellation service error, got %d. Body: %s", rr.Code, rr.Body.String())
 	}
 }
 
@@ -1284,5 +1320,57 @@ func TestPagination_LimitCap(t *testing.T) {
 	}
 	if strings.Contains(rr.Body.String(), "Показать ещё") {
 		t.Errorf("Expected NO 'Show more' button when all visits fit in one page")
+	}
+}
+
+func TestWebAppHandler_SelfHealNoName(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	secret := "hmac_secret"
+	repo := &mockRepo{}
+	service := &mockApptService{}
+	presenter, _ := presentation.NewWebPresenter()
+	handler := NewWebAppHandler(repo, service, presenter, botToken, []string{}, secret)
+
+	// Use HMAC auth (no name in payload) to trigger the `name == ""` fallback to "Пациент"
+	h := hmac.New(sha256.New, []byte(secret))
+	h.Write([]byte("777"))
+	token := hex.EncodeToString(h.Sum(nil))
+
+	req, _ := http.NewRequest("GET", "/?id=777&token="+token, nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200 for self-heal without name, got %d", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "Пациент") {
+		t.Errorf("Expected fallback name 'Пациент' in response")
+	}
+}
+
+func TestWebAppHandler_DBHistoryError(t *testing.T) {
+	botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+	patientID := "800"
+
+	repo := &mockRepo{
+		patient: domain.Patient{TelegramID: patientID, Name: "DB Error Patient"},
+		getApptHistoryFunc: func(id string) ([]domain.Appointment, error) {
+			return nil, fmt.Errorf("database connection lost")
+		},
+	}
+	service := &mockApptService{}
+	presenter, _ := presentation.NewWebPresenter()
+	handler := NewWebAppHandler(repo, service, presenter, botToken, []string{}, "secret")
+
+	initData := makeInitData(patientID, "Patient", botToken)
+	req, _ := http.NewRequest("GET", "/?id="+patientID+"&initData="+url.QueryEscape(initData), nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200 even with DB error, got %d", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "DB Error Patient") {
+		t.Errorf("Expected patient name in response")
 	}
 }
