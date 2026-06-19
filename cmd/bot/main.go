@@ -76,9 +76,9 @@ func main() {
 	sessionStorage := storage.NewPostgresSessionStorage(db)
 	logging.Info("Postgres session storage initialized.")
 
-	// 6. Initialize Advanced Adapters (Transcription)
-	transcriptionAdapter := transcription.NewGroqAdapter(cfg.GroqAPIKey)
-	logging.Info("Advanced adapters (Groq) initialized.")
+	// 6. Initialize Advanced Adapters (Transcription) — self-hosted Whisper
+	transcriptionAdapter := transcription.NewLocalAdapter(cfg.WhisperBaseURL)
+	logging.Infof("Local Whisper adapter initialized (endpoint: %s).", cfg.WhisperBaseURL)
 
 	// 6b. Start Web App server (now with apptService for sync)
 	// 8. Graceful Shutdown Orchestration

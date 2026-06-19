@@ -104,9 +104,8 @@ A professional clinical ecosystem for massage therapists: interactive booking, a
 - **#36 DONE**: **Test Coverage Hardened to 80.0%** (exact: 2390/2989 stmts).
 
 ### 🟡 Active Focus
-- **📍 Manual QA (continued)**: Polish system messages — welcome text says "Vera Massage Clinic", contact link points to `VeraFethiye`. Verify real clinic name with user.
+- **📍 Polish system messages**: welcome text says "Vera Massage Clinic" — verify real clinic name with user.
 - **📍 Link patients**: Run `go run scripts/data_migration.go link-patients` — assign TGIDs to ~85 unique patient names (1385 events). User needs to grab TGIDs from Vera first.
-- **📍 TWA polish**: Verify back button fix works in real TWA (cannot be fully tested in unit tests — needs manual/on-device test).
 - **#30 Clinical Patterns KI** — deferred to later cycle.
 
 ### 🔴 Blockers / Known Issues
@@ -126,7 +125,7 @@ A professional clinical ecosystem for massage therapists: interactive booking, a
 | `internal/services/reminder/` | Schedule reminder workers, lifecycle |
 | `internal/storage/` | PostgreSQL adapters, query builders, state tracking |
 | `internal/delivery/telegram/` | Webhook, callback, text-message handlers, routing |
-| `internal/adapters/` | Google Calendar Free/Busy, Groq transcription |
+| `internal/adapters/` | Google Calendar Free/Busy, local Whisper transcription |
 | `internal/ports/` | Interface boundaries (services ↔ adapters) |
 | `internal/config/` | Env vars, timezone settings, feature flags |
 | `internal/presentation/` | HTML templates, web app views |

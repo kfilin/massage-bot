@@ -8,33 +8,33 @@ import (
 
 // envSnapshot captures the current values of the env vars used by LoadConfig.
 type envSnapshot struct {
-	token          string
-	adminID        string
-	allowedIDs     string
-	credsPath      string
-	credsJSON      string
-	calendarID     string
-	therapistID    string
-	webAppURL      string
-	webAppSecret   string
-	webAppPort     string
-	groqAPIKey     string
+	token           string
+	adminID         string
+	allowedIDs      string
+	credsPath       string
+	credsJSON       string
+	calendarID      string
+	therapistID     string
+	webAppURL       string
+	webAppSecret    string
+	webAppPort      string
+	whisperBaseURL  string
 }
 
 func captureEnv(t *testing.T) envSnapshot {
 	t.Helper()
 	return envSnapshot{
-		token:        os.Getenv("TG_BOT_TOKEN"),
-		adminID:      os.Getenv("TG_ADMIN_ID"),
-		allowedIDs:   os.Getenv("ALLOWED_TELEGRAM_IDS"),
-		credsPath:    os.Getenv("GOOGLE_CREDENTIALS_PATH"),
-		credsJSON:    os.Getenv("GOOGLE_CREDENTIALS_JSON"),
-		calendarID:   os.Getenv("GOOGLE_CALENDAR_ID"),
-		therapistID:  os.Getenv("TG_THERAPIST_ID"),
-		webAppURL:    os.Getenv("WEBAPP_URL"),
-		webAppSecret: os.Getenv("WEBAPP_SECRET"),
-		webAppPort:   os.Getenv("WEBAPP_PORT"),
-		groqAPIKey:   os.Getenv("GROQ_API_KEY"),
+		token:         os.Getenv("TG_BOT_TOKEN"),
+		adminID:       os.Getenv("TG_ADMIN_ID"),
+		allowedIDs:    os.Getenv("ALLOWED_TELEGRAM_IDS"),
+		credsPath:     os.Getenv("GOOGLE_CREDENTIALS_PATH"),
+		credsJSON:     os.Getenv("GOOGLE_CREDENTIALS_JSON"),
+		calendarID:    os.Getenv("GOOGLE_CALENDAR_ID"),
+		therapistID:   os.Getenv("TG_THERAPIST_ID"),
+		webAppURL:     os.Getenv("WEBAPP_URL"),
+		webAppSecret:  os.Getenv("WEBAPP_SECRET"),
+		webAppPort:    os.Getenv("WEBAPP_PORT"),
+		whisperBaseURL: os.Getenv("WHISPER_BASE_URL"),
 	}
 }
 
@@ -57,7 +57,7 @@ func restoreEnv(t *testing.T, snap envSnapshot) {
 	setOrUnset("WEBAPP_URL", snap.webAppURL)
 	setOrUnset("WEBAPP_SECRET", snap.webAppSecret)
 	setOrUnset("WEBAPP_PORT", snap.webAppPort)
-	setOrUnset("GROQ_API_KEY", snap.groqAPIKey)
+	setOrUnset("WHISPER_BASE_URL", snap.whisperBaseURL)
 }
 
 func clearConfigEnv(t *testing.T) {
@@ -75,7 +75,7 @@ func clearConfigEnv(t *testing.T) {
 	_ = os.Unsetenv("WEBAPP_URL")
 	_ = os.Unsetenv("WEBAPP_SECRET")
 	_ = os.Unsetenv("WEBAPP_PORT")
-	_ = os.Unsetenv("GROQ_API_KEY")
+	_ = os.Unsetenv("WHISPER_BASE_URL")
 }
 
 func TestLoadConfigDefaults(t *testing.T) {
@@ -142,7 +142,7 @@ func TestLoadConfigPreservesOptionalFields(t *testing.T) {
 	_ = os.Setenv("TG_BOT_TOKEN", "test_token")
 	_ = os.Setenv("GOOGLE_CREDENTIALS_JSON", "creds")
 	_ = os.Setenv("TG_ADMIN_ID", "admin42")
-	_ = os.Setenv("GROQ_API_KEY", "key99")
+	_ = os.Setenv("WHISPER_BASE_URL", "http://whisper:8000/v1")
 	_ = os.Setenv("WEBAPP_URL", "https://example.com")
 	_ = os.Setenv("WEBAPP_SECRET", "shh")
 	_ = os.Setenv("WEBAPP_PORT", "8080")
@@ -152,8 +152,8 @@ func TestLoadConfigPreservesOptionalFields(t *testing.T) {
 	if cfg.AdminTelegramID != "admin42" {
 		t.Errorf("Expected admin ID admin42, got %s", cfg.AdminTelegramID)
 	}
-	if cfg.GroqAPIKey != "key99" {
-		t.Errorf("Expected GroqAPIKey key99, got %s", cfg.GroqAPIKey)
+	if cfg.WhisperBaseURL != "http://whisper:8000/v1" {
+		t.Errorf("Expected WhisperBaseURL http://whisper:8000/v1, got %s", cfg.WhisperBaseURL)
 	}
 	if cfg.WebAppURL != "https://example.com" {
 		t.Errorf("Expected WebAppURL https://example.com, got %s", cfg.WebAppURL)

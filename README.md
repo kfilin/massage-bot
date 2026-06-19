@@ -61,9 +61,9 @@ A full-featured Mini App integrated directly into Telegram:
   - **Full History**: Access to all patient notes, files, and visit logs.
   - **Draft Approval**: Review and approve/discard transcribed voice notes before they're added to the clinical card.
 
-### 🎙️ Voice Intelligence (Groq/Whisper)
+### 🎙️ Voice Intelligence (Self-Hosted Whisper)
 
-- **Transcription**: All voice messages from patients are automatically transcribed using **Groq's Whisper API**.
+- **Transcription**: All voice messages from patients are automatically transcribed using a **self-hosted Whisper server** (faster-whisper) on the same Docker network.
 - **Draft-First Pipeline**: Transcriptions saved as "pending" drafts — reviewed and approved by the therapist via TWA before being added to the medical card.
 - **Context**: Transcriptions are saved to the patient's medical card (Postgres + Markdown) and forwarded to the therapist.
 - **Filtering**: Intelligent filtering removes "hallucinations" (e.g., "Silence", "Thank you") from empty voice notes.
@@ -102,7 +102,7 @@ graph TD
 
     subgraph "External Adapters"
         Booking <--> Google[(Google Calendar)]
-        Trans <--> Groq[Groq AI]
+        Trans <--> Whisper[Local Whisper]
     end
 
     subgraph "Persistence & Sync"
@@ -140,7 +140,7 @@ internal/
   delivery/
     telegram/         # Bot handlers, routing, middleware, keyboards
     web/              # TWA HTTP handlers (medical card, search, draft, cancel)
-  adapters/           # Third-party integrations (Google Calendar Free/Busy, Groq Whisper)
+  adapters/           # Third-party integrations (Google Calendar Free/Busy, local Whisper)
   ports/              # Interface definitions for architectural boundaries
   presentation/       # HTML templates, Telegram message formatting
   config/             # Environment-based configuration management
@@ -219,7 +219,7 @@ The bot is configured entirely via environment variables (see `.env.example` for
 | `GOOGLE_CREDENTIALS_JSON` | Content of Google Service Account JSON | Yes* |
 | `GOOGLE_CREDENTIALS_PATH` | Path to Google Service Account JSON | Yes* |
 | `GOOGLE_CALENDAR_ID` | Calendar ID to manage (default: `primary`) | No |
-| `GROQ_API_KEY` | API Key for Voice Transcription | No |
+| `WHISPER_BASE_URL` | Self-hosted Whisper endpoint (default: http://whisper:8000/v1/audio/transcriptions) | No |
 | `TG_THERAPIST_ID` | Comma-separated therapist IDs (defaults to Admin) | No |
 | `WEBAPP_URL` | Public URL for the Mini App | No |
 | `WEBAPP_SECRET` | Secret key for Web App HMAC signature | No |

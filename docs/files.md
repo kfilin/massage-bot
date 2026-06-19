@@ -39,7 +39,7 @@
 | `internal/delivery/telegram/` | Bot handlers, callback routing, middleware, keyboards |
 | `internal/delivery/web/` | TWA HTTP handlers: medical card, search, drafts, cancel, transcribe |
 | `internal/adapters/googlecalendar/` | Google Calendar Free/Busy API adapter |
-| `internal/adapters/groq/` | Groq Whisper transcription adapter |
+| `internal/adapters/transcription/` | Self-hosted Whisper transcription adapter |
 | `internal/ports/` | Interface boundaries (BotAPI, Repository, AppointmentService) |
 | `internal/presentation/` | HTML templates (TWA), Telegram message formatters |
 | `internal/config/` | Environment variable parsing and configuration |

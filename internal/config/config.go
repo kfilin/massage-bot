@@ -15,7 +15,7 @@ type Config struct {
 	GoogleCalendarCredentialsPath string
 	GoogleCalendarCredentialsJSON string
 	GoogleCalendarID              string
-	GroqAPIKey                    string
+	WhisperBaseURL                string
 	TherapistIDs                  []string
 	WebAppURL                     string
 	WebAppSecret                  string
@@ -87,7 +87,7 @@ func LoadConfigWithFatal(fatal func(...interface{})) *Config {
 		GoogleCalendarCredentialsPath: googleCredsPath,
 		GoogleCalendarCredentialsJSON: googleCredsJSON,
 		GoogleCalendarID:              googleCalendarID,
-		GroqAPIKey:                    os.Getenv("GROQ_API_KEY"),
+		WhisperBaseURL:                os.Getenv("WHISPER_BASE_URL"),
 		TherapistIDs:                  therapistIDs,
 		WebAppURL:                     os.Getenv("WEBAPP_URL"),
 		WebAppSecret:                  os.Getenv("WEBAPP_SECRET"),
