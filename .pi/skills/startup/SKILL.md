@@ -75,19 +75,25 @@ A professional clinical ecosystem for massage therapists: interactive booking, a
                     └─────────────────────────────────────────────────┘
 ```
 
-## 📋 Status & Priorities (Updated 2026-06-19 13:25)
+## 📋 Status & Priorities (Updated 2026-06-19 14:15)
 
 > Updated by `/handoff` at end of each session. Read this BEFORE Step 2 context below — it tells the next agent what just happened and what to focus on.
 
-### 🟢 Recently Completed (this session: #50)
+### 🟢 Recently Completed (this session: #51)
+- **#51 DONE**: **TWA back button bug fixed — `sessionStorage` replaces `window.history.length`**.
+  - **Root cause**: `app.js:setupBackButton()` used `window.history.length > 1` to decide back button visibility. TWA WebView does NOT track full-page navigations (`window.location.href`) in `window.history` — `history.length` is always `1`. So `window.history.back()` either does nothing or closes the TWA.
+  - **Fix**: Replaced `history.length` check with `sessionStorage`-based navigation stack. `search.html` stores `sessionStorage.setItem('twa_return_to', window.location.href)` before navigating to a patient card. `setupBackButton()` reads `twa_return_to` to show/hide the back button, and on click navigates directly via `window.location.href = returnTo` instead of `window.history.back()`.
+  - **Files changed**: `internal/presentation/templates/app.js`, `internal/presentation/templates/search.html`
+  - **Verified**: JS syntax validated, presentation + web handler + bot tests all green.
+- **Manual QA walkthrough**: Read all user-facing text in the bot. Documented every hardcoded string that might need future changes (clinic name "Vera Massage Clinic", contact link `VeraFethiye`, GCal location "Fethiye, Turkey", WebDAV realm "Vera Bot Medical Records").
+
+### 🟢 Recently Completed (previous sessions)
 - **#50 DONE**: **Lint gap fixed — golangci-lint v1.64.8 installed, 27 issues fixed**.
   - Installed golangci-lint v1.64.8 (built with Go 1.25.3).
   - Created `.golangci.yml` config, fixed `Makefile` targets (use `./cmd/... ./internal/...` to avoid `postgres_data/` perm issue).
   - Fixed 27 issues across 14 files: errcheck (unchecked Encode, Write, Send, Delete), unused mock types removed, gosimple S1009, ineffassign, staticcheck SA5011/SA9003, missing import.
   - **All 16 sub-packages green, 80.0% coverage, lint clean, vet clean.**
 - **Prod deploy (commit 128e7f8)**: `SKIP_PORT_CHECK=1 ./scripts/deploy.sh prod`. Image rebuilt, containers recreated, health 200.
-
-### 🟢 Recently Completed (previous sessions)
 - **#49 DONE**: **Google Calendar migration completed — 1385 events + patient linking tool**.
   - **Pagination + `--since`**: `doMigrate` now paginates through all events (previously capped at 500).
   - **Second batch migrated**: 885 more events from vfilinav (2025-10-03 → 2026-06-19). Total: 1385.
@@ -98,8 +104,9 @@ A professional clinical ecosystem for massage therapists: interactive booking, a
 - **#36 DONE**: **Test Coverage Hardened to 80.0%** (exact: 2390/2989 stmts).
 
 ### 🟡 Active Focus
-- **📍 Manual QA**: Walk through the bot's booking flow, welcome message, reminders, cancellation flow, admin panel. Polish system messages (welcome text currently says "Vera Massage Clinic" — may need real clinic name).
+- **📍 Manual QA (continued)**: Polish system messages — welcome text says "Vera Massage Clinic", contact link points to `VeraFethiye`. Verify real clinic name with user.
 - **📍 Link patients**: Run `go run scripts/data_migration.go link-patients` — assign TGIDs to ~85 unique patient names (1385 events). User needs to grab TGIDs from Vera first.
+- **📍 TWA polish**: Verify back button fix works in real TWA (cannot be fully tested in unit tests — needs manual/on-device test).
 - **#30 Clinical Patterns KI** — deferred to later cycle.
 
 ### 🔴 Blockers / Known Issues

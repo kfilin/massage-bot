@@ -33,16 +33,16 @@ function switchSegment(el) {
     tg.HapticFeedback.selectionChanged();
 }
 
-// Back Button Management
+// Back Button Management — uses sessionStorage instead of window.history
+// because TWA WebView does not track full-page navigations in history.
 function setupBackButton() {
-    // If we have a 'back=true' in URL or if history > 1, show back button
-    const urlParams = new URLSearchParams(window.location.search);
-    const canGoBack = window.history.length > 1 || urlParams.has('from_search');
+    const returnTo = sessionStorage.getItem('twa_return_to');
 
-    if (canGoBack) {
+    if (returnTo) {
         tg.BackButton.show();
         tg.BackButton.onClick(() => {
-            window.history.back();
+            sessionStorage.removeItem('twa_return_to');
+            window.location.href = returnTo;
         });
     } else {
         tg.BackButton.hide();

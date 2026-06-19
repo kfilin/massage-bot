@@ -1,5 +1,16 @@
 # Project Backlog
 
+## 🟢 Session 2026-06-19 14:15 — TWA back button bug fix
+
+- [x] **Fixed TWA back button** — `setupBackButton()` in `app.js` used `window.history.length > 1` which is always `1` in TWA WebView.
+- [x] **Replaced with `sessionStorage`-based navigation stack**:
+  - `search.html` patient card click now stores `sessionStorage.setItem('twa_return_to', window.location.href)` before navigating
+  - `setupBackButton()` reads `twa_return_to` to show/hide back button, navigates directly via `window.location.href = returnTo` on click
+  - `window.history.back()` dependency removed entirely
+- [x] **Manual QA walkthrough**: Read all user-facing bot text — welcome, booking flow, reminders, cancellation, admin panel, TWA card.
+- [x] **Found hardcoded strings for future polish**: "Vera Massage Clinic" in welcome, `VeraFethiye` contact link, "Fethiye, Turkey" in GCal events, "Vera Bot Medical Records" WebDAV realm.
+- [x] **Verified**: JS syntax OK, all test packages green.
+
 ## 🟢 Session 2026-06-19 13:25 — golangci-lint install + lint fixes + prod deploy
 
 - [x] **Installed golangci-lint v1.64.8** (was missing, `make lint` failed).
