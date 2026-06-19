@@ -6,7 +6,8 @@ description = "Ignore known test tokens and examples"
 regexes = [
     '123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11', # WebApp Test Token
     'my_secret_key',                            # WebApp Test Secret
-    'fake-key'                                  # Groq Test Key
+    'fake-key',                                  # Groq Test Key
+    '@group\.calendar\.google\.com'              # Google Calendar resource IDs (not secrets)
 ]
 paths = [
     'go.sum',
