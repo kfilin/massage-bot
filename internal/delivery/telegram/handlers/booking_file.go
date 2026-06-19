@@ -133,6 +133,10 @@ func (h *BookingHandler) HandleFileMessage(c telebot.Context) error {
 				}
 			}
 
+			if err != nil {
+				logging.Errorf("Admin reply transcription failed: %v", err)
+			}
+
 			if err == nil && transcript != "" {
 				// Send transcription to patient
 				if _, err := c.Bot().Send(patientUser, fmt.Sprintf("📝 <b>Текст сообщения:</b>\n%s", transcript), telebot.ModeHTML); err != nil {
@@ -254,6 +258,12 @@ func (h *BookingHandler) HandleFileMessage(c telebot.Context) error {
 
 		if transMsg != nil {
 			_ = c.Bot().Delete(transMsg)
+		}
+
+		if err != nil {
+			logging.Errorf("Transcription failed for file %s: %v", fileName, err)
+		} else if transcript == "" {
+			logging.Infof("Transcription returned empty text for %s (silence/noise)", fileName)
 		}
 
 		if err == nil && transcript != "" {

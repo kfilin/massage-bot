@@ -106,7 +106,8 @@ func (a *localAdapter) Transcribe(ctx context.Context, audio io.Reader, filename
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("local whisper returned error (status %d): %s", resp.StatusCode, string(respBody))
+		errMsg := fmt.Sprintf("local whisper returned error (status %d): %s", resp.StatusCode, string(respBody))
+		return "", fmt.Errorf(errMsg)
 	}
 
 	var localResp localResponse
