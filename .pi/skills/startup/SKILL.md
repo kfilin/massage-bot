@@ -70,22 +70,26 @@ A professional clinical ecosystem for massage therapists: interactive booking, a
                     │         ▼                                        │
                     │  PostgreSQL :5432  (internal — patient data)     │
                     │  Google Calendar API  (external — scheduling)    │
-                    │  Groq Whisper API  (external — voice transcript) │
+                    │  Local Whisper (self-hosted)  (internal — voice transcription) │
                     │  WebDAV / Obsidian  (external — clinical notes)  │
                     └─────────────────────────────────────────────────┘
 ```
 
-## 📋 Status & Priorities (Updated 2026-06-19 14:15)
+## 📋 Status & Priorities (Updated 2026-06-20 01:00)
 
 > Updated by `/handoff` at end of each session. Read this BEFORE Step 2 context below — it tells the next agent what just happened and what to focus on.
 
-### 🟢 Recently Completed (this session: #51)
-- **#51 DONE**: **TWA back button bug fixed — `sessionStorage` replaces `window.history.length`**.
-  - **Root cause**: `app.js:setupBackButton()` used `window.history.length > 1` to decide back button visibility. TWA WebView does NOT track full-page navigations (`window.location.href`) in `window.history` — `history.length` is always `1`. So `window.history.back()` either does nothing or closes the TWA.
-  - **Fix**: Replaced `history.length` check with `sessionStorage`-based navigation stack. `search.html` stores `sessionStorage.setItem('twa_return_to', window.location.href)` before navigating to a patient card. `setupBackButton()` reads `twa_return_to` to show/hide the back button, and on click navigates directly via `window.location.href = returnTo` instead of `window.history.back()`.
-  - **Files changed**: `internal/presentation/templates/app.js`, `internal/presentation/templates/search.html`
-  - **Verified**: JS syntax validated, presentation + web handler + bot tests all green.
-- **Manual QA walkthrough**: Read all user-facing text in the bot. Documented every hardcoded string that might need future changes (clinic name "Vera Massage Clinic", contact link `VeraFethiye`, GCal location "Fethiye, Turkey", WebDAV realm "Vera Bot Medical Records").
+### 🟢 Recently Completed (this session: #52)
+- **#52 DONE**: **Groq Whisper API → self-hosted faster-whisper**.
+  - Created `internal/adapters/transcription/local.go` — OpenAI-compatible adapter for the local faster-whisper-server container on the Docker network.
+  - Deleted `groq.go` and `groq_test.go`.
+  - Config: `GroqAPIKey` → `WhisperBaseURL` (env `WHISPER_BASE_URL`).
+  - All docs, env examples, start skill updated.
+  - Deployed to prod (commits `123bfad`, `cce200a`, `4a89d7b`, `ccfa780`).
+  - **BLOCKED**: Transcription returns HTTP 400 from whisper server. The `HandleFileMessage` handler is allegedly not being reached (no entry log even with debug logging added). Root cause not yet identified.
+
+### 🟢 Recently Completed (previous: #51)
+- **#51 DONE**: **TWA back button bug fixed** — `sessionStorage` replaces `window.history.length`.
 
 ### 🟢 Recently Completed (previous sessions)
 - **#50 DONE**: **Lint gap fixed — golangci-lint v1.64.8 installed, 27 issues fixed**.
@@ -104,14 +108,16 @@ A professional clinical ecosystem for massage therapists: interactive booking, a
 - **#36 DONE**: **Test Coverage Hardened to 80.0%** (exact: 2390/2989 stmts).
 
 ### 🟡 Active Focus
+- **📍 Debug local Whisper transcription**: `HandleFileMessage` handler is not being reached when a voice message is sent. Added entry log in `booking_file.go` (`ccfa780`). Next session should send a voice message and check if the log appears.
 - **📍 Polish system messages**: welcome text says "Vera Massage Clinic" — verify real clinic name with user.
-- **📍 Link patients**: Run `go run scripts/data_migration.go link-patients` — assign TGIDs to ~85 unique patient names (1385 events). User needs to grab TGIDs from Vera first.
-- **#30 Clinical Patterns KI** — deferred to later cycle.
+- **📍 Link patients**: Run `go run scripts/data_migration.go link-patients` — assign TGIDs to ~85 unique patient names.
 
 ### 🔴 Blockers / Known Issues
-- **Patient linking pending**: User has to collect TGIDs from Vera, then run `link-patients`. Patient names may have misspellings to correct manually.
-- **Normal prod deploy still blocked by port collision**: `SKIP_PORT_CHECK=1` works as workaround. The port is bound by the local massage-bot container on the dev machine.
-- **Dev-machine `go test ./...` perm denied** on `postgres_data/` (UID 70 owns the dir). Workaround: `go test ./cmd/... ./internal/...` (already fixed in Makefile).
+- **Local Whisper transcription returning 400**: The Go adapter (`local.go`) gets 400 Bad Request from whisper server. Model renamed to `Systran/faster-whisper-small`, `language` removed, streaming reader replaced with `io.ReadAll`. Still fails. Need to check response body.
+- **Voice handler may not fire**: Despite 3 voice message attempts, `HandleFileMessage` entry log never appeared. Could be a telebot/update routing issue or the voice message arrives on a different path than expected.
+- **Patient linking pending**.
+- **Normal prod deploy still blocked by port collision**: `SKIP_PORT_CHECK=1` works as workaround.
+- **Dev-machine `go test ./...` perm denied** on `postgres_data/`.
 
 ### Source Layout (77 Go files, 11 internal packages)
 
