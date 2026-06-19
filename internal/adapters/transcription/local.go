@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kfilin/massage-bot/internal/logging"
 	"github.com/kfilin/massage-bot/internal/monitoring"
 )
 
@@ -44,36 +45,39 @@ type localResponse struct {
 }
 
 // Transcribe implements ports.TranscriptionService.
-// Sends the audio as a multipart/form-data POST to the local Whisper server,
-// same format as the OpenAI /v1/audio/transcriptions endpoint.
+// Sends the audio as a multipart/form-data POST to the local Whisper server.
+// Mirrors the approach used in agentic-lab-2.0's connect_handler.go.
 func (a *localAdapter) Transcribe(ctx context.Context, audio io.Reader, filename string) (string, error) {
 	if audio == nil {
 		return "", fmt.Errorf("nil reader")
 	}
 
+	// Read all audio data into memory first (same pattern as agentic-lab).
+	// This avoids issues with streaming readers during multipart construction.
+	audioData, err := io.ReadAll(audio)
+	if err != nil {
+		return "", fmt.Errorf("failed to read audio data: %w", err)
+	}
+
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 
-	// Add file part
+	// Add file part (matches agentic-lab: CreateFormFile + Write)
 	part, err := writer.CreateFormFile("file", filename)
 	if err != nil {
 		return "", fmt.Errorf("failed to create form file: %w", err)
 	}
-	if _, err := io.Copy(part, audio); err != nil {
-		return "", fmt.Errorf("failed to copy audio to form: %w", err)
+	if _, err := part.Write(audioData); err != nil {
+		return "", fmt.Errorf("failed to write audio to form: %w", err)
 	}
 
-	// Add model — not strictly needed for faster-whisper-server, but
-	// included for OpenAI API compatibility
-	if err := writer.WriteField("model", "whisper-1"); err != nil {
+	// Add model — use the actual model name (matching agentic-lab)
+	if err := writer.WriteField("model", "Systran/faster-whisper-small"); err != nil {
 		return "", fmt.Errorf("failed to write model field: %w", err)
 	}
 
-	// Force Russian language
-	if err := writer.WriteField("language", "ru"); err != nil {
-		return "", fmt.Errorf("failed to write language field: %w", err)
-	}
-
+	// Language is optional — the server defaults to auto-detect.
+	// Don't force "ru" to match the server's default_language=None config.
 	if err := writer.Close(); err != nil {
 		return "", fmt.Errorf("failed to close multipart writer: %w", err)
 	}
@@ -104,18 +108,27 @@ func (a *localAdapter) Transcribe(ctx context.Context, audio io.Reader, filename
 	}
 	defer resp.Body.Close()
 
+	// Read full response body (matches agentic-lab pattern)
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read whisper response: %w", err)
+	}
+
 	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
 		errMsg := fmt.Sprintf("local whisper returned error (status %d): %s", resp.StatusCode, string(respBody))
-		return "", fmt.Errorf(errMsg)
+		logging.Error(errMsg)
+		return "", fmt.Errorf("%s", errMsg)
 	}
 
-	var localResp localResponse
-	if err := json.NewDecoder(resp.Body).Decode(&localResp); err != nil {
-		return "", fmt.Errorf("failed to decode local whisper response: %w", err)
+	var result struct {
+		Text     string `json:"text"`
+		Language string `json:"language,omitempty"`
+	}
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return "", fmt.Errorf("failed to decode whisper response: %w", err)
 	}
 
-	text := strings.TrimSpace(localResp.Text)
+	text := strings.TrimSpace(result.Text)
 
 	// Filter common hallucinations (especially "You" or "Thank you" on silence)
 	lowerText := strings.ToLower(text)

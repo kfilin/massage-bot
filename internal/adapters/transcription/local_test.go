@@ -60,7 +60,7 @@ func TestTranscribeLocal_Success(t *testing.T) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(localResponse{Text: "Привет, мир"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"text": "Привет, мир"})
 	}))
 	defer server.Close()
 
@@ -122,7 +122,7 @@ func TestTranscribeLocal_HallucinationFilter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				_ = json.NewEncoder(w).Encode(localResponse{Text: tt.apiText})
+				_ = json.NewEncoder(w).Encode(map[string]string{"text": tt.apiText})
 			}))
 			defer server.Close()
 
