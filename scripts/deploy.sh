@@ -19,7 +19,7 @@ case "$ENV" in
     ;;
   prod)
     APP_DIR="/opt/vera-bot"
-    SKIP_PORT_CHECK=0
+    SKIP_PORT_CHECK="${SKIP_PORT_CHECK:-0}"
     ;;
   *)
     echo "ERROR: Unknown env '$ENV'. Usage: $0 <test|prod>"
