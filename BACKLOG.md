@@ -537,9 +537,9 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
 
 ---
 
-## 📋 Session 2026-06-20 00:30 — #52 Groq→local Whisper switch (BLOCKED)
+## 📋 Session 2026-06-20 00:30 — #52 Groq→local Whisper switch (DONE)
 
-### 52. [IN PROGRESS] Switch Groq Whisper API → self-hosted faster-whisper
+### 52. [DONE] Switch Groq Whisper API → self-hosted faster-whisper
 
 - [x] **Created `internal/adapters/transcription/local.go`** — self-hosted Whisper adapter
   - OpenAI-compatible multipart POST to `http://whisper:8000/v1/audio/transcriptions`
@@ -551,32 +551,13 @@ This is manual, repetitive work that a template + AI assist system can reduce fr
 - [x] **Updated all docs**: README, DEVELOPER.md, files.md, .env.example
 - [x] **Updated `.env` on server**: `WHISPER_BASE_URL=http://whisper:8000/v1/audio/transcriptions`
 - [x] **Deployed to prod** (commits: `123bfad`, `cce200a`, `4a89d7b`, `ccfa780`)
+- [x] **Resolved Blocker**: Stopped the local dev bot container (`massage-bot-app-1`) which was running in the background on the developer machine and stealing Long Polling updates.
+- [x] **Verified Transcription**: Once the local bot container was stopped, the production bot successfully received updates, invoked the local Whisper instance (`Systran/faster-whisper-small`), transcribed the audio, and generated the review buttons in Telegram.
 
-### ❌ BLOCKER: Transcription not working
-
-**Symptom**: Voice messages received and saved but never transcribed. No whisper request in whisper container logs.
-
-**Attempted fixes**:
-1. Added `logging.Errorf` in `booking_file.go` for transcription failures
-2. Changed model from `whisper-1` to `Systran/faster-whisper-small`
-3. Removed forced `language=ru` (let server auto-detect)
-4. Replaced `io.Copy` streaming → `io.ReadAll` + `part.Write` (matches agentic-lab)
-5. Replaced `json.NewDecoder().Decode()` → `io.ReadAll` + `json.Unmarshal`
-6. Added `HandleFileMessage` entry log at top of function
-
-**Current state**: `HandleFileMessage` entry log NEVER appears, suggesting the handler is not even being reached for voice messages. But user confirms they are sending to `@vera_massage_bot`. The whisper containers also show NO requests from massage-bot.
-
-**Hypothesis**: Telebot v3 `OnVoice` handler may not fire for certain update formats, or the update arrives via a different path (e.g., the global callback handler catches it first).
-
-**Next steps**:
-- Send voice message and immediately check logs for "HandleFileMessage called" debug log
-- If no log appears, investigate telebot's update routing (`update.go` switch-case in telebot v3.3.8)
-- Check if message-update middleware (ban check, metrics) blocks voice before it reaches handler
-- Try adding a generic `telebot.OnText` fallback to see if update arrives as text
-
-#### Last updated: 2026-06-20 01:00
+#### Last updated: 2026-06-20 01:25
 
 ---
 
 #### Previous: Last updated: 2026-06-18 20:45 (#47 done)
+
 

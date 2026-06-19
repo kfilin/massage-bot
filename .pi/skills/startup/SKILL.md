@@ -75,7 +75,7 @@ A professional clinical ecosystem for massage therapists: interactive booking, a
                     └─────────────────────────────────────────────────┘
 ```
 
-## 📋 Status & Priorities (Updated 2026-06-20 01:00)
+## 📋 Status & Priorities (Updated 2026-06-20 01:25)
 
 > Updated by `/handoff` at end of each session. Read this BEFORE Step 2 context below — it tells the next agent what just happened and what to focus on.
 
@@ -84,9 +84,8 @@ A professional clinical ecosystem for massage therapists: interactive booking, a
   - Created `internal/adapters/transcription/local.go` — OpenAI-compatible adapter for the local faster-whisper-server container on the Docker network.
   - Deleted `groq.go` and `groq_test.go`.
   - Config: `GroqAPIKey` → `WhisperBaseURL` (env `WHISPER_BASE_URL`).
-  - All docs, env examples, start skill updated.
   - Deployed to prod (commits `123bfad`, `cce200a`, `4a89d7b`, `ccfa780`).
-  - **BLOCKED**: Transcription returns HTTP 400 from whisper server. The `HandleFileMessage` handler is allegedly not being reached (no entry log even with debug logging added). Root cause not yet identified.
+  - **Fixed Blocker**: Resolved Telegram update-stealing conflict. The developer machine's local bot container was running in the background and hijacking voice updates. Once stopped, the server bot correctly received updates and successfully transcribed voice messages via the local Whisper instance (`Systran/faster-whisper-small`).
 
 ### 🟢 Recently Completed (previous: #51)
 - **#51 DONE**: **TWA back button bug fixed** — `sessionStorage` replaces `window.history.length`.
@@ -108,13 +107,11 @@ A professional clinical ecosystem for massage therapists: interactive booking, a
 - **#36 DONE**: **Test Coverage Hardened to 80.0%** (exact: 2390/2989 stmts).
 
 ### 🟡 Active Focus
-- **📍 Debug local Whisper transcription**: `HandleFileMessage` handler is not being reached when a voice message is sent. Added entry log in `booking_file.go` (`ccfa780`). Next session should send a voice message and check if the log appears.
+- **📍 Implement robustness improvements**: Apply proposed changes to `booking_file.go` to open files directly from disk (`os.Open`) instead of double-downloading them via Telegram HTTP, and add proper error handling to all Telegram file/media API calls.
 - **📍 Polish system messages**: welcome text says "Vera Massage Clinic" — verify real clinic name with user.
 - **📍 Link patients**: Run `go run scripts/data_migration.go link-patients` — assign TGIDs to ~85 unique patient names.
 
 ### 🔴 Blockers / Known Issues
-- **Local Whisper transcription returning 400**: The Go adapter (`local.go`) gets 400 Bad Request from whisper server. Model renamed to `Systran/faster-whisper-small`, `language` removed, streaming reader replaced with `io.ReadAll`. Still fails. Need to check response body.
-- **Voice handler may not fire**: Despite 3 voice message attempts, `HandleFileMessage` entry log never appeared. Could be a telebot/update routing issue or the voice message arrives on a different path than expected.
 - **Patient linking pending**.
 - **Normal prod deploy still blocked by port collision**: `SKIP_PORT_CHECK=1` works as workaround.
 - **Dev-machine `go test ./...` perm denied** on `postgres_data/`.
