@@ -33,6 +33,14 @@
     </div>
 
     <script>
+        // Force-hide the back button on the search page (root page).
+        // TWA retains BackButton state across page loads, so it may still
+        // be visible from a previous card-page navigation.
+        if (window.Telegram?.WebApp) {
+            window.Telegram.WebApp.BackButton.hide();
+        }
+    </script>
+    <script>
         function performSearch(query) {
             fetch('/api/search?q=' + encodeURIComponent(query), {
                 headers: { 'X-Telegram-Init-Data': window.Telegram.WebApp.initData }

@@ -41,6 +41,7 @@ function setupBackButton() {
     if (returnTo) {
         tg.BackButton.show();
         tg.BackButton.onClick(() => {
+            tg.BackButton.hide();              // hide before navigating — TWA retains state across page loads
             sessionStorage.removeItem('twa_return_to');
             window.location.href = returnTo;
         });
