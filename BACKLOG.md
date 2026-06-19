@@ -1,5 +1,20 @@
 # Project Backlog
 
+## 🟢 Session 2026-06-19 13:25 — golangci-lint install + lint fixes + prod deploy
+
+- [x] **Installed golangci-lint v1.64.8** (was missing, `make lint` failed).
+- [x] **Created `.golangci.yml`** with linter config.
+- [x] **Fixed `Makefile` targets**: lint/vet/test/cover now use `./cmd/... ./internal/...` to avoid `postgres_data/` permission issue.
+- [x] **Fixed 27 lint issues** across 14 files:
+  - Unchecked errors (Encode, Write, Send, Delete) in production + test code
+  - Removed unused mock types/functions
+  - Simplified nil+len checks (gosimple S1009)
+  - Inlined unused `expiryDays` variable (ineffassign)
+  - Fixed nil dereference potential (staticcheck SA5011)
+  - Removed empty branches (staticcheck SA9003)
+  - Added missing `logging` import
+- [x] **Prod deploy** (commit `128e7f8`): `SKIP_PORT_CHECK=1 ./scripts/deploy.sh prod` — image rebuilt, containers recreated, health 200.
+
 ## 🟢 Session 2026-06-19 01:08 — Google Calendar migration: second batch + patient linking tool
 
 - [x] **Migration pagination**: Added pagination + `--since` flag to `doMigrate` so it reads ALL vfilinav events beyond 500.
