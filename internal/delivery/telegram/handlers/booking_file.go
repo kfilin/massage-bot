@@ -34,13 +34,14 @@ func (h *BookingHandler) HandleUploadCommand(c telebot.Context) error {
 
 func (h *BookingHandler) HandleFileMessage(c telebot.Context) error {
 	userID := c.Sender().ID
+	msg := c.Message()
+	logging.Infof("HandleFileMessage called (user=%d, msg=%v, hasVoice=%v)", userID, msg != nil, msg != nil && msg.Voice != nil)
 	telegramID := strconv.FormatInt(userID, 10)
 
 	var fileID string
 	var fileName string
 	var fileSize int
 
-	msg := c.Message()
 	if doc := msg.Document; doc != nil {
 		fileID = doc.FileID
 		fileName = doc.FileName
