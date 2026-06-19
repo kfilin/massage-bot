@@ -50,21 +50,15 @@ func NewGoogleCalendarClient() (*calendar.Service, error) {
 		return nil, fmt.Errorf("unable to get Google API token: %w", err)
 	}
 
-	// Update expiry metric
-	// We try to catch the long-term refresh token expiry if available,
-	// otherwise fallback to access token expiry.
-	expiryDays := 180.0 // Default 6 months as per user expectation
-
+	// Log token expiry for monitoring
 	tokenJSON := os.Getenv("GOOGLE_TOKEN_JSON")
 	var rawData struct {
 		RefreshTokenExpiresIn float64 `json:"refresh_token_expires_in"`
 	}
 	if err := json.Unmarshal([]byte(tokenJSON), &rawData); err == nil && rawData.RefreshTokenExpiresIn > 0 {
-		expiryDays = rawData.RefreshTokenExpiresIn / 86400
-		logging.Debugf(": Detected Refresh Token expiry in %.1f days", expiryDays)
+		logging.Debugf(": Detected Refresh Token expiry in %.1f days", rawData.RefreshTokenExpiresIn/86400)
 	} else if !token.Expiry.IsZero() {
-		expiryDays = time.Until(token.Expiry).Hours() / 24
-		logging.Debugf(": Falling back to Access Token expiry: %.2f hours", expiryDays*24)
+		logging.Debugf(": Falling back to Access Token expiry: %.2f hours", time.Until(token.Expiry).Hours())
 	}
 
 	// Create the base client with the token

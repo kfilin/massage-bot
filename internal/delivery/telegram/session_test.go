@@ -19,7 +19,7 @@ func TestSession_GetNewUser_ReturnsNilOrEmpty(t *testing.T) {
 	s := NewInMemorySessionStorage()
 	data := s.Get(999)
 	// Implementation returns nil for unknown user — safe to use with range
-	if data != nil && len(data) != 0 {
+	if len(data) != 0 {
 		t.Errorf("Expected nil or empty session for unknown user, got %v", data)
 	}
 }
@@ -30,7 +30,7 @@ func TestSession_ClearSession(t *testing.T) {
 	s.ClearSession(42)
 
 	data := s.Get(42)
-	if data != nil && len(data) != 0 {
+	if len(data) != 0 {
 		t.Errorf("Expected empty session after ClearSession, got %v", data)
 	}
 }

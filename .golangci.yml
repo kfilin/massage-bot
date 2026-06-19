@@ -1,0 +1,30 @@
+# golangci-lint configuration for Vera Massage Bot
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+  disable:
+    - exhaustruct
+    - nlreturn
+    - wsl
+
+linters-settings:
+  errcheck:
+    exclude-functions:
+      - (*os.File).Close
+      - io.Copy
+      - io.CopyBuffer
+
+issues:
+  exclude-dirs:
+    - postgres_data
+    - .postgres_data
+    - .postgres_data_dev
+    - data
+    - data_test
+    - logs
+    - bin

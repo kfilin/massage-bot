@@ -58,7 +58,7 @@ func TestTranscribe_Success(t *testing.T) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(groqResponse{Text: "Привет, мир"})
+		_ = json.NewEncoder(w).Encode(groqResponse{Text: "Привет, мир"})
 	}))
 	defer server.Close()
 
@@ -81,7 +81,7 @@ func TestTranscribe_Success(t *testing.T) {
 func TestTranscribe_APIError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("internal error"))
+		_, _ = w.Write([]byte("internal error"))
 	}))
 	defer server.Close()
 
@@ -101,7 +101,7 @@ func TestTranscribe_APIError(t *testing.T) {
 func TestTranscribe_InvalidJSON(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte("not json"))
+		_, _ = w.Write([]byte("not json"))
 	}))
 	defer server.Close()
 
@@ -133,7 +133,7 @@ func TestTranscribe_HallucinationFilter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				json.NewEncoder(w).Encode(groqResponse{Text: tt.apiText})
+				_ = json.NewEncoder(w).Encode(groqResponse{Text: tt.apiText})
 			}))
 			defer server.Close()
 

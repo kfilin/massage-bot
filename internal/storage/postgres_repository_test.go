@@ -1535,9 +1535,7 @@ func TestSaveAppointmentMetadata_RemindersMarshalError(t *testing.T) {
 
 	// Test with empty reminders (should succeed)
 	err = repo.SaveAppointmentMetadata("appt-1", nil, remindersSent)
-	if err == nil {
-		// This may succeed or fail depending on DB mock, which is fine
-	}
+	_ = err
 }
 
 func TestUpdatePatientProfile_Error(t *testing.T) {

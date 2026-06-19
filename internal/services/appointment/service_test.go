@@ -601,7 +601,7 @@ func TestService_NewServiceWithMetrics(t *testing.T) {
 	metrics := &NoOpCollector{}
 	svc := NewServiceWithMetrics(repo, nil, metrics)
 	if svc == nil {
-		t.Error("NewServiceWithMetrics returned nil")
+		t.Fatal("NewServiceWithMetrics returned nil")
 	}
 	if svc.metrics != metrics {
 		t.Error("Metrics not set correctly")

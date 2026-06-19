@@ -179,7 +179,7 @@ func TestGetMedia_ForbiddenAccess(t *testing.T) {
 func TestGetMedia_AdminAccess(t *testing.T) {
 	tmpDir := t.TempDir()
 	tmpFile := filepath.Join(tmpDir, "test.txt")
-	os.WriteFile(tmpFile, []byte("hello"), 0644)
+	_ = os.WriteFile(tmpFile, []byte("hello"), 0644)
 
 	// Set DATA_DIR to temp dir so path traversal check passes
 	os.Setenv("DATA_DIR", tmpDir)

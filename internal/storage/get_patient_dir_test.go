@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -117,12 +116,4 @@ func TestGetPatientDir_NoPatientsDir(t *testing.T) {
 	}
 }
 
-// Helper: a minimal valid patient.json for migration tests.
-func writePatientJSON(t *testing.T, dir, name string) {
-	t.Helper()
-	p := domain.Patient{TelegramID: name, Name: name}
-	b, _ := json.Marshal(p)
-	if err := os.WriteFile(filepath.Join(dir, "patient.json"), b, 0644); err != nil {
-		t.Fatalf("write: %v", err)
-	}
-}
+

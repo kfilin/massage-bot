@@ -128,12 +128,16 @@ func (h *BookingHandler) HandleFileMessage(c telebot.Context) error {
 			transcript, err = h.transcriptionService.Transcribe(context.Background(), fileReaderForTranscription, "admin_reply.ogg")
 
 			if statusMsg != nil {
-				c.Bot().Delete(statusMsg)
+				if err := c.Bot().Delete(statusMsg); err != nil {
+					logging.Warnf("Failed to delete status message: %v", err)
+				}
 			}
 
 			if err == nil && transcript != "" {
 				// Send transcription to patient
-				c.Bot().Send(patientUser, fmt.Sprintf("📝 <b>Текст сообщения:</b>\n%s", transcript), telebot.ModeHTML)
+				if _, err := c.Bot().Send(patientUser, fmt.Sprintf("📝 <b>Текст сообщения:</b>\n%s", transcript), telebot.ModeHTML); err != nil {
+					logging.Warnf("Failed to send transcript to patient: %v", err)
+				}
 
 				// Log to Patient's Notes (Dialogue View)
 				patient, err := h.repository.GetPatient(replyingToID)

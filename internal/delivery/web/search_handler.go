@@ -78,6 +78,8 @@ func NewSearchHandler(repo ports.Repository, botToken string, adminIDs []string)
 				TotalVisits: p.TotalVisits,
 			})
 		}
-		json.NewEncoder(w).Encode(results)
+		if err := json.NewEncoder(w).Encode(results); err != nil {
+		logging.Errorf("Failed to encode search results: %v", err)
+	}
 	}
 }

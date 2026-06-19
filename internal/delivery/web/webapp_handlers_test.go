@@ -717,7 +717,7 @@ func TestUpdatePatientHandler_Success(t *testing.T) {
 	}
 
 	var resp map[string]string
-	json.NewDecoder(rr.Body).Decode(&resp)
+	_ = json.NewDecoder(rr.Body).Decode(&resp)
 	if resp["status"] != "ok" {
 		t.Errorf("Expected status ok, got %s", resp["status"])
 	}
@@ -826,7 +826,7 @@ func TestTranscribeHandler_Success(t *testing.T) {
 
 	// Add voice file
 	part, _ := writer.CreateFormFile("voice", "voice.ogg")
-	part.Write([]byte("fake audio data"))
+	_, _ = part.Write([]byte("fake audio data"))
 
 	writer.Close()
 
@@ -840,7 +840,7 @@ func TestTranscribeHandler_Success(t *testing.T) {
 	}
 
 	var resp map[string]string
-	json.NewDecoder(rr.Body).Decode(&resp)
+	_ = json.NewDecoder(rr.Body).Decode(&resp)
 	if resp["status"] != "ok" {
 		t.Errorf("Expected status ok, got %s", resp["status"])
 	}
@@ -869,7 +869,7 @@ func TestTranscribeHandler_MissingAuth(t *testing.T) {
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
 	part, _ := writer.CreateFormFile("voice", "voice.ogg")
-	part.Write([]byte("fake audio data"))
+	_, _ = part.Write([]byte("fake audio data"))
 	writer.Close()
 
 	req, _ := http.NewRequest("POST", "/api/transcribe", &buf)
@@ -910,7 +910,7 @@ func TestTranscribeHandler_InvalidInitData(t *testing.T) {
 	writer := multipart.NewWriter(&buf)
 	_ = writer.WriteField("initData", "garbage_data")
 	part, _ := writer.CreateFormFile("voice", "voice.ogg")
-	part.Write([]byte("fake audio data"))
+	_, _ = part.Write([]byte("fake audio data"))
 	writer.Close()
 
 	req, _ := http.NewRequest("POST", "/api/transcribe", &buf)
@@ -1078,7 +1078,7 @@ func TestTranscribeHandler_TranscriptionError(t *testing.T) {
 	initData := makeInitData("100", "User", botToken)
 	_ = writer.WriteField("initData", initData)
 	part, _ := writer.CreateFormFile("voice", "voice.ogg")
-	part.Write([]byte("fake audio data"))
+	_, _ = part.Write([]byte("fake audio data"))
 	writer.Close()
 
 	req, _ := http.NewRequest("POST", "/api/transcribe", &buf)
@@ -1100,7 +1100,7 @@ func TestTranscribeHandler_FileFallback(t *testing.T) {
 	initData := makeInitData("100", "User", botToken)
 	_ = writer.WriteField("initData", initData)
 	part, _ := writer.CreateFormFile("file", "voice.ogg")
-	part.Write([]byte("fake audio data"))
+	_, _ = part.Write([]byte("fake audio data"))
 	writer.Close()
 
 	req, _ := http.NewRequest("POST", "/api/transcribe", &buf)
@@ -1112,7 +1112,7 @@ func TestTranscribeHandler_FileFallback(t *testing.T) {
 		t.Errorf("Expected 200 for file fallback, got %d. Body: %s", rr.Code, rr.Body.String())
 	}
 	var resp map[string]string
-	json.NewDecoder(rr.Body).Decode(&resp)
+	_ = json.NewDecoder(rr.Body).Decode(&resp)
 	if resp["status"] != "ok" {
 		t.Errorf("Expected status ok, got %s", resp["status"])
 	}
@@ -1293,10 +1293,7 @@ func TestPagination_PartialRender(t *testing.T) {
 	if strings.Contains(body, "<!DOCTYPE html>") {
 		t.Errorf("Partial render leaked full page chrome")
 	}
-	if !strings.Contains(body, "МЕДИЦИНСКАЯ КАРТА") && strings.Contains(body, "<!DOCTYPE") {
-		// ignore — partial should not have card title
-	}
-	// Partial render at offset=20, limit=10 with 50 total → still has more
+		// Partial render at offset=20, limit=10 with 50 total → still has more
 	if !strings.Contains(body, "Показать ещё") {
 		t.Errorf("Expected 'Show more' button in partial render when more pages exist")
 	}

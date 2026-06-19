@@ -84,6 +84,7 @@ A professional clinical ecosystem for massage therapists: interactive booking, a
   - **Pagination + `--since`**: `doMigrate` now paginates through all events (previously capped at 500).
   - **Second batch migrated**: 885 more events from vfilinav (2025-10-03 → 2026-06-19). Total: 1385.
   - **`link-patients` command**: New `assign-tgids` style tool in `scripts/data_migration.go` that groups events by customer name and batch-updates descriptions with TGIDs.
+- **Gitleaks 8.30.1 installed**: Pre-commit hook now uses real gitleaks. Calendar group IDs allowlisted in `.gitleaks.toml`.
 - **#48 DONE**: **Pre-release cleanup & documentation refresh**.
   - **Documentation pass**: Updated README, USER_GUIDE, DEVELOPER, CHANGELOG, AGENT_USER_MANUAL, docs/files.md, docs/CI_CD_Pipeline.md, docs/API.md, docs/VERA_GUIDE_RU.md, docs/metrics_setup.md, docs/ProdArchitecture.md, deploy/monitoring/README, data/README, metrics.md, docs/backlog_design.md — coverage badge 80%, all version bumps, deprecated refs removed.
   - **Archived**: walkthrough.md → ARCHIVE/WALKTHROUGH/, what_to_fix.md → ARCHIVE/REVIEWS/ (all P0s resolved).

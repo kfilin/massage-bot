@@ -175,47 +175,6 @@ type notFoundError struct{ tgID string }
 
 func (e *notFoundError) Error() string { return "patient not found: " + e.tgID }
 
-// =====================================================================
-// Mock SessionStorage
-// =====================================================================
-
-type tfMockSessionStorage struct {
-	mu       sync.Mutex
-	sessions map[int64]map[string]interface{}
-}
-
-func newTFMockSessionStorage() *tfMockSessionStorage {
-	return &tfMockSessionStorage{sessions: make(map[int64]map[string]interface{})}
-}
-
-func (m *tfMockSessionStorage) Set(userID int64, key string, value interface{}) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.sessions[userID] == nil {
-		m.sessions[userID] = make(map[string]interface{})
-	}
-	if value == nil {
-		delete(m.sessions[userID], key)
-	} else {
-		m.sessions[userID][key] = value
-	}
-}
-
-func (m *tfMockSessionStorage) Get(userID int64) map[string]interface{} {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if s, ok := m.sessions[userID]; ok {
-		return s
-	}
-	return nil
-}
-
-func (m *tfMockSessionStorage) ClearSession(userID int64) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	delete(m.sessions, userID)
-}
-
 // sessionKeyAdminReplyingTo is the key used to look up the patient ID
 // being replied to. Must match handlers.SessionKeyAdminReplyingTo.
 // We duplicate the constant here to avoid a cyclic import.
@@ -497,8 +456,4 @@ func indexOf(s, sub string) int {
 	return -1
 }
 
-// mockBookingHandler is no longer needed; tests pass
-// (webAppURL, generateCardURL) directly to forwardPatientMessageToAdmins.
-type mockBookingHandler struct {
-	WebAppURL string
-}
+

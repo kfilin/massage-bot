@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/kfilin/massage-bot/internal/logging"
 	"github.com/kfilin/massage-bot/internal/ports"
 )
 
@@ -63,6 +64,8 @@ func NewDraftHandler(repo ports.Repository, botToken string, adminIDs []string, 
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
+			logging.Errorf("Failed to encode draft response: %v", err)
+		}
 	}
 }
